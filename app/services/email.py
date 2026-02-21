@@ -4,7 +4,7 @@ from pathlib import Path
 import resend
 from jinja2 import Environment, FileSystemLoader
 
-from app.config import RESEND_API_KEY, EMAIL_FROM
+from app.config import RESEND_API_KEY, EMAIL_FROM, APP_URL
 
 logger = logging.getLogger(__name__)
 
@@ -41,3 +41,46 @@ def send_otp_email(to: str, code: str) -> bool:
         return False
 
     return send_email(to, "Your verification code", html)
+
+
+def send_submission_confirmation_email(to: str, registration_id: str, booth_type_name: str) -> bool:
+    """Send registration submission confirmation email."""
+    try:
+        template = _env.get_template("submission_confirmation.html")
+        html = template.render(
+            registration_id=registration_id,
+            booth_type_name=booth_type_name,
+            dashboard_url=f"{APP_URL}/vendor/dashboard",
+        )
+    except Exception:
+        logger.exception("Failed to render submission confirmation template")
+        return False
+    return send_email(to, f"Registration {registration_id} Received", html)
+
+
+def send_approval_email(to: str, registration_id: str, payment_url: str) -> bool:
+    """Send registration approval notification with payment link."""
+    try:
+        template = _env.get_template("approval.html")
+        html = template.render(
+            registration_id=registration_id,
+            payment_url=payment_url,
+        )
+    except Exception:
+        logger.exception("Failed to render approval email template")
+        return False
+    return send_email(to, f"Registration {registration_id} Approved!", html)
+
+
+def send_rejection_email(to: str, registration_id: str, reason: str | None = None) -> bool:
+    """Send registration rejection notification."""
+    try:
+        template = _env.get_template("rejection.html")
+        html = template.render(
+            registration_id=registration_id,
+            reason=reason,
+        )
+    except Exception:
+        logger.exception("Failed to render rejection email template")
+        return False
+    return send_email(to, f"Registration {registration_id} Update", html)

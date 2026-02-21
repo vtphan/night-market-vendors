@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{{ settings.event_name }}{% endblock %}
+
+{% block content %}
+<hgroup>
+    <h2>{{ settings.event_name }}</h2>
+    <p>{{ settings.event_date.strftime('%B %d, %Y') }}</p>
+</hgroup>
+
+{% if settings.front_page_content %}
+<article>
+    {{ settings.front_page_content }}
+</article>
+{% endif %}
+
+<article>
+    <header><strong>Registration Status</strong></header>
+    {% if status == "coming_soon" %}
+    <p>Vendor registration opens on <strong>{{ settings.registration_open_date.strftime('%B %d, %Y at %I:%M %p') }}</strong>.</p>
+    <p>Please check back then to register your booth.</p>
+    {% elif status == "open" %}
+    <p>Vendor registration is <strong>open</strong> and closes on <strong>{{ settings.registration_close_date.strftime('%B %d, %Y at %I:%M %p') }}</strong>.</p>
+    <p><a href="/auth/login" role="button">Register as a Vendor</a></p>
+    {% else %}
+    <p>Vendor registration is now <strong>closed</strong>.</p>
+    <p>If you have already registered, you can <a href="/auth/login">log in</a> to check your registration status.</p>
+    {% endif %}
+</article>
+{% endblock %}

@@ -23,3 +23,101 @@
     border: 1px solid #ccf;
     color: #006;
 }
+
+/* Status badges */
+.status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.status-badge.pending {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffc107;
+}
+
+.status-badge.approved {
+    background-color: #cce5ff;
+    color: #004085;
+    border: 1px solid #4dabf7;
+}
+
+.status-badge.rejected {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.status-badge.confirmed {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-badge.cancelled {
+    background-color: #e2e3e5;
+    color: #383d41;
+    border: 1px solid #d6d8db;
+}
+
+/* Step progress indicator */
+.step-progress {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem 0;
+}
+
+.step-progress .step {
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    background-color: #e2e3e5;
+    color: #6c757d;
+}
+
+.step-progress .step.active {
+    background-color: #0066cc;
+    color: #fff;
+    font-weight: 600;
+}
+
+.step-progress .step.completed {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+/* Booth option styling */
+.booth-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+}
+
+.booth-option:hover {
+    border-color: #0066cc;
+}
+
+.booth-option input[type="radio"] {
+    margin-top: 0.25rem;
+}
+
+/* Filter bar */
+.filter-bar {
+    margin-bottom: 1rem;
+}
+
+.filter-bar .grid {
+    align-items: end;
+}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Vendor Registration - Step 2 - Asian Night Market{% endblock %}
+
+{% block content %}
+<h2>Vendor Registration</h2>
+<div class="step-progress">
+    <span class="step completed">1. Agreement</span>
+    <span class="step active">2. Profile</span>
+    <span class="step">3. Booth</span>
+    <span class="step">4. Review</span>
+</div>
+
+<article>
+    <header><h3>Business & Contact Information</h3></header>
+    <form method="post" action="/vendor/register/step2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <label for="business_name">Business Name</label>
+        <input type="text" id="business_name" name="business_name" required
+               value="{{ draft.get('business_name', '') }}" placeholder="Your business name">
+
+        <label for="contact_name">Contact Name</label>
+        <input type="text" id="contact_name" name="contact_name" required
+               value="{{ draft.get('contact_name', '') }}" placeholder="Primary contact person">
+
+        <label for="phone">Phone Number</label>
+        <input type="tel" id="phone" name="phone" required
+               value="{{ draft.get('phone', '') }}" placeholder="(555) 123-4567">
+
+        <fieldset>
+            <legend>Vendor Category</legend>
+            <label>
+                <input type="radio" name="category" value="food" id="cat_food"
+                       {{ 'checked' if draft.get('category') == 'food' }}>
+                Food Vendor
+            </label>
+            <label>
+                <input type="radio" name="category" value="non_food" id="cat_non_food"
+                       {{ 'checked' if draft.get('category') == 'non_food' }}>
+                Non-Food Vendor (Crafts, Merchandise, etc.)
+            </label>
+        </fieldset>
+
+        <div id="cuisine_field" style="{{ '' if draft.get('category') == 'food' else 'display: none;' }}">
+            <label for="cuisine_type">Cuisine Type</label>
+            <input type="text" id="cuisine_type" name="cuisine_type"
+                   value="{{ draft.get('cuisine_type', '') }}" placeholder="e.g., Japanese, Thai, Vietnamese">
+        </div>
+
+        <label for="description">Description of Products/Services</label>
+        <textarea id="description" name="description" rows="4" required
+                  placeholder="Describe what you will be selling or offering...">{{ draft.get('description', '') }}</textarea>
+
+        <fieldset>
+            <legend>Utility Needs</legend>
+            <label>
+                <input type="checkbox" name="needs_power" {{ 'checked' if draft.get('needs_power') }}>
+                Electrical Power
+            </label>
+            <label>
+                <input type="checkbox" name="needs_water" {{ 'checked' if draft.get('needs_water') }}>
+                Water Access
+            </label>
+            <label>
+                <input type="checkbox" name="needs_propane" {{ 'checked' if draft.get('needs_propane') }}>
+                Propane Usage
+            </label>
+        </fieldset>
+
+        <button type="submit">Continue to Step 3</button>
+    </form>
+</article>
+
+<script>
+    document.querySelectorAll('input[name="category"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const cuisineField = document.getElementById('cuisine_field');
+            cuisineField.style.display = radio.value === 'food' ? '' : 'none';
+        });
+    });
+</script>
+{% endblock %}

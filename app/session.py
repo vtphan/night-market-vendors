@@ -87,7 +87,7 @@ def require_admin(
     """FastAPI dependency: requires active admin session."""
     session = read_session(request)
     if not session:
-        raise HTTPException(status_code=303, headers={"Location": "/auth/login"})
+        raise HTTPException(status_code=303, headers={"Location": "/auth/login?role=admin"})
 
     if session.get("user_type") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -100,4 +100,29 @@ def require_admin(
     if not admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 
+    return session
+
+
+def update_session_data(response: Response, session_data: dict, key: str, value) -> dict:
+    """Update a key in the session dict, re-sign cookie, return updated data."""
+    session_data[key] = value
+    signed = _serializer.dumps(session_data)
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=signed,
+        httponly=True,
+        secure=not DEBUG,
+        samesite="lax",
+        path="/",
+    )
+    return session_data
+
+
+def require_vendor(request: Request) -> dict:
+    """FastAPI dependency: requires vendor session. Redirects to login if missing."""
+    session = read_session(request)
+    if not session:
+        raise HTTPException(status_code=303, headers={"Location": "/auth/login"})
+    if session.get("user_type") != "vendor":
+        raise HTTPException(status_code=303, headers={"Location": "/auth/login"})
     return session

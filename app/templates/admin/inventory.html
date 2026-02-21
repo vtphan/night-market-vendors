@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Booth Inventory - Admin - Asian Night Market{% endblock %}
+
+{% block content %}
+<h2>Booth Inventory</h2>
+
+<figure>
+    <table>
+        <thead>
+            <tr>
+                <th>Booth Type</th>
+                <th>Price</th>
+                <th>Total</th>
+                <th>Approved</th>
+                <th>Confirmed</th>
+                <th>Available</th>
+                <th>Update</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in inventory %}
+            <tr>
+                <td><strong>{{ item.name }}</strong></td>
+                <td>{{ format_price(item.price) }}</td>
+                <td>{{ item.total_quantity }}</td>
+                <td>{{ item.approved }}</td>
+                <td>{{ item.confirmed }}</td>
+                <td><strong>{{ item.available }}</strong></td>
+                <td>
+                    <form method="post" action="/admin/inventory/{{ item.id }}" style="display: flex; gap: 0.5rem; margin: 0;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="number" name="total_quantity" value="{{ item.total_quantity }}"
+                               min="0" style="width: 80px; margin: 0; padding: 0.25rem;">
+                        <button type="submit" class="secondary outline" style="margin: 0; padding: 0.25rem 0.5rem;">Save</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</figure>
+
+<p><a href="/admin">&larr; Back to Dashboard</a></p>
+{% endblock %}

@@ -2,15 +2,16 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import DEBUG
-from app.database import Base, engine, SessionLocal
+from app.database import Base, engine, SessionLocal, get_db
 from app.seed import seed_event_data, bootstrap_admins
 from app.session import read_session, refresh_session
+from app.models import EventSettings
 
 # Configure logging
 logging.basicConfig(
@@ -50,6 +51,25 @@ app.state.flash = {}
 # Templates
 app.state.templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 
+
+# Custom Jinja2 filters
+def format_price(cents: int) -> str:
+    """Convert cents to dollar string: 15000 → '$150.00'"""
+    if cents is None:
+        return "$0.00"
+    return f"${cents / 100:.2f}"
+
+
+def format_datetime(dt) -> str:
+    """Format datetime for display."""
+    if dt is None:
+        return ""
+    return dt.strftime("%b %d, %Y %I:%M %p")
+
+
+app.state.templates.env.globals["format_price"] = format_price
+app.state.templates.env.globals["format_datetime"] = format_datetime
+
 # Static files
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 
@@ -57,6 +77,9 @@ app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="stati
 @app.middleware("http")
 async def session_refresh_middleware(request: Request, call_next):
     response = await call_next(request)
+    # Don't refresh session on logout — clear_session already deleted the cookie
+    if request.url.path == "/auth/logout":
+        return response
     session = read_session(request)
     if session:
         refresh_session(response, session)
@@ -69,10 +92,42 @@ async def health_check():
     return JSONResponse({"status": "ok"})
 
 
-# Redirect root to login
+# Homepage
 @app.get("/")
-async def root():
-    return RedirectResponse(url="/auth/login", status_code=303)
+async def homepage(request: Request, db = Depends(get_db)):
+    from datetime import datetime, timezone
+    from sqlalchemy.orm import Session as SASession
+
+    session = read_session(request)
+    settings = db.query(EventSettings).first()
+
+    if not settings:
+        return RedirectResponse(url="/auth/login", status_code=303)
+
+    now = datetime.now(timezone.utc)
+    open_dt = settings.registration_open_date.replace(tzinfo=timezone.utc)
+    close_dt = settings.registration_close_date.replace(tzinfo=timezone.utc)
+
+    if now < open_dt:
+        status = "coming_soon"
+    elif now <= close_dt:
+        status = "open"
+    else:
+        status = "closed"
+
+    registration_open = (status == "open")
+
+    return app.state.templates.TemplateResponse(
+        "home.html",
+        {
+            "request": request,
+            "settings": settings,
+            "status": status,
+            "session": session,
+            "registration_open": registration_open,
+            "get_flashed_messages": lambda: [],
+        },
+    )
 
 
 # Custom exception handler for 303 redirects from require_admin
@@ -91,6 +146,8 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
 # Include routers
 from app.routes.auth import router as auth_router
 from app.routes.admin import router as admin_router
+from app.routes.vendor import router as vendor_router
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(vendor_router)

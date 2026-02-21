@@ -150,7 +150,8 @@ async def test_non_admin_cannot_access_admin(db):
 async def test_login_page_loads():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/auth/login")
+        # Use role=admin since vendor login redirects when registration is not open
+        response = await client.get("/auth/login?role=admin")
         assert response.status_code == 200
         assert "Login" in response.text
 
@@ -159,8 +160,8 @@ async def test_login_page_loads():
 async def test_login_sends_otp():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        # Get CSRF token from login page
-        login_page = await client.get("/auth/login")
+        # Use role=admin since vendor login redirects when registration is not open
+        login_page = await client.get("/auth/login?role=admin")
         # Extract csrf_token from form
         import re
         match = re.search(r'name="csrf_token" value="([^"]+)"', login_page.text)
@@ -170,7 +171,7 @@ async def test_login_sends_otp():
         with patch("app.routes.auth.send_otp_email", return_value=True):
             response = await client.post(
                 "/auth/login",
-                data={"email": "test@example.com", "csrf_token": csrf_token},
+                data={"email": "test@example.com", "csrf_token": csrf_token, "role": "admin"},
             )
             assert response.status_code == 200
             assert "Verification Code" in response.text

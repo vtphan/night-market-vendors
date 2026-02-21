@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}{{ registration.registration_id }} - Admin - Asian Night Market{% endblock %}
+
+{% block content %}
+<p><a href="/admin/registrations">&larr; Back to Registrations</a></p>
+
+<h2>Registration {{ registration.registration_id }}</h2>
+
+<div class="grid">
+    <article>
+        <header><strong>Vendor Information</strong></header>
+        <table>
+            <tr><th>Business Name</th><td>{{ registration.business_name }}</td></tr>
+            <tr><th>Contact Name</th><td>{{ registration.contact_name }}</td></tr>
+            <tr><th>Email</th><td>{{ registration.email }}</td></tr>
+            <tr><th>Phone</th><td>{{ registration.phone }}</td></tr>
+            <tr><th>Category</th><td>{{ 'Food' if registration.category == 'food' else 'Non-Food' }}</td></tr>
+            {% if registration.cuisine_type %}
+            <tr><th>Cuisine Type</th><td>{{ registration.cuisine_type }}</td></tr>
+            {% endif %}
+            <tr><th>Description</th><td>{{ registration.description }}</td></tr>
+            <tr>
+                <th>Utility Needs</th>
+                <td>
+                    {% set needs = [] %}
+                    {% if registration.needs_power %}{% set _ = needs.append('Power') %}{% endif %}
+                    {% if registration.needs_water %}{% set _ = needs.append('Water') %}{% endif %}
+                    {% if registration.needs_propane %}{% set _ = needs.append('Propane') %}{% endif %}
+                    {{ needs | join(', ') if needs else 'None' }}
+                </td>
+            </tr>
+        </table>
+    </article>
+
+    <article>
+        <header><strong>Registration Details</strong></header>
+        <table>
+            <tr>
+                <th>Status</th>
+                <td><span class="status-badge {{ registration.status }}">{{ registration.status | title }}</span></td>
+            </tr>
+            <tr><th>Booth Type</th><td>{{ booth_type.name if booth_type else 'N/A' }} ({{ format_price(booth_type.price) if booth_type else 'N/A' }})</td></tr>
+            <tr><th>Submitted</th><td>{{ registration.created_at.strftime('%b %d, %Y %I:%M %p') if registration.created_at else '' }}</td></tr>
+            {% if registration.approved_at %}
+            <tr><th>Approved</th><td>{{ registration.approved_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+            {% endif %}
+            {% if registration.rejected_at %}
+            <tr><th>Rejected</th><td>{{ registration.rejected_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+            {% endif %}
+            {% if registration.rejection_reason %}
+            <tr><th>Rejection Reason</th><td>{{ registration.rejection_reason }}</td></tr>
+            {% endif %}
+            <tr><th>Agreement IP</th><td>{{ registration.agreement_ip_address }}</td></tr>
+            <tr><th>Agreement Date</th><td>{{ registration.agreement_accepted_at.strftime('%b %d, %Y %I:%M %p') if registration.agreement_accepted_at else '' }}</td></tr>
+        </table>
+    </article>
+</div>
+
+<!-- Admin Actions -->
+<article>
+    <header><strong>Admin Actions</strong></header>
+
+    <!-- Update fields -->
+    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/update" style="margin-bottom: 1rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="grid">
+            <fieldset>
+                <label>
+                    <input type="checkbox" name="documents_approved" {{ 'checked' if registration.documents_approved }}>
+                    Documents Approved
+                </label>
+            </fieldset>
+            <select name="category">
+                <option value="food" {{ 'selected' if registration.category == 'food' }}>Food</option>
+                <option value="non_food" {{ 'selected' if registration.category == 'non_food' }}>Non-Food</option>
+            </select>
+            <button type="submit" class="secondary">Update Fields</button>
+        </div>
+    </form>
+
+    <!-- Status actions -->
+    <div class="grid">
+        {% if registration.status == 'pending' %}
+        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/approve">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="contrast">Approve</button>
+        </form>
+        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/reject">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="text" name="rejection_reason" placeholder="Reason (optional)">
+            <button type="submit" class="secondary">Reject</button>
+        </form>
+        {% elif registration.status == 'approved' %}
+        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/reject">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="text" name="rejection_reason" placeholder="Reason (optional)">
+            <button type="submit" class="secondary">Revoke Approval</button>
+        </form>
+        {% endif %}
+    </div>
+</article>
+{% endblock %}

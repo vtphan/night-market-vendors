@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}My Registrations - Asian Night Market{% endblock %}
+
+{% block content %}
+<h2>My Registrations</h2>
+
+{% if registrations %}
+<figure>
+    <table>
+        <thead>
+            <tr>
+                <th>Registration ID</th>
+                <th>Business Name</th>
+                <th>Booth Type</th>
+                <th>Status</th>
+                <th>Submitted</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in registrations %}
+            <tr>
+                <td><strong>{{ item.registration.registration_id }}</strong></td>
+                <td>{{ item.registration.business_name }}</td>
+                <td>{{ item.booth_type.name if item.booth_type else 'N/A' }}</td>
+                <td><span class="status-badge {{ item.registration.status }}">{{ item.registration.status | title }}</span></td>
+                <td>{{ item.registration.created_at.strftime('%b %d, %Y') if item.registration.created_at else '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</figure>
+{% else %}
+<p>You don't have any registrations yet.</p>
+<p><a href="/vendor/register" role="button">Register Now</a></p>
+{% endif %}
+{% endblock %}

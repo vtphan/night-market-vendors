@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Registration Coming Soon - Asian Night Market{% endblock %}
+
+{% block content %}
+<h2>Registration Coming Soon</h2>
+<p>Vendor registration for the Asian Night Market will open on:</p>
+<p style="font-size: 1.5rem; font-weight: bold; text-align: center; padding: 1rem; background: var(--pico-card-background-color); border-radius: 8px;">
+    {{ open_date.strftime('%B %d, %Y') }}
+</p>
+<p>Please check back then to register your booth.</p>
+<p><a href="/" role="button" class="secondary">Back to Home</a></p>
+{% endblock %}

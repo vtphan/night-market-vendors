@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Index,
@@ -89,3 +89,11 @@ class EventSettings(Base):
     registration_open_date = Column(DateTime, nullable=False)
     registration_close_date = Column(DateTime, nullable=False)
     vendor_agreement_text = Column(Text, nullable=False)
+    front_page_content = Column(Text, nullable=False, default="")
+
+    def is_registration_open(self) -> bool:
+        """Check if vendor registration is currently open."""
+        now = datetime.now(timezone.utc)
+        open_dt = self.registration_open_date.replace(tzinfo=timezone.utc)
+        close_dt = self.registration_close_date.replace(tzinfo=timezone.utc)
+        return open_dt <= now <= close_dt

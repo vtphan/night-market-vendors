@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Registration Confirmed - Asian Night Market{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <h2>Registration Submitted!</h2>
+    </header>
+
+    <p>Your registration has been received and is now under review.</p>
+
+    <table>
+        <tbody>
+            <tr><th>Registration ID</th><td><strong>{{ registration.registration_id }}</strong></td></tr>
+            <tr><th>Business Name</th><td>{{ registration.business_name }}</td></tr>
+            <tr><th>Booth Type</th><td>{{ booth_type.name if booth_type else 'N/A' }}</td></tr>
+            <tr><th>Status</th><td><span class="status-badge pending">Pending Review</span></td></tr>
+        </tbody>
+    </table>
+
+    <p>You will receive an email notification once your application has been reviewed. This typically takes 3-5 business days.</p>
+
+    <p><a href="/vendor/dashboard" role="button">Go to Dashboard</a></p>
+</article>
+{% endblock %}

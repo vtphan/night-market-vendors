@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Admin - Asian Night Market{% endblock %}
+
+{% block content %}
+<h2>Registration Settings</h2>
+
+{% if settings %}
+<article>
+    <header><strong>Event: {{ settings.event_name }}</strong></header>
+    <p>Event Date: <strong>{{ settings.event_date.strftime('%B %d, %Y') }}</strong></p>
+
+    <form method="post" action="/admin/settings">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <label for="registration_open_date">Registration Opens</label>
+        <input type="datetime-local" id="registration_open_date" name="registration_open_date"
+               value="{{ settings.registration_open_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+
+        <label for="registration_close_date">Registration Closes</label>
+        <input type="datetime-local" id="registration_close_date" name="registration_close_date"
+               value="{{ settings.registration_close_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+
+        <label for="front_page_content">Front Page Content</label>
+        <textarea id="front_page_content" name="front_page_content" rows="6" placeholder="Information displayed on the homepage for all visitors...">{{ settings.front_page_content or '' }}</textarea>
+
+        <button type="submit">Save Changes</button>
+    </form>
+</article>
+{% else %}
+<p>No event settings found. Please seed the database.</p>
+{% endif %}
+
+<p><a href="/admin">&larr; Back to Dashboard</a></p>
+{% endblock %}
