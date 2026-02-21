@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Code - Asian Night Market{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <h2>Enter Verification Code</h2>
+        <p>We sent a 6-digit code to <strong>{{ email }}</strong>. It expires in 10 minutes.</p>
+    </header>
+    <form method="post" action="/auth/verify">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="email" value="{{ email }}">
+        <label for="code">Verification code</label>
+        <input type="text" id="code" name="code" placeholder="000000" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" required autofocus autocomplete="one-time-code">
+        <button type="submit">Verify</button>
+    </form>
+    <footer>
+        <p>Didn't receive the code? <a href="/auth/login">Try again</a></p>
+    </footer>
+</article>
+{% endblock %}

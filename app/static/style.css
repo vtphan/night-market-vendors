@@ -1,0 +1,25 @@
+/* Custom overrides for PicoCSS */
+
+.flash-message {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+}
+
+.flash-message.error {
+    background-color: #fee;
+    border: 1px solid #fcc;
+    color: #c00;
+}
+
+.flash-message.success {
+    background-color: #efe;
+    border: 1px solid #cfc;
+    color: #060;
+}
+
+.flash-message.info {
+    background-color: #eef;
+    border: 1px solid #ccf;
+    color: #006;
+}

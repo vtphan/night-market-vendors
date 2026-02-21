@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Asian Night Market{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="container">
+        <ul>
+            <li><strong>Asian Night Market</strong></li>
+        </ul>
+        <ul>
+            {% if session and session.user_type == "admin" %}
+                <li><a href="/admin">Dashboard</a></li>
+                <li><a href="/auth/logout">Logout</a></li>
+            {% elif session and session.user_type == "vendor" %}
+                <li><a href="/auth/logout">Logout</a></li>
+            {% else %}
+                <li><a href="/auth/login">Login</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    <main class="container">
+        {% for msg in get_flashed_messages() %}
+            <div class="flash-message {{ msg.category }}">{{ msg.text }}</div>
+        {% endfor %}
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
