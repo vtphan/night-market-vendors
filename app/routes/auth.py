@@ -63,6 +63,28 @@ async def login_submit(
     registration_open = _is_registration_open(db)
     flash_messages = []
 
+    # Block non-admin emails early — don't waste an OTP
+    if role == "admin":
+        admin = (
+            db.query(AdminUser)
+            .filter(AdminUser.email == email, AdminUser.is_active == True)
+            .first()
+        )
+        if not admin:
+            flash_messages.append({"category": "error", "text": "This email is not authorized for admin access."})
+            return request.app.state.templates.TemplateResponse(
+                "auth/login.html",
+                {
+                    "request": request,
+                    "csrf_token": generate_csrf_token(),
+                    "session": None,
+                    "role": role,
+                    "registration_open": registration_open,
+                    "get_flashed_messages": lambda: flash_messages,
+                },
+                status_code=403,
+            )
+
     code = create_otp(db, email)
     if code is None:
         flash_messages.append({"category": "error", "text": "Too many attempts. Please wait before trying again."})

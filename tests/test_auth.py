@@ -157,7 +157,12 @@ async def test_login_page_loads():
 
 
 @pytest.mark.anyio
-async def test_login_sends_otp():
+async def test_login_sends_otp(db):
+    # Seed an admin user so the admin login check passes
+    from app.models import AdminUser
+    db.add(AdminUser(email="admin@test.com", is_active=True))
+    db.commit()
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
         # Use role=admin since vendor login redirects when registration is not open
@@ -171,7 +176,7 @@ async def test_login_sends_otp():
         with patch("app.routes.auth.send_otp_email", return_value=True):
             response = await client.post(
                 "/auth/login",
-                data={"email": "test@example.com", "csrf_token": csrf_token, "role": "admin"},
+                data={"email": "admin@test.com", "csrf_token": csrf_token, "role": "admin"},
             )
             assert response.status_code == 200
             assert "Verification Code" in response.text
