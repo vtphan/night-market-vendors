@@ -77,12 +77,18 @@ app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="stati
 @app.middleware("http")
 async def session_refresh_middleware(request: Request, call_next):
     response = await call_next(request)
-    # Don't refresh session on logout — clear_session already deleted the cookie
-    if request.url.path == "/auth/logout":
-        return response
-    session = read_session(request)
-    if session:
-        refresh_session(response, session)
+    # Skip refresh if the route already set/deleted the session cookie
+    # (e.g. login, logout, registration steps that update the draft).
+    # Refreshing would overwrite the new cookie with stale data.
+    already_set = any(
+        b"session=" in header_value
+        for header_name, header_value in response.raw_headers
+        if header_name == b"set-cookie"
+    )
+    if not already_set:
+        session = read_session(request)
+        if session:
+            refresh_session(response, session)
     return response
 
 

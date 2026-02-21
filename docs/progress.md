@@ -12,6 +12,53 @@
 
 <!-- Format: date, what happened, any decisions or blockers. Keep it simple. -->
 
+### 2026-02-21 — Phase 2 complete: Vendor Registration, Admin Review & UX Improvements
+
+Phase 2 built and verified. Vendor registration form, admin review workflow, homepage, and auth improvements all working end-to-end. 82 tests passing.
+
+**What was built:**
+
+1. **Vendor registration wizard (4 steps).** Agreement → Contact/profile → Booth selection → Review & submit. Server-side validation on all steps. Registration draft stored in session cookie across steps. Rate limiting (10/IP/hour).
+2. **Registration service.** `app/services/registration.py` — state machine for all status transitions (Pending → Approved → Confirmed, with Rejected and Cancelled paths). Every invalid transition rejected. Registration ID generation (ANM-XXXXX format).
+3. **Vendor dashboard.** Logged-in vendors see all their registrations with current status.
+4. **Admin registration management.** List page with filter by status/category, search by name/email/ID. Detail page with full profile, approve/reject actions (reject with optional reason). Documents-approved checkbox (informational only).
+5. **Admin inventory view.** Total, approved (pending payment), confirmed (paid), and available counts per booth type. Admin can adjust `total_quantity`.
+6. **Admin settings page.** Edit registration open/close dates and front page content.
+7. **CSV export.** All registrations exported with profile info, booth type, amount, status.
+8. **Email templates.** Submission confirmation, approval notification (with payment link placeholder), rejection notification. All via Resend.
+9. **Public homepage at `/`.** Shows event name, date, registration status (coming soon / open / closed), and admin-editable front page content. Replaces the old redirect-to-login behavior.
+10. **Role-based login flow.** `/auth/login` for vendors, `/auth/login?role=admin` for admins. Same email can log in as either role. Role carried through OTP flow via hidden form field.
+11. **Admin email validation on login.** Non-admin emails are rejected before OTP is sent when using the admin login, preventing unauthorized OTP delivery.
+12. **Logout bug fix.** Session refresh middleware was re-setting the cookie after `clear_session` deleted it. Fixed by skipping refresh on `/auth/logout`.
+13. **Conditional vendor login visibility.** Vendor login link hidden in nav bar when registration is not open. Admin login always visible.
+14. **`front_page_content` field.** Added to `event_settings` model. Admin-editable from settings page. Displayed on homepage.
+15. **`is_registration_open()` method.** Added to `EventSettings` model as single source of truth for registration status checks.
+16. **Tests.** 82 tests passing across 4 test files: auth (14), admin routes (25), vendor routes (24), registration transitions (19). Covers state machine, rate limiting, inventory counts, form validation, auth flows.
+
+**Decisions made:**
+
+- Homepage replaces redirect-to-login. Gives all visitors (vendors, admins, public) a clear landing page with event info and registration status.
+- Role-based login via query parameter (`?role=admin`) instead of separate login pages or auto-detection from `admin_users` table. Simpler, and lets the same email test both roles.
+- Admin email checked before OTP send, not after verification. Prevents wasting OTP codes and avoids confusing UX.
+- Registration draft stored in session cookie (not database). Keeps things simple — no draft cleanup needed.
+- Resend domain verification needed for production email delivery (`nightmarketmemphis.com`). DNS records: DKIM (`resend._domainkey`), MX + SPF for bounce handling (`send` subdomain), DMARC (`_dmarc`).
+
+**Verified:**
+
+- Full registration form flow: agreement → profile → booth → review → submit
+- Admin can view, filter, approve, reject registrations
+- Inventory counts derived correctly from registration statuses
+- Admin can edit registration dates and front page content
+- Homepage shows correct registration status
+- Vendor login hidden when registration not open; admin login always available
+- Non-admin emails blocked at admin login before OTP sent
+- Logout works correctly
+- `pytest` → 82/82 pass
+
+**Next:** Phase 3 — Payment & Cancellation (Stripe PaymentIntents, Elements, webhooks, refunds).
+
+---
+
 ### 2026-02-21 — Phase 1 complete: Foundation, Admin Auth & Dashboard Shell
 
 Project foundation built and verified. All code working end-to-end.
@@ -46,7 +93,7 @@ Project foundation built and verified. All code working end-to-end.
 - `GET /admin` → 303 redirect to `/auth/login`
 - `pytest` → 19/19 pass
 
-**Next:** Phase 2 — Vendor Registration Form (multi-step form, agreement, booth selection, submission).
+**Next:** Phase 2 — Vendor Registration Form (multi-step form, agreement, booth selection, submission). ✅ Completed above.
 
 ---
 

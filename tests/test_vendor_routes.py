@@ -112,9 +112,9 @@ def _seed_booth_types(db):
 
 
 def _make_complete_draft(booth_type_id):
-    """Return a draft with all fields filled for step 4."""
+    """Return a draft with all fields filled for review/submit (step 2)."""
     return {
-        "current_step": 4,
+        "current_step": 2,
         "email": "vendor@test.com",
         "contact_name": "Test Vendor",
         "agreement_ip": "127.0.0.1",
@@ -131,6 +131,24 @@ def _make_complete_draft(booth_type_id):
         "booth_type_name": "Regular",
         "booth_type_price": 10000,
     }
+
+
+def _step1_form_data(csrf, booth_type_id, **overrides):
+    """Build form data for the combined step 1 POST."""
+    data = {
+        "csrf_token": csrf,
+        "contact_name": "Test Vendor",
+        "email": "vendor@test.com",
+        "phone": "555-1234",
+        "business_name": "Test Biz",
+        "category": "food",
+        "description": "Authentic Thai cuisine",
+        "cuisine_type": "Thai",
+        "booth_type_id": str(booth_type_id),
+        "agreement_accepted": "yes",
+    }
+    data.update(overrides)
+    return data
 
 
 # ========================================
@@ -158,13 +176,28 @@ async def test_register_shows_closed_after_close_date(db):
 
 
 @pytest.mark.anyio
-async def test_register_shows_step1_when_open(db):
+async def test_register_requires_login_when_open(db):
+    """When registration is open but no vendor session, redirect to login."""
     _seed_event_open(db)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
         response = await client.get("/vendor/register")
+        assert response.status_code == 303
+        assert "/auth/login" in response.headers["location"]
+
+
+@pytest.mark.anyio
+async def test_register_shows_step1_when_open_and_logged_in(db):
+    """When registration is open and vendor is logged in, show the form."""
+    _seed_event_open(db)
+    _seed_booth_types(db)
+    cookies = _vendor_cookie()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/vendor/register", cookies=cookies)
         assert response.status_code == 200
-        assert "Agreement" in response.text
+        assert "Vendor Registration" in response.text
+        assert "Business Name" in response.text
 
 
 @pytest.mark.anyio
@@ -195,268 +228,259 @@ async def test_register_redirects_if_already_registered(db):
 
 
 # ========================================
-# Step 1 — Agreement
+# Step 1 — Combined registration form
 # ========================================
 
 @pytest.mark.anyio
-async def test_step1_valid_creates_session_and_redirects(db):
+async def test_step1_valid_saves_draft_and_redirects(db):
+    """Valid step1 submission saves draft and redirects to review (step2)."""
     _seed_event_open(db)
+    booths = _seed_booth_types(db)
+    cookies = _vendor_cookie()
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        # Get CSRF token
-        page = await client.get("/vendor/register")
+        page = await client.get("/vendor/register", cookies=cookies)
         csrf = _extract_csrf(page.text)
 
-        response = await client.post("/vendor/register/step1", data={
-            "csrf_token": csrf,
-            "contact_name": "Test Vendor",
-            "email": "new@vendor.com",
-            "agreement_accepted": "yes",
-        })
+        response = await client.post(
+            "/vendor/register/step1",
+            data=_step1_form_data(csrf, booths[1].id),
+            cookies=cookies,
+        )
         assert response.status_code == 303
         assert "/vendor/register" in response.headers["location"]
-        # Session cookie should be set
+        # Session cookie should be updated with draft
         assert "session" in response.cookies
 
 
 @pytest.mark.anyio
 async def test_step1_rejects_without_agreement(db):
     _seed_event_open(db)
+    booths = _seed_booth_types(db)
+    cookies = _vendor_cookie()
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        page = await client.get("/vendor/register")
+        page = await client.get("/vendor/register", cookies=cookies)
         csrf = _extract_csrf(page.text)
 
-        response = await client.post("/vendor/register/step1", data={
-            "csrf_token": csrf,
-            "contact_name": "Test",
-            "email": "test@vendor.com",
-            "agreement_accepted": "no",
-        })
+        response = await client.post(
+            "/vendor/register/step1",
+            data=_step1_form_data(csrf, booths[1].id, agreement_accepted=""),
+            cookies=cookies,
+        )
         assert response.status_code == 200
         assert "must accept" in response.text.lower()
 
 
 @pytest.mark.anyio
-async def test_step1_rejects_invalid_email(db):
+async def test_step1_rejects_missing_contact_name(db):
     _seed_event_open(db)
+    booths = _seed_booth_types(db)
+    cookies = _vendor_cookie()
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        page = await client.get("/vendor/register")
+        page = await client.get("/vendor/register", cookies=cookies)
         csrf = _extract_csrf(page.text)
 
-        response = await client.post("/vendor/register/step1", data={
-            "csrf_token": csrf,
-            "contact_name": "Test",
-            "email": "not-an-email",
-            "agreement_accepted": "yes",
-        })
+        response = await client.post(
+            "/vendor/register/step1",
+            data=_step1_form_data(csrf, booths[1].id, contact_name="  "),
+            cookies=cookies,
+        )
         assert response.status_code == 200
-        assert "valid email" in response.text.lower()
-
-
-# ========================================
-# Step 2 — Profile
-# ========================================
-
-@pytest.mark.anyio
-async def test_step2_valid_advances_to_step3(db):
-    _seed_event_open(db)
-    draft = {"current_step": 2, "email": "v@test.com", "contact_name": "V",
-             "agreement_ip": "127.0.0.1",
-             "agreement_accepted_at": datetime.now(timezone.utc).isoformat()}
-    cookies = _vendor_cookie(draft=draft)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        # Get CSRF from the step2 page
-        page = await client.get("/vendor/register", cookies=cookies)
-        csrf = _extract_csrf(page.text)
-
-        response = await client.post("/vendor/register/step2", data={
-            "csrf_token": csrf,
-            "business_name": "Tasty Thai",
-            "contact_name": "Vendor Person",
-            "phone": "555-1234",
-            "category": "food",
-            "description": "Authentic Thai cuisine",
-            "cuisine_type": "Thai",
-        }, cookies=cookies)
-        assert response.status_code == 303
-        assert "/vendor/register" in response.headers["location"]
+        assert "name" in response.text.lower() and "required" in response.text.lower()
 
 
 @pytest.mark.anyio
-async def test_step2_food_requires_cuisine_type(db):
+async def test_step1_rejects_missing_business_name(db):
     _seed_event_open(db)
-    draft = {"current_step": 2, "email": "v@test.com", "contact_name": "V",
-             "agreement_ip": "127.0.0.1",
-             "agreement_accepted_at": datetime.now(timezone.utc).isoformat()}
-    cookies = _vendor_cookie(draft=draft)
+    booths = _seed_booth_types(db)
+    cookies = _vendor_cookie()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         page = await client.get("/vendor/register", cookies=cookies)
         csrf = _extract_csrf(page.text)
 
-        response = await client.post("/vendor/register/step2", data={
-            "csrf_token": csrf,
-            "business_name": "Food Biz",
-            "contact_name": "Contact",
-            "phone": "555-0000",
-            "category": "food",
-            "description": "Food vendor",
-            "cuisine_type": "",  # Missing!
-        }, cookies=cookies)
-        assert response.status_code == 200
-        assert "cuisine type" in response.text.lower()
-
-
-@pytest.mark.anyio
-async def test_step2_non_food_does_not_require_cuisine(db):
-    _seed_event_open(db)
-    draft = {"current_step": 2, "email": "v@test.com", "contact_name": "V",
-             "agreement_ip": "127.0.0.1",
-             "agreement_accepted_at": datetime.now(timezone.utc).isoformat()}
-    cookies = _vendor_cookie(draft=draft)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        page = await client.get("/vendor/register", cookies=cookies)
-        csrf = _extract_csrf(page.text)
-
-        response = await client.post("/vendor/register/step2", data={
-            "csrf_token": csrf,
-            "business_name": "Craft Shop",
-            "contact_name": "Crafter",
-            "phone": "555-9999",
-            "category": "non_food",
-            "description": "Handmade crafts",
-            "cuisine_type": "",
-        }, cookies=cookies)
-        assert response.status_code == 303
-
-
-@pytest.mark.anyio
-async def test_step2_rejects_missing_business_name(db):
-    _seed_event_open(db)
-    draft = {"current_step": 2, "email": "v@test.com", "contact_name": "V",
-             "agreement_ip": "127.0.0.1",
-             "agreement_accepted_at": datetime.now(timezone.utc).isoformat()}
-    cookies = _vendor_cookie(draft=draft)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        page = await client.get("/vendor/register", cookies=cookies)
-        csrf = _extract_csrf(page.text)
-
-        response = await client.post("/vendor/register/step2", data={
-            "csrf_token": csrf,
-            "business_name": "  ",
-            "contact_name": "Valid Name",
-            "phone": "555-0000",
-            "category": "non_food",
-            "description": "Valid description",
-            "cuisine_type": "",
-        }, cookies=cookies)
+        response = await client.post(
+            "/vendor/register/step1",
+            data=_step1_form_data(csrf, booths[1].id, business_name="  "),
+            cookies=cookies,
+        )
         assert response.status_code == 200
         assert "business name" in response.text.lower()
 
 
 @pytest.mark.anyio
-async def test_step2_rejects_invalid_category(db):
+async def test_step1_rejects_invalid_category(db):
     _seed_event_open(db)
-    draft = {"current_step": 2, "email": "v@test.com", "contact_name": "V",
-             "agreement_ip": "127.0.0.1",
-             "agreement_accepted_at": datetime.now(timezone.utc).isoformat()}
-    cookies = _vendor_cookie(draft=draft)
+    booths = _seed_booth_types(db)
+    cookies = _vendor_cookie()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         page = await client.get("/vendor/register", cookies=cookies)
         csrf = _extract_csrf(page.text)
 
-        response = await client.post("/vendor/register/step2", data={
-            "csrf_token": csrf,
-            "business_name": "Good Biz",
-            "contact_name": "Good Name",
-            "phone": "555-0000",
-            "category": "invalid_cat",
-            "description": "Valid description",
-            "cuisine_type": "",
-        }, cookies=cookies)
+        response = await client.post(
+            "/vendor/register/step1",
+            data=_step1_form_data(csrf, booths[1].id, category="invalid_cat"),
+            cookies=cookies,
+        )
         assert response.status_code == 200
         assert "valid category" in response.text.lower()
 
 
 @pytest.mark.anyio
-async def test_step2_no_session_redirects(db):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        response = await client.post("/vendor/register/step2", data={
-            "csrf_token": "fake",
-        })
-        # Should get 403 (bad CSRF) or 303 redirect
-        assert response.status_code in (303, 403)
-
-
-# ========================================
-# Step 3 — Booth selection
-# ========================================
-
-@pytest.mark.anyio
-async def test_step3_valid_booth_advances(db):
+async def test_step1_food_requires_cuisine_type(db):
     _seed_event_open(db)
     booths = _seed_booth_types(db)
-    draft = {"current_step": 3, "email": "v@test.com", "contact_name": "V",
-             "business_name": "Biz", "phone": "555", "category": "non_food",
-             "description": "Stuff",
-             "agreement_ip": "127.0.0.1",
-             "agreement_accepted_at": datetime.now(timezone.utc).isoformat()}
-    cookies = _vendor_cookie(draft=draft)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        page = await client.get("/vendor/register", cookies=cookies)
-        csrf = _extract_csrf(page.text)
-
-        response = await client.post("/vendor/register/step3", data={
-            "csrf_token": csrf,
-            "booth_type_id": str(booths[0].id),
-        }, cookies=cookies)
-        assert response.status_code == 303
-
-
-@pytest.mark.anyio
-async def test_step3_invalid_booth_shows_error(db):
-    _seed_event_open(db)
-    _seed_booth_types(db)
-    draft = {"current_step": 3, "email": "v@test.com", "contact_name": "V",
-             "business_name": "Biz", "phone": "555", "category": "non_food",
-             "description": "Stuff",
-             "agreement_ip": "127.0.0.1",
-             "agreement_accepted_at": datetime.now(timezone.utc).isoformat()}
-    cookies = _vendor_cookie(draft=draft)
+    cookies = _vendor_cookie()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         page = await client.get("/vendor/register", cookies=cookies)
         csrf = _extract_csrf(page.text)
 
-        response = await client.post("/vendor/register/step3", data={
-            "csrf_token": csrf,
-            "booth_type_id": "99999",
-        }, cookies=cookies)
+        response = await client.post(
+            "/vendor/register/step1",
+            data=_step1_form_data(csrf, booths[1].id, category="food", cuisine_type=""),
+            cookies=cookies,
+        )
+        assert response.status_code == 200
+        assert "cuisine type" in response.text.lower()
+
+
+@pytest.mark.anyio
+async def test_step1_non_food_does_not_require_cuisine(db):
+    _seed_event_open(db)
+    booths = _seed_booth_types(db)
+    cookies = _vendor_cookie()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+        page = await client.get("/vendor/register", cookies=cookies)
+        csrf = _extract_csrf(page.text)
+
+        response = await client.post(
+            "/vendor/register/step1",
+            data=_step1_form_data(csrf, booths[1].id, category="non_food", cuisine_type=""),
+            cookies=cookies,
+        )
+        assert response.status_code == 303
+
+
+@pytest.mark.anyio
+async def test_step1_rejects_invalid_booth_type(db):
+    _seed_event_open(db)
+    _seed_booth_types(db)
+    cookies = _vendor_cookie()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        page = await client.get("/vendor/register", cookies=cookies)
+        csrf = _extract_csrf(page.text)
+
+        response = await client.post(
+            "/vendor/register/step1",
+            data=_step1_form_data(csrf, 99999),
+            cookies=cookies,
+        )
         assert response.status_code == 200
         assert "valid booth type" in response.text.lower()
 
 
+@pytest.mark.anyio
+async def test_step1_no_session_redirects(db):
+    """Step 1 POST without a vendor session redirects to login."""
+    _seed_event_open(db)
+    booths = _seed_booth_types(db)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+        # Need a CSRF token — get one from any page
+        page = await client.get("/vendor/register")
+        # No vendor cookie, should redirect to login
+        response = await client.post(
+            "/vendor/register/step1",
+            data={"csrf_token": "fake", "contact_name": "X", "email": "x@x.com",
+                  "phone": "555", "business_name": "B", "category": "food",
+                  "description": "D", "booth_type_id": "1", "agreement_accepted": "yes"},
+        )
+        # Should get 403 (bad CSRF) or 303 redirect (no session)
+        assert response.status_code in (303, 403)
+
+
+@pytest.mark.anyio
+async def test_step1_email_forced_from_session(db):
+    """Email is taken from session, not from form data."""
+    _seed_event_open(db)
+    booths = _seed_booth_types(db)
+    cookies = _vendor_cookie(email="real@vendor.com")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+        page = await client.get("/vendor/register", cookies=cookies)
+        csrf = _extract_csrf(page.text)
+
+        # Submit with a different email in form data
+        response = await client.post(
+            "/vendor/register/step1",
+            data=_step1_form_data(csrf, booths[1].id, email="fake@hacker.com"),
+            cookies=cookies,
+        )
+        assert response.status_code == 303
+        # The session cookie should contain the real email, not the fake one
+        assert "session" in response.cookies
+
+
 # ========================================
-# Step 4 — Final submit
+# Review page (step 2)
 # ========================================
 
 @pytest.mark.anyio
-async def test_step4_creates_registration_and_redirects(db):
+async def test_review_page_shows_draft_data(db):
+    """Step 2 review page shows the draft data from session."""
+    _seed_event_open(db)
+    booths = _seed_booth_types(db)
+    draft = _make_complete_draft(booths[1].id)
+    cookies = _vendor_cookie(draft=draft)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/vendor/register", cookies=cookies)
+        assert response.status_code == 200
+        assert "Review" in response.text
+        assert "Test Vendor" in response.text
+        assert "Test Biz" in response.text
+
+
+@pytest.mark.anyio
+async def test_edit_link_returns_to_step1(db):
+    """The ?edit=1 query param should show step 1 form with draft data."""
+    _seed_event_open(db)
+    booths = _seed_booth_types(db)
+    draft = _make_complete_draft(booths[1].id)
+    cookies = _vendor_cookie(draft=draft)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/vendor/register?edit=1", cookies=cookies)
+        assert response.status_code == 200
+        # Should show the form, not the review page
+        assert "Business Name" in response.text
+        assert 'value="Test Biz"' in response.text
+
+
+# ========================================
+# Final submit
+# ========================================
+
+@pytest.mark.anyio
+async def test_submit_creates_registration_and_redirects(db):
     reset_rate_limits()
     _seed_event_open(db)
     booths = _seed_booth_types(db)
@@ -469,7 +493,7 @@ async def test_step4_creates_registration_and_redirects(db):
         csrf = _extract_csrf(page.text)
 
         with patch("app.routes.vendor.send_submission_confirmation_email", return_value=True):
-            response = await client.post("/vendor/register/step4", data={
+            response = await client.post("/vendor/register/submit", data={
                 "csrf_token": csrf,
             }, cookies=cookies)
 
@@ -485,10 +509,10 @@ async def test_step4_creates_registration_and_redirects(db):
 
 
 @pytest.mark.anyio
-async def test_step4_incomplete_draft_redirects(db):
+async def test_submit_incomplete_draft_redirects(db):
     _seed_event_open(db)
     # Draft missing required fields
-    draft = {"current_step": 4, "email": "v@test.com"}
+    draft = {"current_step": 2, "email": "vendor@test.com"}
     cookies = _vendor_cookie(draft=draft)
 
     transport = ASGITransport(app=app)
@@ -496,7 +520,7 @@ async def test_step4_incomplete_draft_redirects(db):
         page = await client.get("/vendor/register", cookies=cookies)
         csrf = _extract_csrf(page.text)
 
-        response = await client.post("/vendor/register/step4", data={
+        response = await client.post("/vendor/register/submit", data={
             "csrf_token": csrf,
         }, cookies=cookies)
         assert response.status_code == 303
@@ -504,7 +528,7 @@ async def test_step4_incomplete_draft_redirects(db):
 
 
 @pytest.mark.anyio
-async def test_step4_rate_limited(db):
+async def test_submit_rate_limited(db):
     _seed_event_open(db)
     booths = _seed_booth_types(db)
     draft = _make_complete_draft(booths[1].id)
@@ -521,7 +545,7 @@ async def test_step4_rate_limited(db):
         page = await client.get("/vendor/register", cookies=cookies)
         csrf = _extract_csrf(page.text)
 
-        response = await client.post("/vendor/register/step4", data={
+        response = await client.post("/vendor/register/submit", data={
             "csrf_token": csrf,
         }, cookies=cookies)
         assert response.status_code == 200

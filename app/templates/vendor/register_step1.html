@@ -1,37 +1,115 @@
 {% extends "base.html" %}
 
-{% block title %}Vendor Registration - Step 1 - Asian Night Market{% endblock %}
+{% block title %}Vendor Registration - Asian Night Market{% endblock %}
 
 {% block content %}
 <h2>Vendor Registration</h2>
 <div class="step-progress">
-    <span class="step active">1. Agreement</span>
-    <span class="step">2. Profile</span>
-    <span class="step">3. Booth</span>
-    <span class="step">4. Review</span>
+    <span class="step active">1. Register</span>
+    <span class="step">2. Review</span>
 </div>
 
 <article>
-    <header><h3>Vendor Participation Agreement</h3></header>
-    <div style="max-height: 300px; overflow-y: auto; padding: 1rem; background: var(--pico-card-background-color); border: 1px solid var(--pico-muted-border-color); border-radius: 4px; margin-bottom: 1rem; white-space: pre-line;">{{ agreement_text }}</div>
-
     <form method="post" action="/vendor/register/step1">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
+        <h3>Contact Information</h3>
+
         <label for="contact_name">Full Name</label>
-        <input type="text" id="contact_name" name="contact_name" required placeholder="Your full name">
+        <input type="text" id="contact_name" name="contact_name" required
+               value="{{ draft.get('contact_name', '') }}" placeholder="Your full name">
 
         <label for="email">Email Address</label>
-        <input type="email" id="email" name="email" required placeholder="your@email.com">
+        <input type="email" id="email" name="email" value="{{ email }}" readonly
+               style="background: var(--pico-form-element-disabled-background-color); cursor: not-allowed;">
+
+        <label for="phone">Phone Number</label>
+        <input type="tel" id="phone" name="phone" required
+               value="{{ draft.get('phone', '') }}" placeholder="(555) 123-4567">
+
+        <h3>Business Information</h3>
+
+        <label for="business_name">Business Name</label>
+        <input type="text" id="business_name" name="business_name" required
+               value="{{ draft.get('business_name', '') }}" placeholder="Your business name">
 
         <fieldset>
+            <legend>Vendor Category</legend>
             <label>
+                <input type="radio" name="category" value="food" id="cat_food"
+                       {{ 'checked' if draft.get('category') == 'food' }}>
+                Food Vendor
+            </label>
+            <label>
+                <input type="radio" name="category" value="non_food" id="cat_non_food"
+                       {{ 'checked' if draft.get('category') == 'non_food' else 'checked' if not draft.get('category') }}>
+                Non-Food Vendor (Crafts, Merchandise, etc.)
+            </label>
+        </fieldset>
+
+        <div id="cuisine_field" style="{{ '' if draft.get('category') == 'food' else 'display: none;' }}">
+            <label for="cuisine_type">Cuisine Type</label>
+            <input type="text" id="cuisine_type" name="cuisine_type"
+                   value="{{ draft.get('cuisine_type', '') }}" placeholder="e.g., Japanese, Thai, Vietnamese">
+        </div>
+
+        <label for="description">Description of Products/Services</label>
+        <textarea id="description" name="description" rows="3" required
+                  placeholder="Describe what you will be selling or offering...">{{ draft.get('description', '') }}</textarea>
+
+        <fieldset>
+            <legend>Utility Needs</legend>
+            <label>
+                <input type="checkbox" name="needs_power" {{ 'checked' if draft.get('needs_power') }}>
+                Electrical Power
+            </label>
+            <label>
+                <input type="checkbox" name="needs_water" {{ 'checked' if draft.get('needs_water') }}>
+                Water Access
+            </label>
+            <label>
+                <input type="checkbox" name="needs_propane" {{ 'checked' if draft.get('needs_propane') }}>
+                Propane Usage
+            </label>
+        </fieldset>
+
+        <h3>Booth Selection</h3>
+
+        {% for bt in booth_types %}
+        <label class="booth-option">
+            <input type="radio" name="booth_type_id" value="{{ bt.id }}"
+                   {{ 'checked' if draft.get('booth_type_id') == bt.id }} required>
+            <div>
+                <strong>{{ bt.name }}</strong> — {{ format_price(bt.price) }}
+                <br><small>{{ bt.description }}</small>
+            </div>
+        </label>
+        {% endfor %}
+
+        <hr>
+
+        <details>
+            <summary style="font-size: 0.85rem; cursor: pointer;">Vendor Participation Agreement</summary>
+            <div style="max-height: 200px; overflow-y: auto; padding: 0.75rem; background: var(--pico-card-background-color); border: 1px solid var(--pico-muted-border-color); border-radius: 4px; margin: 0.5rem 0; white-space: pre-line; font-size: 0.8rem; line-height: 1.4;">{{ agreement_text }}</div>
+        </details>
+
+        <fieldset>
+            <label style="font-size: 0.85rem;">
                 <input type="checkbox" name="agreement_accepted" value="yes" required>
                 I have read and agree to the Vendor Participation Agreement
             </label>
         </fieldset>
 
-        <button type="submit">Continue to Step 2</button>
+        <button type="submit">Review Registration</button>
     </form>
 </article>
+
+<script>
+    document.querySelectorAll('input[name="category"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const cuisineField = document.getElementById('cuisine_field');
+            cuisineField.style.display = radio.value === 'food' ? '' : 'none';
+        });
+    });
+</script>
 {% endblock %}
