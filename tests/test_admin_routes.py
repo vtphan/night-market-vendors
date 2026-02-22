@@ -266,7 +266,8 @@ async def test_approve_already_rejected_fails_gracefully(db):
                 "csrf_token": csrf,
             }, cookies=_admin_cookie())
 
-        assert response.status_code == 303
+        assert response.status_code == 200
+        assert "Cannot approve" in response.text
         mock_email.assert_not_called()  # Email should NOT be sent
 
     reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0021").first()

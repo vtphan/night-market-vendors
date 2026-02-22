@@ -73,10 +73,16 @@ app.state.templates.env.globals["format_datetime"] = format_datetime
 # Static files
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 
-# Session refresh middleware
+# Session refresh middleware (also catches unhandled exceptions for friendly 500s)
 @app.middleware("http")
 async def session_refresh_middleware(request: Request, call_next):
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+        return _error_response(request, 500, "Something Went Wrong",
+                               "An unexpected error occurred. Please try again later.")
+
     # Skip refresh if the route already set/deleted the session cookie
     # (e.g. login, logout, registration steps that update the draft).
     # Refreshing would overwrite the new cookie with stale data.
@@ -136,17 +142,60 @@ async def homepage(request: Request, db = Depends(get_db)):
     )
 
 
-# Custom exception handler for 303 redirects from require_admin
-from fastapi.exceptions import HTTPException as FastAPIHTTPException
+# Custom exception handlers
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-@app.exception_handler(FastAPIHTTPException)
-async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
+_ERROR_TITLES = {
+    400: "Bad Request",
+    403: "Forbidden",
+    404: "Page Not Found",
+    405: "Method Not Allowed",
+    429: "Too Many Requests",
+}
+
+_ERROR_MESSAGES = {
+    400: "The request could not be understood. Please check your input and try again.",
+    403: "You don't have permission to access this page.",
+    404: "The page you're looking for doesn't exist or has been moved.",
+    405: "This action is not supported.",
+    429: "You've made too many requests. Please wait a moment and try again.",
+}
+
+
+def _wants_html(request: Request) -> bool:
+    accept = request.headers.get("accept", "")
+    return "text/html" in accept
+
+
+def _error_response(request: Request, status_code: int, title: str, message: str):
+    """Build an HTML or JSON error response based on Accept header."""
+    if _wants_html(request):
+        return app.state.templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "session": read_session(request),
+                "status_code": status_code,
+                "title": title,
+                "message": message,
+                "get_flashed_messages": lambda: [],
+            },
+            status_code=status_code,
+        )
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": message},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 303 and "Location" in (exc.headers or {}):
         return RedirectResponse(url=exc.headers["Location"], status_code=303)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail},
-    )
+
+    title = _ERROR_TITLES.get(exc.status_code, "Error")
+    message = exc.detail if isinstance(exc.detail, str) else _ERROR_MESSAGES.get(exc.status_code, "An unexpected error occurred.")
+    return _error_response(request, exc.status_code, title, message)
 
 
 # Include routers

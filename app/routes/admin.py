@@ -142,9 +142,13 @@ async def approve_registration(
         transition_status(db, registration, "approved")
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
-        return RedirectResponse(
-            url=f"/admin/registrations/{reg_id}", status_code=303
-        )
+        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+        flash = [{"category": "error", "text": f"Cannot approve: {e}"}]
+        return _template(request, "admin/registration_detail.html", {
+            "registration": registration,
+            "booth_type": booth_type,
+            "get_flashed_messages": lambda: flash,
+        }, session=session)
 
     payment_url = f"{APP_URL}/vendor/registration/{reg_id}"
     send_approval_email(registration.email, reg_id, payment_url)
@@ -175,9 +179,13 @@ async def reject_registration(
         transition_status(db, registration, "rejected", rejection_reason=rejection_reason or None)
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
-        return RedirectResponse(
-            url=f"/admin/registrations/{reg_id}", status_code=303
-        )
+        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+        flash = [{"category": "error", "text": f"Cannot reject: {e}"}]
+        return _template(request, "admin/registration_detail.html", {
+            "registration": registration,
+            "booth_type": booth_type,
+            "get_flashed_messages": lambda: flash,
+        }, session=session)
 
     send_rejection_email(registration.email, reg_id, rejection_reason or None)
 
@@ -206,9 +214,13 @@ async def unreject_registration(
         transition_status(db, registration, "pending")
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
-        return RedirectResponse(
-            url=f"/admin/registrations/{reg_id}", status_code=303
-        )
+        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+        flash = [{"category": "error", "text": f"Cannot unreject: {e}"}]
+        return _template(request, "admin/registration_detail.html", {
+            "registration": registration,
+            "booth_type": booth_type,
+            "get_flashed_messages": lambda: flash,
+        }, session=session)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -243,7 +255,17 @@ async def cancel_registration(
         amount_cents = 0
 
     if amount_cents > 0 and registration.stripe_payment_intent_id:
-        create_refund(db, registration, amount_cents)
+        try:
+            create_refund(db, registration, amount_cents)
+        except Exception:
+            logger.exception("Stripe refund failed for %s", reg_id)
+            booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+            flash = [{"category": "error", "text": "Refund failed. Please check Stripe and try again."}]
+            return _template(request, "admin/registration_detail.html", {
+                "registration": registration,
+                "booth_type": booth_type,
+                "get_flashed_messages": lambda: flash,
+            }, session=session)
 
     try:
         transition_status(db, registration, "cancelled")

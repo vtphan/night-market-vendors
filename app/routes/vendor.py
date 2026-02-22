@@ -354,7 +354,14 @@ async def create_payment(
     if not booth_type:
         return JSONResponse(status_code=400, content={"error": "Booth type not found"})
 
-    client_secret = create_payment_intent(db, registration, booth_type)
+    try:
+        client_secret = create_payment_intent(db, registration, booth_type)
+    except Exception:
+        logger.exception("Stripe PaymentIntent creation failed for %s", registration_id)
+        return JSONResponse(
+            status_code=502,
+            content={"error": "Payment service is temporarily unavailable. Please try again in a few minutes."},
+        )
 
     return JSONResponse(content={
         "client_secret": client_secret,

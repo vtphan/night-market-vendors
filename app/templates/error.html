@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Asian Night Market{% endblock %}
+
+{% block content %}
+<article>
+    <hgroup>
+        <h1>{{ status_code }} — {{ title }}</h1>
+        <p>{{ message }}</p>
+    </hgroup>
+    <a href="/" role="button">Return to Home</a>
+</article>
+{% endblock %}
