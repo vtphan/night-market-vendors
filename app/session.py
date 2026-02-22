@@ -75,11 +75,6 @@ def clear_session(response: Response) -> None:
     response.delete_cookie(key=COOKIE_NAME, path="/")
 
 
-def get_current_user(request: Request) -> Optional[dict]:
-    """FastAPI dependency: returns session data or None."""
-    return read_session(request)
-
-
 def require_admin(
     request: Request,
     db: Session = Depends(get_db),

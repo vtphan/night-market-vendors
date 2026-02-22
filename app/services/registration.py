@@ -18,6 +18,35 @@ VALID_TRANSITIONS = {
     "confirmed": ["cancelled"],
 }
 
+CATEGORIES = {
+    "food": "Food",
+    "beverage": "Beverage",
+    "merchandise": "Merchandise",
+    "entertainment": "Entertainment",
+    "non_profit": "Non-Profit",
+    "health_beauty": "Health & Beauty",
+    "promotion": "Promotion",
+    "other": "Other",
+}
+
+ELECTRICAL_EQUIPMENT_OPTIONS = [
+    "microwave",
+    "fryer",
+    "warmer",
+    "rice_cooker",
+    "griddle",
+    "blender",
+]
+
+EQUIP_LABELS = {
+    "microwave": "Microwave",
+    "fryer": "Fryer",
+    "warmer": "Warmer",
+    "rice_cooker": "Rice Cooker",
+    "griddle": "Griddle",
+    "blender": "Blender",
+}
+
 
 def transition_status(
     db: Session,
@@ -94,9 +123,8 @@ def create_registration(db: Session, data: dict) -> Registration:
         category=data["category"],
         description=data["description"],
         cuisine_type=data.get("cuisine_type"),
-        needs_power=data.get("needs_power", False),
-        needs_water=data.get("needs_water", False),
-        needs_propane=data.get("needs_propane", False),
+        electrical_equipment=data.get("electrical_equipment"),
+        electrical_other=data.get("electrical_other"),
         booth_type_id=data["booth_type_id"],
         status="pending",
         agreement_accepted_at=data["agreement_accepted_at"],
@@ -164,24 +192,6 @@ def get_inventory(db: Session) -> list[dict]:
             "available": bt.total_quantity - counts["approved"] - counts["confirmed"],
         })
     return result
-
-
-def get_booth_availability(db: Session, booth_type_id: int) -> dict:
-    """Return availability for a single booth type."""
-    bt = db.query(BoothType).filter(BoothType.id == booth_type_id).first()
-    if not bt:
-        raise ValueError(f"Booth type {booth_type_id} not found")
-
-    counts = _get_booth_counts(db, bt.id)
-    return {
-        "id": bt.id,
-        "name": bt.name,
-        "total_quantity": bt.total_quantity,
-        "approved": counts["approved"],
-        "confirmed": counts["confirmed"],
-        "reserved": counts["approved"] + counts["confirmed"],
-        "available": bt.total_quantity - counts["approved"] - counts["confirmed"],
-    }
 
 
 def _get_booth_counts(db: Session, booth_type_id: int) -> dict:

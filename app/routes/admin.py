@@ -14,6 +14,7 @@ from app.models import Registration, BoothType, EventSettings
 from app.services.registration import (
     transition_status,
     get_inventory,
+    CATEGORIES,
 )
 from app.services.email import send_approval_email, send_rejection_email, send_refund_email
 from app.services.payment import create_refund
@@ -65,6 +66,7 @@ async def registration_list(
     db: Session = Depends(get_db),
     status: str = Query("", alias="status"),
     category: str = Query("", alias="category"),
+    insurance: str = Query("", alias="insurance"),
     search: str = Query("", alias="search"),
 ):
     query = db.query(Registration)
@@ -73,6 +75,10 @@ async def registration_list(
         query = query.filter(Registration.status == status)
     if category:
         query = query.filter(Registration.category == category)
+    if insurance == "yes":
+        query = query.filter(Registration.documents_approved == True)
+    elif insurance == "no":
+        query = query.filter(Registration.documents_approved == False)
     if search:
         term = f"%{search}%"
         query = query.filter(
@@ -91,6 +97,7 @@ async def registration_list(
         "booth_types": booth_types,
         "filter_status": status,
         "filter_category": category,
+        "filter_insurance": insurance,
         "filter_search": search,
     }, session=session)
 
@@ -299,7 +306,7 @@ async def update_registration(
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
     registration.documents_approved = documents_approved == "on"
-    if category in ("food", "non_food"):
+    if category in CATEGORIES:
         registration.category = category
 
     db.commit()
@@ -387,7 +394,7 @@ async def export_csv(
     writer.writerow([
         "Registration ID", "Status", "Business Name", "Contact Name",
         "Email", "Phone", "Category", "Cuisine Type", "Description",
-        "Booth Type", "Needs Power", "Needs Water", "Needs Propane",
+        "Booth Type", "Electrical Equipment", "Electrical Other",
         "Documents Approved", "Amount Paid", "Refund Amount",
         "Stripe Payment Intent ID", "Created At", "Approved At",
         "Rejected At", "Rejection Reason",
@@ -401,13 +408,12 @@ async def export_csv(
             reg.contact_name,
             reg.email,
             reg.phone,
-            reg.category,
+            CATEGORIES.get(reg.category, reg.category),
             reg.cuisine_type or "",
             reg.description,
             booth_types.get(reg.booth_type_id, "Unknown"),
-            "Yes" if reg.needs_power else "No",
-            "Yes" if reg.needs_water else "No",
-            "Yes" if reg.needs_propane else "No",
+            reg.electrical_equipment or "",
+            reg.electrical_other or "",
             "Yes" if reg.documents_approved else "No",
             f"${reg.amount_paid / 100:.2f}" if reg.amount_paid else "",
             f"${reg.refund_amount / 100:.2f}" if reg.refund_amount else "",

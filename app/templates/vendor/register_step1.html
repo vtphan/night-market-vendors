@@ -33,19 +33,12 @@
         <input type="text" id="business_name" name="business_name" required
                value="{{ draft.get('business_name', '') }}" placeholder="Your business name">
 
-        <fieldset>
-            <legend>Vendor Category</legend>
-            <label>
-                <input type="radio" name="category" value="food" id="cat_food"
-                       {{ 'checked' if draft.get('category') == 'food' }}>
-                Food Vendor
-            </label>
-            <label>
-                <input type="radio" name="category" value="non_food" id="cat_non_food"
-                       {{ 'checked' if draft.get('category') == 'non_food' else 'checked' if not draft.get('category') }}>
-                Non-Food Vendor (Crafts, Merchandise, etc.)
-            </label>
-        </fieldset>
+        <label for="category">Vendor Category</label>
+        <select id="category" name="category" required>
+            {% for key, label in CATEGORIES.items() %}
+            <option value="{{ key }}" {{ 'selected' if draft.get('category') == key }}>{{ label }}</option>
+            {% endfor %}
+        </select>
 
         <div id="cuisine_field" style="{{ '' if draft.get('category') == 'food' else 'display: none;' }}">
             <label for="cuisine_type">Cuisine Type</label>
@@ -58,19 +51,26 @@
                   placeholder="Describe what you will be selling or offering...">{{ draft.get('description', '') }}</textarea>
 
         <fieldset>
-            <legend>Utility Needs</legend>
+            <legend>Electrical Equipment</legend>
+            <small style="display: block; margin-bottom: 0.5rem; color: var(--pico-muted-color);">
+                Note: Heavy electrical usage may limit booth placement options.
+            </small>
+            {% set selected_equipment = draft.get('electrical_equipment', '') %}
+            {% if selected_equipment is string %}
+                {% set selected_list = selected_equipment.split(',') if selected_equipment else [] %}
+            {% else %}
+                {% set selected_list = selected_equipment %}
+            {% endif %}
+            {% for equip in ELECTRICAL_EQUIPMENT_OPTIONS %}
             <label>
-                <input type="checkbox" name="needs_power" {{ 'checked' if draft.get('needs_power') }}>
-                Electrical Power
+                <input type="checkbox" name="electrical_equipment" value="{{ equip }}"
+                       {{ 'checked' if equip in selected_list }}>
+                {{ EQUIP_LABELS.get(equip, equip | title) }}
             </label>
-            <label>
-                <input type="checkbox" name="needs_water" {{ 'checked' if draft.get('needs_water') }}>
-                Water Access
-            </label>
-            <label>
-                <input type="checkbox" name="needs_propane" {{ 'checked' if draft.get('needs_propane') }}>
-                Propane Usage
-            </label>
+            {% endfor %}
+            <label for="electrical_other">Other electrical equipment</label>
+            <input type="text" id="electrical_other" name="electrical_other"
+                   value="{{ draft.get('electrical_other', '') }}" placeholder="e.g., heat lamp, electric kettle">
         </fieldset>
 
         <h3>Booth Selection</h3>
@@ -105,11 +105,8 @@
 </article>
 
 <script>
-    document.querySelectorAll('input[name="category"]').forEach(radio => {
-        radio.addEventListener('change', () => {
-            const cuisineField = document.getElementById('cuisine_field');
-            cuisineField.style.display = radio.value === 'food' ? '' : 'none';
-        });
+    document.getElementById('category').addEventListener('change', function() {
+        document.getElementById('cuisine_field').style.display = this.value === 'food' ? '' : 'none';
     });
 </script>
 {% endblock %}

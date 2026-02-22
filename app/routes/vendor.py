@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -12,6 +12,7 @@ from app.models import Registration, BoothType, EventSettings
 from app.services.registration import (
     create_registration,
     check_submission_rate_limit,
+    CATEGORIES,
 )
 from app.services.email import send_submission_confirmation_email
 from app.services.payment import create_payment_intent
@@ -98,13 +99,6 @@ async def register_gateway(request: Request, edit: str = "", new: str = "", db: 
             "booth_type": booth_type,
         })
 
-    return _template(request, "vendor/register_step1.html", {
-        "agreement_text": settings.vendor_agreement_text if settings else "",
-        "booth_types": booth_types,
-        "draft": draft,
-        "email": email,
-    })
-
 
 # --- Step 1: All registration info ---
 
@@ -119,9 +113,8 @@ async def register_step1(
     description: str = Form(...),
     booth_type_id: int = Form(...),
     cuisine_type: str = Form(""),
-    needs_power: str = Form(""),
-    needs_water: str = Form(""),
-    needs_propane: str = Form(""),
+    electrical_equipment: list[str] = Form([]),
+    electrical_other: str = Form(""),
     agreement_accepted: str = Form(""),
     _csrf: None = Depends(require_csrf),
     db: Session = Depends(get_db),
@@ -142,7 +135,7 @@ async def register_step1(
         errors.append("Phone number is required.")
     if not business_name.strip():
         errors.append("Business name is required.")
-    if category not in ("food", "non_food"):
+    if category not in CATEGORIES:
         errors.append("Please select a valid category.")
     if not description.strip():
         errors.append("Description is required.")
@@ -166,9 +159,8 @@ async def register_step1(
             "category": category,
             "description": description,
             "cuisine_type": cuisine_type,
-            "needs_power": needs_power == "on",
-            "needs_water": needs_water == "on",
-            "needs_propane": needs_propane == "on",
+            "electrical_equipment": electrical_equipment,
+            "electrical_other": electrical_other,
             "booth_type_id": booth_type_id,
         }
         return _template(request, "vendor/register_step1.html", {
@@ -188,9 +180,8 @@ async def register_step1(
         "category": category,
         "description": description.strip(),
         "cuisine_type": cuisine_type.strip() if category == "food" else "",
-        "needs_power": needs_power == "on",
-        "needs_water": needs_water == "on",
-        "needs_propane": needs_propane == "on",
+        "electrical_equipment": ",".join(electrical_equipment) if electrical_equipment else "",
+        "electrical_other": electrical_other.strip(),
         "booth_type_id": booth_type.id,
         "booth_type_name": booth_type.name,
         "booth_type_price": booth_type.price,
@@ -242,9 +233,8 @@ async def register_submit(
         "category": draft["category"],
         "description": draft["description"],
         "cuisine_type": draft.get("cuisine_type") or None,
-        "needs_power": draft.get("needs_power", False),
-        "needs_water": draft.get("needs_water", False),
-        "needs_propane": draft.get("needs_propane", False),
+        "electrical_equipment": draft.get("electrical_equipment") or None,
+        "electrical_other": draft.get("electrical_other") or None,
         "booth_type_id": draft["booth_type_id"],
         "agreement_accepted_at": datetime.fromisoformat(draft["agreement_accepted_at"]),
         "agreement_ip_address": draft.get("agreement_ip", "unknown"),
@@ -334,8 +324,6 @@ async def create_payment(
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
 ):
-    from fastapi.responses import JSONResponse
-
     registration = (
         db.query(Registration)
         .filter(

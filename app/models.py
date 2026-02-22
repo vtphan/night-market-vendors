@@ -1,7 +1,7 @@
-from datetime import datetime, date, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Index,
+    Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey,
 )
 from sqlalchemy.sql import func
 
@@ -17,12 +17,11 @@ class Registration(Base):
     business_name = Column(String, nullable=False)
     contact_name = Column(String, nullable=False)
     phone = Column(String, nullable=False)
-    category = Column(String(20), nullable=False)  # food, non_food
+    category = Column(String(30), nullable=False)
     description = Column(Text, nullable=False)
     cuisine_type = Column(String, nullable=True)
-    needs_power = Column(Boolean, default=False)
-    needs_water = Column(Boolean, default=False)
-    needs_propane = Column(Boolean, default=False)
+    electrical_equipment = Column(String, nullable=True)
+    electrical_other = Column(Text, nullable=True)
     booth_type_id = Column(Integer, ForeignKey("booth_types.id"), nullable=False)
     status = Column(String(50), nullable=False, default="pending", index=True)
     documents_approved = Column(Boolean, default=False)

@@ -18,19 +18,25 @@
             <tr><th>Email</th><td>{{ draft.get('email', '') }}</td></tr>
             <tr><th>Phone</th><td>{{ draft.get('phone', '') }}</td></tr>
             <tr><th>Business Name</th><td>{{ draft.get('business_name', '') }}</td></tr>
-            <tr><th>Category</th><td>{{ 'Food' if draft.get('category') == 'food' else 'Non-Food' }}</td></tr>
+            <tr><th>Category</th><td>{{ CATEGORIES.get(draft.get('category', ''), draft.get('category', '')) }}</td></tr>
             {% if draft.get('cuisine_type') %}
             <tr><th>Cuisine Type</th><td>{{ draft.get('cuisine_type') }}</td></tr>
             {% endif %}
             <tr><th>Description</th><td>{{ draft.get('description', '') }}</td></tr>
             <tr>
-                <th>Utility Needs</th>
+                <th>Electrical Equipment</th>
                 <td>
-                    {% set needs = [] %}
-                    {% if draft.get('needs_power') %}{% set _ = needs.append('Power') %}{% endif %}
-                    {% if draft.get('needs_water') %}{% set _ = needs.append('Water') %}{% endif %}
-                    {% if draft.get('needs_propane') %}{% set _ = needs.append('Propane') %}{% endif %}
-                    {{ needs | join(', ') if needs else 'None' }}
+                    {% set equip_str = draft.get('electrical_equipment', '') %}
+                    {% set parts = [] %}
+                    {% if equip_str %}
+                        {% for item in equip_str.split(',') %}
+                            {% if item.strip() %}{% set _ = parts.append(EQUIP_LABELS.get(item.strip(), item.strip())) %}{% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    {% if draft.get('electrical_other') %}
+                        {% set _ = parts.append(draft.get('electrical_other')) %}
+                    {% endif %}
+                    {{ parts | join(', ') if parts else 'None' }}
                 </td>
             </tr>
             <tr>

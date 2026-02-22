@@ -19,7 +19,7 @@
         <tbody>
             {% for item in registrations %}
             <tr onclick="window.location='/vendor/registration/{{ item.registration.registration_id }}'" style="cursor: pointer;">
-                <td>{{ "Food" if item.registration.category == "food" else "Non-Food" }}</td>
+                <td>{{ CATEGORIES.get(item.registration.category, item.registration.category) }}</td>
                 <td>{{ item.booth_type.name if item.booth_type else 'N/A' }}</td>
                 <td><span class="status-badge {{ item.registration.status }}">{{ item.registration.status | title }}</span></td>
                 <td>{{ item.registration.created_at.strftime('%b %d, %Y') if item.registration.created_at else '' }}</td>

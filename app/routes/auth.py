@@ -45,7 +45,7 @@ async def login_page(request: Request, role: str = "vendor", db: Session = Depen
             "session": None,
             "role": role,
             "registration_open": registration_open,
-            "get_flashed_messages": lambda: request.app.state.flash.get(id(request), []),
+            "get_flashed_messages": lambda: [],
         },
     )
 
@@ -88,7 +88,6 @@ async def login_submit(
     code = create_otp(db, email)
     if code is None:
         flash_messages.append({"category": "error", "text": "Too many attempts. Please wait before trying again."})
-        request.app.state.flash[id(request)] = flash_messages
         return request.app.state.templates.TemplateResponse(
             "auth/login.html",
             {
@@ -105,7 +104,6 @@ async def login_submit(
     success = send_otp_email(email, code)
     if not success:
         flash_messages.append({"category": "error", "text": "We couldn't send the verification code. Please try again."})
-        request.app.state.flash[id(request)] = flash_messages
         return request.app.state.templates.TemplateResponse(
             "auth/login.html",
             {

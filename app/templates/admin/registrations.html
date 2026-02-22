@@ -16,8 +16,15 @@
 
         <select name="category">
             <option value="">All Categories</option>
-            <option value="food" {{ 'selected' if filter_category == 'food' }}>Food</option>
-            <option value="non_food" {{ 'selected' if filter_category == 'non_food' }}>Non-Food</option>
+            {% for key, label in CATEGORIES.items() %}
+            <option value="{{ key }}" {{ 'selected' if filter_category == key }}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="insurance">
+            <option value="">Insurance: All</option>
+            <option value="yes" {{ 'selected' if filter_insurance == 'yes' }}>Insurance: Yes</option>
+            <option value="no" {{ 'selected' if filter_insurance == 'no' }}>Insurance: No</option>
         </select>
 
         <input type="search" name="search" placeholder="Search name, email, or ID..."
@@ -41,6 +48,7 @@
                 <th>Category</th>
                 <th>Booth</th>
                 <th>Status</th>
+                <th>Insurance</th>
                 <th>Date</th>
                 <th></th>
             </tr>
@@ -51,9 +59,10 @@
                 <td><code>{{ reg.registration_id }}</code></td>
                 <td>{{ reg.business_name }}</td>
                 <td>{{ reg.contact_name }}</td>
-                <td>{{ 'Food' if reg.category == 'food' else 'Non-Food' }}</td>
+                <td>{{ CATEGORIES.get(reg.category, reg.category) }}</td>
                 <td>{{ booth_types[reg.booth_type_id].name if reg.booth_type_id in booth_types else 'N/A' }}</td>
                 <td><span class="status-badge {{ reg.status }}">{{ reg.status | title }}</span></td>
+                <td>{{ 'Yes' if reg.documents_approved else 'No' }}</td>
                 <td>{{ reg.created_at.strftime('%b %d') if reg.created_at else '' }}</td>
                 <td><a href="/admin/registrations/{{ reg.registration_id }}">View</a></td>
             </tr>

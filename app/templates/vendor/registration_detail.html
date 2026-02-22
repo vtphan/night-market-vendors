@@ -27,7 +27,7 @@
         <header>Business Information</header>
         <dl class="detail-list">
             <dt>Category</dt>
-            <dd>{{ "Food" if registration.category == "food" else "Non-Food" }}</dd>
+            <dd>{{ CATEGORIES.get(registration.category, registration.category) }}</dd>
             {% if registration.cuisine_type %}
             <dt>Cuisine Type</dt>
             <dd>{{ registration.cuisine_type }}</dd>
@@ -57,13 +57,18 @@
         <dd>{{ booth_type.name if booth_type else 'N/A' }}</dd>
         <dt>Price</dt>
         <dd>${{ "%.2f" | format(booth_type.price / 100) if booth_type else 'N/A' }}</dd>
-        <dt>Utilities</dt>
+        <dt>Electrical Equipment</dt>
         <dd>
-            {% set utilities = [] %}
-            {% if registration.needs_power %}{% set _ = utilities.append("Power") %}{% endif %}
-            {% if registration.needs_water %}{% set _ = utilities.append("Water") %}{% endif %}
-            {% if registration.needs_propane %}{% set _ = utilities.append("Propane") %}{% endif %}
-            {{ utilities | join(", ") if utilities else "None" }}
+            {% set parts = [] %}
+            {% if registration.electrical_equipment %}
+                {% for item in registration.electrical_equipment.split(',') %}
+                    {% if item.strip() %}{% set _ = parts.append(EQUIP_LABELS.get(item.strip(), item.strip())) %}{% endif %}
+                {% endfor %}
+            {% endif %}
+            {% if registration.electrical_other %}
+                {% set _ = parts.append(registration.electrical_other) %}
+            {% endif %}
+            {{ parts | join(", ") if parts else "None" }}
         </dd>
     </dl>
 </article>

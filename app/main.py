@@ -45,9 +45,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Asian Night Market - Vendor Registration", lifespan=lifespan)
 
-# Flash message storage (simple in-memory, keyed by request id)
-app.state.flash = {}
-
 # Templates
 app.state.templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 
@@ -67,8 +64,13 @@ def format_datetime(dt) -> str:
     return dt.strftime("%b %d, %Y %I:%M %p")
 
 
+from app.services.registration import CATEGORIES, ELECTRICAL_EQUIPMENT_OPTIONS, EQUIP_LABELS
+
 app.state.templates.env.globals["format_price"] = format_price
 app.state.templates.env.globals["format_datetime"] = format_datetime
+app.state.templates.env.globals["CATEGORIES"] = CATEGORIES
+app.state.templates.env.globals["ELECTRICAL_EQUIPMENT_OPTIONS"] = ELECTRICAL_EQUIPMENT_OPTIONS
+app.state.templates.env.globals["EQUIP_LABELS"] = EQUIP_LABELS
 
 # Static files
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
@@ -108,7 +110,6 @@ async def health_check():
 @app.get("/")
 async def homepage(request: Request, db = Depends(get_db)):
     from datetime import datetime, timezone
-    from sqlalchemy.orm import Session as SASession
 
     session = read_session(request)
     settings = db.query(EventSettings).first()
@@ -116,14 +117,10 @@ async def homepage(request: Request, db = Depends(get_db)):
     if not settings:
         return RedirectResponse(url="/auth/login", status_code=303)
 
-    now = datetime.now(timezone.utc)
-    open_dt = settings.registration_open_date.replace(tzinfo=timezone.utc)
-    close_dt = settings.registration_close_date.replace(tzinfo=timezone.utc)
-
-    if now < open_dt:
-        status = "coming_soon"
-    elif now <= close_dt:
+    if settings.is_registration_open():
         status = "open"
+    elif datetime.now(timezone.utc) < settings.registration_open_date.replace(tzinfo=timezone.utc):
+        status = "coming_soon"
     else:
         status = "closed"
 

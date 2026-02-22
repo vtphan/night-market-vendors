@@ -15,19 +15,24 @@
             <tr><th>Contact Name</th><td>{{ registration.contact_name }}</td></tr>
             <tr><th>Email</th><td>{{ registration.email }}</td></tr>
             <tr><th>Phone</th><td>{{ registration.phone }}</td></tr>
-            <tr><th>Category</th><td>{{ 'Food' if registration.category == 'food' else 'Non-Food' }}</td></tr>
+            <tr><th>Category</th><td>{{ CATEGORIES.get(registration.category, registration.category) }}</td></tr>
             {% if registration.cuisine_type %}
             <tr><th>Cuisine Type</th><td>{{ registration.cuisine_type }}</td></tr>
             {% endif %}
             <tr><th>Description</th><td>{{ registration.description }}</td></tr>
             <tr>
-                <th>Utility Needs</th>
+                <th>Electrical Equipment</th>
                 <td>
-                    {% set needs = [] %}
-                    {% if registration.needs_power %}{% set _ = needs.append('Power') %}{% endif %}
-                    {% if registration.needs_water %}{% set _ = needs.append('Water') %}{% endif %}
-                    {% if registration.needs_propane %}{% set _ = needs.append('Propane') %}{% endif %}
-                    {{ needs | join(', ') if needs else 'None' }}
+                    {% set parts = [] %}
+                    {% if registration.electrical_equipment %}
+                        {% for item in registration.electrical_equipment.split(',') %}
+                            {% if item.strip() %}{% set _ = parts.append(EQUIP_LABELS.get(item.strip(), item.strip())) %}{% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    {% if registration.electrical_other %}
+                        {% set _ = parts.append(registration.electrical_other) %}
+                    {% endif %}
+                    {{ parts | join(', ') if parts else 'None' }}
                 </td>
             </tr>
         </table>

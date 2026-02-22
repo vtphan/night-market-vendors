@@ -14,7 +14,6 @@ from app.services.registration import (
     check_submission_rate_limit,
     reset_rate_limits,
     get_inventory,
-    get_booth_availability,
 )
 
 
@@ -200,7 +199,7 @@ def test_create_registration_generates_id(db):
         "business_name": "New Biz",
         "contact_name": "New Vendor",
         "phone": "555-0200",
-        "category": "non_food",
+        "category": "merchandise",
         "description": "Handmade crafts",
         "booth_type_id": bt.id,
         "agreement_accepted_at": datetime.now(timezone.utc),
@@ -259,9 +258,3 @@ def test_inventory_counts_approved_and_confirmed(db):
     assert inventory[0]["available"] == 7  # 10 - 3
 
 
-def test_booth_availability_single(db):
-    bt = _make_booth_type(db, qty=20)
-    _make_registration(db, bt.id, status="approved", reg_id="ANM-2026-0001")
-    avail = get_booth_availability(db, bt.id)
-    assert avail["available"] == 19
-    assert avail["approved"] == 1

@@ -1,7 +1,5 @@
 """Integration tests for admin routes: dashboard, registrations, approve/reject, inventory, settings, CSV export."""
 
-import re
-import time
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -9,82 +7,11 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 from app.main import app
-from app.models import AdminUser, BoothType, EventSettings, Registration
-from app.session import _serializer
-
-
-# --- Helpers ---
-
-def _admin_cookie(email="admin@test.com"):
-    """Create a signed admin session cookie."""
-    data = {
-        "user_type": "admin",
-        "email": email,
-        "created_at": time.time(),
-        "last_activity": time.time(),
-    }
-    return {"session": _serializer.dumps(data)}
-
-
-def _extract_csrf(html: str) -> str:
-    match = re.search(r'name="csrf_token" value="([^"]+)"', html)
-    assert match, "CSRF token not found"
-    return match.group(1)
-
-
-def _seed_admin(db, email="admin@test.com"):
-    existing = db.query(AdminUser).filter(AdminUser.email == email).first()
-    if not existing:
-        db.add(AdminUser(email=email, is_active=True))
-        db.commit()
-
-
-def _seed_booth_types(db):
-    if db.query(BoothType).count() > 0:
-        return db.query(BoothType).order_by(BoothType.sort_order).all()
-    booths = [
-        BoothType(name="Premium", description="Corner spot", total_quantity=20, price=15000, sort_order=1),
-        BoothType(name="Regular", description="Standard spot", total_quantity=80, price=10000, sort_order=2),
-    ]
-    db.add_all(booths)
-    db.commit()
-    return db.query(BoothType).order_by(BoothType.sort_order).all()
-
-
-def _seed_event(db):
-    if db.query(EventSettings).first():
-        return
-    db.add(EventSettings(
-        id=1,
-        event_name="Test Event",
-        event_date=datetime(2026, 10, 17).date(),
-        registration_open_date=datetime(2026, 6, 1),
-        registration_close_date=datetime(2026, 9, 15, 23, 59, 59),
-        vendor_agreement_text="Agreement text.",
-    ))
-    db.commit()
-
-
-def _make_registration(db, booth_type_id, status="pending", email="vendor@test.com",
-                       reg_id="ANM-2026-0001", business_name="Test Biz"):
-    reg = Registration(
-        registration_id=reg_id,
-        email=email,
-        business_name=business_name,
-        contact_name="Test Vendor",
-        phone="555-0100",
-        category="food",
-        description="Delicious food",
-        cuisine_type="Thai",
-        booth_type_id=booth_type_id,
-        status=status,
-        agreement_accepted_at=datetime.now(timezone.utc),
-        agreement_ip_address="127.0.0.1",
-    )
-    db.add(reg)
-    db.commit()
-    db.refresh(reg)
-    return reg
+from app.models import BoothType, EventSettings, Registration
+from tests.helpers import (
+    admin_cookie, extract_csrf, seed_admin, seed_booth_types,
+    seed_event, make_registration,
+)
 
 
 # ========================================
@@ -93,15 +20,15 @@ def _make_registration(db, booth_type_id, status="pending", email="vendor@test.c
 
 @pytest.mark.anyio
 async def test_admin_dashboard_shows_counts(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0001")
-    _make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0002", email="b@test.com")
-    _make_registration(db, booths[0].id, status="rejected", reg_id="ANM-2026-0003", email="c@test.com")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0001")
+    make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0002", email="b@test.com")
+    make_registration(db, booths[0].id, status="rejected", reg_id="ANM-2026-0003", email="c@test.com")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin", cookies=_admin_cookie())
+        response = await client.get("/admin", cookies=admin_cookie())
         assert response.status_code == 200
         text = response.text
         # Should show counts
@@ -125,15 +52,15 @@ async def test_admin_dashboard_unauthenticated_redirects(db):
 
 @pytest.mark.anyio
 async def test_registration_list_shows_all(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0001", business_name="Alpha Biz")
-    _make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0002",
-                       email="b@test.com", business_name="Beta Biz")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0001", business_name="Alpha Biz")
+    make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0002",
+                      email="b@test.com", business_name="Beta Biz")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/registrations", cookies=_admin_cookie())
+        response = await client.get("/admin/registrations", cookies=admin_cookie())
         assert response.status_code == 200
         assert "Alpha Biz" in response.text
         assert "Beta Biz" in response.text
@@ -142,15 +69,15 @@ async def test_registration_list_shows_all(db):
 
 @pytest.mark.anyio
 async def test_registration_list_filter_by_status(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0001", business_name="Pending Biz")
-    _make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0002",
-                       email="b@test.com", business_name="Approved Biz")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0001", business_name="Pending Biz")
+    make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0002",
+                      email="b@test.com", business_name="Approved Biz")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/registrations?status=pending", cookies=_admin_cookie())
+        response = await client.get("/admin/registrations?status=pending", cookies=admin_cookie())
         assert response.status_code == 200
         assert "Pending Biz" in response.text
         assert "Approved Biz" not in response.text
@@ -159,17 +86,17 @@ async def test_registration_list_filter_by_status(db):
 
 @pytest.mark.anyio
 async def test_registration_list_filter_by_category(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0001", business_name="Food Place")
-    reg2 = _make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0002",
-                               email="b@test.com", business_name="Craft Shop")
-    reg2.category = "non_food"
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0001", business_name="Food Place")
+    reg2 = make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0002",
+                              email="b@test.com", business_name="Craft Shop")
+    reg2.category = "merchandise"
     db.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/registrations?category=non_food", cookies=_admin_cookie())
+        response = await client.get("/admin/registrations?category=merchandise", cookies=admin_cookie())
         assert response.status_code == 200
         assert "Craft Shop" in response.text
         assert "Food Place" not in response.text
@@ -177,14 +104,14 @@ async def test_registration_list_filter_by_category(db):
 
 @pytest.mark.anyio
 async def test_registration_list_search(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, reg_id="ANM-2026-0001", business_name="Unique Noodle House")
-    _make_registration(db, booths[0].id, reg_id="ANM-2026-0002", email="b@test.com", business_name="Generic Shop")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, reg_id="ANM-2026-0001", business_name="Unique Noodle House")
+    make_registration(db, booths[0].id, reg_id="ANM-2026-0002", email="b@test.com", business_name="Generic Shop")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/registrations?search=Noodle", cookies=_admin_cookie())
+        response = await client.get("/admin/registrations?search=Noodle", cookies=admin_cookie())
         assert response.status_code == 200
         assert "Unique Noodle House" in response.text
         assert "Generic Shop" not in response.text
@@ -196,13 +123,13 @@ async def test_registration_list_search(db):
 
 @pytest.mark.anyio
 async def test_registration_detail_page(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, reg_id="ANM-2026-0010", business_name="Detail Biz")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, reg_id="ANM-2026-0010", business_name="Detail Biz")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/registrations/ANM-2026-0010", cookies=_admin_cookie())
+        response = await client.get("/admin/registrations/ANM-2026-0010", cookies=admin_cookie())
         assert response.status_code == 200
         assert "Detail Biz" in response.text
         assert "ANM-2026-0010" in response.text
@@ -211,10 +138,10 @@ async def test_registration_detail_page(db):
 
 @pytest.mark.anyio
 async def test_registration_detail_unknown_redirects(db):
-    _seed_admin(db)
+    seed_admin(db)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        response = await client.get("/admin/registrations/ANM-9999-9999", cookies=_admin_cookie())
+        response = await client.get("/admin/registrations/ANM-9999-9999", cookies=admin_cookie())
         assert response.status_code == 303
         assert "/admin/registrations" in response.headers["location"]
 
@@ -225,20 +152,20 @@ async def test_registration_detail_unknown_redirects(db):
 
 @pytest.mark.anyio
 async def test_approve_registration(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0020")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0020")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
         # Get CSRF from detail page
-        detail = await client.get("/admin/registrations/ANM-2026-0020", cookies=_admin_cookie())
-        csrf = _extract_csrf(detail.text)
+        detail = await client.get("/admin/registrations/ANM-2026-0020", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
 
         with patch("app.routes.admin.send_approval_email", return_value=True) as mock_email:
             response = await client.post("/admin/registrations/ANM-2026-0020/approve", data={
                 "csrf_token": csrf,
-            }, cookies=_admin_cookie())
+            }, cookies=admin_cookie())
 
         assert response.status_code == 303
         mock_email.assert_called_once()
@@ -252,19 +179,19 @@ async def test_approve_registration(db):
 
 @pytest.mark.anyio
 async def test_approve_already_rejected_fails_gracefully(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="rejected", reg_id="ANM-2026-0021")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="rejected", reg_id="ANM-2026-0021")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        detail = await client.get("/admin/registrations/ANM-2026-0021", cookies=_admin_cookie())
-        csrf = _extract_csrf(detail.text)
+        detail = await client.get("/admin/registrations/ANM-2026-0021", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
 
         with patch("app.routes.admin.send_approval_email") as mock_email:
             response = await client.post("/admin/registrations/ANM-2026-0021/approve", data={
                 "csrf_token": csrf,
-            }, cookies=_admin_cookie())
+            }, cookies=admin_cookie())
 
         assert response.status_code == 200
         assert "Cannot approve" in response.text
@@ -281,20 +208,20 @@ async def test_approve_already_rejected_fails_gracefully(db):
 
 @pytest.mark.anyio
 async def test_reject_registration_with_reason(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0030")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0030")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        detail = await client.get("/admin/registrations/ANM-2026-0030", cookies=_admin_cookie())
-        csrf = _extract_csrf(detail.text)
+        detail = await client.get("/admin/registrations/ANM-2026-0030", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
 
         with patch("app.routes.admin.send_rejection_email", return_value=True) as mock_email:
             response = await client.post("/admin/registrations/ANM-2026-0030/reject", data={
                 "csrf_token": csrf,
                 "rejection_reason": "Does not meet food safety requirements",
-            }, cookies=_admin_cookie())
+            }, cookies=admin_cookie())
 
         assert response.status_code == 303
         mock_email.assert_called_once_with(
@@ -310,20 +237,20 @@ async def test_reject_registration_with_reason(db):
 
 @pytest.mark.anyio
 async def test_reject_registration_without_reason(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0031")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0031")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        detail = await client.get("/admin/registrations/ANM-2026-0031", cookies=_admin_cookie())
-        csrf = _extract_csrf(detail.text)
+        detail = await client.get("/admin/registrations/ANM-2026-0031", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
 
         with patch("app.routes.admin.send_rejection_email", return_value=True) as mock_email:
             response = await client.post("/admin/registrations/ANM-2026-0031/reject", data={
                 "csrf_token": csrf,
                 "rejection_reason": "",
-            }, cookies=_admin_cookie())
+            }, cookies=admin_cookie())
 
         assert response.status_code == 303
         mock_email.assert_called_once_with("vendor@test.com", "ANM-2026-0031", None)
@@ -336,20 +263,20 @@ async def test_reject_registration_without_reason(db):
 @pytest.mark.anyio
 async def test_revoke_approved_registration(db):
     """Admin can revoke an approval, returning to pending."""
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    reg = _make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0032")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    reg = make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0032")
     reg.approved_at = datetime.now(timezone.utc)
     db.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        detail = await client.get("/admin/registrations/ANM-2026-0032", cookies=_admin_cookie())
-        csrf = _extract_csrf(detail.text)
+        detail = await client.get("/admin/registrations/ANM-2026-0032", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
 
         response = await client.post("/admin/registrations/ANM-2026-0032/unreject", data={
             "csrf_token": csrf,
-        }, cookies=_admin_cookie())
+        }, cookies=admin_cookie())
 
         assert response.status_code == 303
 
@@ -362,21 +289,21 @@ async def test_revoke_approved_registration(db):
 @pytest.mark.anyio
 async def test_revoke_rejected_registration(db):
     """Admin can revoke a rejection, returning to pending."""
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    reg = _make_registration(db, booths[0].id, status="rejected", reg_id="ANM-2026-0033")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    reg = make_registration(db, booths[0].id, status="rejected", reg_id="ANM-2026-0033")
     reg.rejected_at = datetime.now(timezone.utc)
     reg.rejection_reason = "Test reason"
     db.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        detail = await client.get("/admin/registrations/ANM-2026-0033", cookies=_admin_cookie())
-        csrf = _extract_csrf(detail.text)
+        detail = await client.get("/admin/registrations/ANM-2026-0033", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
 
         response = await client.post("/admin/registrations/ANM-2026-0033/unreject", data={
             "csrf_token": csrf,
-        }, cookies=_admin_cookie())
+        }, cookies=admin_cookie())
 
         assert response.status_code == 303
 
@@ -393,20 +320,20 @@ async def test_revoke_rejected_registration(db):
 
 @pytest.mark.anyio
 async def test_update_documents_approved(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, reg_id="ANM-2026-0040")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, reg_id="ANM-2026-0040")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        detail = await client.get("/admin/registrations/ANM-2026-0040", cookies=_admin_cookie())
-        csrf = _extract_csrf(detail.text)
+        detail = await client.get("/admin/registrations/ANM-2026-0040", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
 
         response = await client.post("/admin/registrations/ANM-2026-0040/update", data={
             "csrf_token": csrf,
             "documents_approved": "on",
             "category": "food",
-        }, cookies=_admin_cookie())
+        }, cookies=admin_cookie())
 
         assert response.status_code == 303
 
@@ -418,26 +345,26 @@ async def test_update_documents_approved(db):
 
 @pytest.mark.anyio
 async def test_update_category(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, reg_id="ANM-2026-0041")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, reg_id="ANM-2026-0041")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        detail = await client.get("/admin/registrations/ANM-2026-0041", cookies=_admin_cookie())
-        csrf = _extract_csrf(detail.text)
+        detail = await client.get("/admin/registrations/ANM-2026-0041", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
 
         response = await client.post("/admin/registrations/ANM-2026-0041/update", data={
             "csrf_token": csrf,
             "documents_approved": "",
-            "category": "non_food",
-        }, cookies=_admin_cookie())
+            "category": "merchandise",
+        }, cookies=admin_cookie())
 
         assert response.status_code == 303
 
     reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0041").first()
     db.refresh(reg)
-    assert reg.category == "non_food"
+    assert reg.category == "merchandise"
     assert reg.documents_approved is False
 
 
@@ -447,12 +374,12 @@ async def test_update_category(db):
 
 @pytest.mark.anyio
 async def test_inventory_page_loads(db):
-    _seed_admin(db)
-    _seed_booth_types(db)
+    seed_admin(db)
+    seed_booth_types(db)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/inventory", cookies=_admin_cookie())
+        response = await client.get("/admin/inventory", cookies=admin_cookie())
         assert response.status_code == 200
         assert "Premium" in response.text
         assert "Regular" in response.text
@@ -460,19 +387,19 @@ async def test_inventory_page_loads(db):
 
 @pytest.mark.anyio
 async def test_update_inventory_quantity(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
+    seed_admin(db)
+    booths = seed_booth_types(db)
     original_qty = booths[0].total_quantity
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        inv_page = await client.get("/admin/inventory", cookies=_admin_cookie())
-        csrf = _extract_csrf(inv_page.text)
+        inv_page = await client.get("/admin/inventory", cookies=admin_cookie())
+        csrf = extract_csrf(inv_page.text)
 
         response = await client.post(f"/admin/inventory/{booths[0].id}", data={
             "csrf_token": csrf,
             "total_quantity": "25",
-        }, cookies=_admin_cookie())
+        }, cookies=admin_cookie())
 
         assert response.status_code == 303
 
@@ -483,14 +410,14 @@ async def test_update_inventory_quantity(db):
 
 @pytest.mark.anyio
 async def test_inventory_reflects_approved_registrations(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0060", email="a@t.com")
-    _make_registration(db, booths[0].id, status="confirmed", reg_id="ANM-2026-0061", email="b@t.com")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0060", email="a@t.com")
+    make_registration(db, booths[0].id, status="confirmed", reg_id="ANM-2026-0061", email="b@t.com")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/inventory", cookies=_admin_cookie())
+        response = await client.get("/admin/inventory", cookies=admin_cookie())
         assert response.status_code == 200
         # Premium booth: 20 total, 1 approved, 1 confirmed = 18 available
         assert "18" in response.text
@@ -502,31 +429,31 @@ async def test_inventory_reflects_approved_registrations(db):
 
 @pytest.mark.anyio
 async def test_settings_page_loads(db):
-    _seed_admin(db)
-    _seed_event(db)
+    seed_admin(db)
+    seed_event(db)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/settings", cookies=_admin_cookie())
+        response = await client.get("/admin/settings", cookies=admin_cookie())
         assert response.status_code == 200
         assert "Registration Opens" in response.text
 
 
 @pytest.mark.anyio
 async def test_update_settings_dates(db):
-    _seed_admin(db)
-    _seed_event(db)
+    seed_admin(db)
+    seed_event(db)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        page = await client.get("/admin/settings", cookies=_admin_cookie())
-        csrf = _extract_csrf(page.text)
+        page = await client.get("/admin/settings", cookies=admin_cookie())
+        csrf = extract_csrf(page.text)
 
         response = await client.post("/admin/settings", data={
             "csrf_token": csrf,
             "registration_open_date": "2026-05-01T00:00",
             "registration_close_date": "2026-10-01T23:59",
-        }, cookies=_admin_cookie())
+        }, cookies=admin_cookie())
 
         assert response.status_code == 303
 
@@ -542,14 +469,14 @@ async def test_update_settings_dates(db):
 
 @pytest.mark.anyio
 async def test_csv_export_headers_and_data(db):
-    _seed_admin(db)
-    booths = _seed_booth_types(db)
-    _make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0070",
-                       business_name="Export Biz")
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0070",
+                      business_name="Export Biz")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/export", cookies=_admin_cookie())
+        response = await client.get("/admin/export", cookies=admin_cookie())
         assert response.status_code == 200
         assert response.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in response.headers.get("content-disposition", "")
@@ -564,11 +491,11 @@ async def test_csv_export_headers_and_data(db):
 
 @pytest.mark.anyio
 async def test_csv_export_empty(db):
-    _seed_admin(db)
+    seed_admin(db)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/admin/export", cookies=_admin_cookie())
+        response = await client.get("/admin/export", cookies=admin_cookie())
         assert response.status_code == 200
         lines = response.text.strip().split("\n")
         assert len(lines) == 1  # Header only
