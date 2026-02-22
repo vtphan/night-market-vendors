@@ -10,8 +10,7 @@
     <table>
         <thead>
             <tr>
-                <th>Registration ID</th>
-                <th>Business Name</th>
+                <th>Category</th>
                 <th>Booth Type</th>
                 <th>Status</th>
                 <th>Submitted</th>
@@ -19,9 +18,8 @@
         </thead>
         <tbody>
             {% for item in registrations %}
-            <tr>
-                <td><strong>{{ item.registration.registration_id }}</strong></td>
-                <td>{{ item.registration.business_name }}</td>
+            <tr onclick="window.location='/vendor/registration/{{ item.registration.registration_id }}'" style="cursor: pointer;">
+                <td>{{ "Food" if item.registration.category == "food" else "Non-Food" }}</td>
                 <td>{{ item.booth_type.name if item.booth_type else 'N/A' }}</td>
                 <td><span class="status-badge {{ item.registration.status }}">{{ item.registration.status | title }}</span></td>
                 <td>{{ item.registration.created_at.strftime('%b %d, %Y') if item.registration.created_at else '' }}</td>
@@ -30,8 +28,15 @@
         </tbody>
     </table>
 </figure>
+{% if registration_open %}
+<p><a href="/vendor/register?new=1" role="button" class="outline">Register for Another Booth</a></p>
+{% endif %}
 {% else %}
 <p>You don't have any registrations yet.</p>
+{% if registration_open %}
 <p><a href="/vendor/register" role="button">Register Now</a></p>
+{% else %}
+<p>Registration is currently closed.</p>
+{% endif %}
 {% endif %}
 {% endblock %}

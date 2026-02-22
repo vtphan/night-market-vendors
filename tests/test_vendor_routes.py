@@ -201,7 +201,8 @@ async def test_register_shows_step1_when_open_and_logged_in(db):
 
 
 @pytest.mark.anyio
-async def test_register_redirects_if_already_registered(db):
+async def test_register_allows_additional_registrations(db):
+    """Vendors with existing registrations can still access the registration form."""
     _seed_event_open(db)
     booths = _seed_booth_types(db)
     reg = Registration(
@@ -221,10 +222,10 @@ async def test_register_redirects_if_already_registered(db):
     db.commit()
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/vendor/register", cookies=_vendor_cookie())
-        assert response.status_code == 303
-        assert "/vendor/dashboard" in response.headers["location"]
+        assert response.status_code == 200
+        assert "Vendor Registration" in response.text
 
 
 # ========================================
@@ -610,6 +611,7 @@ async def test_dashboard_requires_vendor_session(db):
 
 @pytest.mark.anyio
 async def test_dashboard_shows_vendor_registrations(db):
+    _seed_event_open(db)
     booths = _seed_booth_types(db)
     reg = Registration(
         registration_id="ANM-2026-0001",
@@ -634,10 +636,14 @@ async def test_dashboard_shows_vendor_registrations(db):
         assert response.status_code == 200
         assert "ANM-2026-0001" in response.text
         assert "Vendor Biz" in response.text
+        # Should show option to register for another booth
+        assert "Register for Another Booth" in response.text
+        assert "?new=1" in response.text
 
 
 @pytest.mark.anyio
 async def test_dashboard_only_shows_own_registrations(db):
+    _seed_event_open(db)
     booths = _seed_booth_types(db)
     # Create reg for a different vendor
     reg = Registration(
@@ -663,3 +669,33 @@ async def test_dashboard_only_shows_own_registrations(db):
         assert response.status_code == 200
         assert "Other Biz" not in response.text
         assert "don't have any" in response.text.lower()
+
+
+@pytest.mark.anyio
+async def test_dashboard_hides_register_link_when_closed(db):
+    """Register link should not appear when registration is closed."""
+    _seed_event_closed(db)
+    booths = _seed_booth_types(db)
+    reg = Registration(
+        registration_id="ANM-2026-0010",
+        email="vendor@test.com",
+        business_name="My Biz",
+        contact_name="Vendor",
+        phone="555-0100",
+        category="food",
+        description="Food",
+        booth_type_id=booths[0].id,
+        status="confirmed",
+        agreement_accepted_at=datetime.now(timezone.utc),
+        agreement_ip_address="127.0.0.1",
+    )
+    db.add(reg)
+    db.commit()
+
+    cookies = _vendor_cookie()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/vendor/dashboard", cookies=cookies)
+        assert response.status_code == 200
+        assert "ANM-2026-0010" in response.text
+        assert "Register for Another Booth" not in response.text

@@ -334,7 +334,7 @@ async def test_reject_registration_without_reason(db):
 
 @pytest.mark.anyio
 async def test_revoke_approved_registration(db):
-    """Admin can reject a previously approved registration."""
+    """Admin can revoke an approval, returning to pending."""
     _seed_admin(db)
     booths = _seed_booth_types(db)
     reg = _make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0032")
@@ -346,17 +346,44 @@ async def test_revoke_approved_registration(db):
         detail = await client.get("/admin/registrations/ANM-2026-0032", cookies=_admin_cookie())
         csrf = _extract_csrf(detail.text)
 
-        with patch("app.routes.admin.send_rejection_email", return_value=True):
-            response = await client.post("/admin/registrations/ANM-2026-0032/reject", data={
-                "csrf_token": csrf,
-                "rejection_reason": "Revoked",
-            }, cookies=_admin_cookie())
+        response = await client.post("/admin/registrations/ANM-2026-0032/unreject", data={
+            "csrf_token": csrf,
+        }, cookies=_admin_cookie())
 
         assert response.status_code == 303
 
     reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0032").first()
     db.refresh(reg)
-    assert reg.status == "rejected"
+    assert reg.status == "pending"
+    assert reg.approved_at is None
+
+
+@pytest.mark.anyio
+async def test_revoke_rejected_registration(db):
+    """Admin can revoke a rejection, returning to pending."""
+    _seed_admin(db)
+    booths = _seed_booth_types(db)
+    reg = _make_registration(db, booths[0].id, status="rejected", reg_id="ANM-2026-0033")
+    reg.rejected_at = datetime.now(timezone.utc)
+    reg.rejection_reason = "Test reason"
+    db.commit()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+        detail = await client.get("/admin/registrations/ANM-2026-0033", cookies=_admin_cookie())
+        csrf = _extract_csrf(detail.text)
+
+        response = await client.post("/admin/registrations/ANM-2026-0033/unreject", data={
+            "csrf_token": csrf,
+        }, cookies=_admin_cookie())
+
+        assert response.status_code == 303
+
+    reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0033").first()
+    db.refresh(reg)
+    assert reg.status == "pending"
+    assert reg.rejected_at is None
+    assert reg.rejection_reason is None
 
 
 # ========================================

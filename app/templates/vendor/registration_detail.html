@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}{{ registration.registration_id }} - Asian Night Market{% endblock %}
+
+{% block content %}
+<p><a href="/vendor/dashboard">&larr; Back to My Registrations</a></p>
+
+<hgroup>
+    <h2>{{ registration.business_name }}</h2>
+    <p>{{ registration.registration_id }} &middot; <span class="status-badge {{ registration.status }}">{{ registration.status | title }}</span></p>
+</hgroup>
+
+{% if registration.status == "rejected" and registration.rejection_reason %}
+<article class="rejection-notice">
+    <strong>Rejection reason:</strong> {{ registration.rejection_reason }}
+</article>
+{% endif %}
+
+<div class="grid">
+    <article>
+        <header>Business Information</header>
+        <dl class="detail-list">
+            <dt>Category</dt>
+            <dd>{{ "Food" if registration.category == "food" else "Non-Food" }}</dd>
+            {% if registration.cuisine_type %}
+            <dt>Cuisine Type</dt>
+            <dd>{{ registration.cuisine_type }}</dd>
+            {% endif %}
+            <dt>Description</dt>
+            <dd>{{ registration.description }}</dd>
+        </dl>
+    </article>
+
+    <article>
+        <header>Contact Information</header>
+        <dl class="detail-list">
+            <dt>Name</dt>
+            <dd>{{ registration.contact_name }}</dd>
+            <dt>Email</dt>
+            <dd>{{ registration.email }}</dd>
+            <dt>Phone</dt>
+            <dd>{{ registration.phone }}</dd>
+        </dl>
+    </article>
+</div>
+
+<article>
+    <header>Booth Details</header>
+    <dl class="detail-list">
+        <dt>Booth Type</dt>
+        <dd>{{ booth_type.name if booth_type else 'N/A' }}</dd>
+        <dt>Price</dt>
+        <dd>${{ "%.2f" | format(booth_type.price / 100) if booth_type else 'N/A' }}</dd>
+        <dt>Utilities</dt>
+        <dd>
+            {% set utilities = [] %}
+            {% if registration.needs_power %}{% set _ = utilities.append("Power") %}{% endif %}
+            {% if registration.needs_water %}{% set _ = utilities.append("Water") %}{% endif %}
+            {% if registration.needs_propane %}{% set _ = utilities.append("Propane") %}{% endif %}
+            {{ utilities | join(", ") if utilities else "None" }}
+        </dd>
+    </dl>
+</article>
+
+{% if registration.status == "confirmed" or registration.amount_paid %}
+<article>
+    <header>Payment</header>
+    <dl class="detail-list">
+        {% if registration.amount_paid %}
+        <dt>Amount Paid</dt>
+        <dd>${{ "%.2f" | format(registration.amount_paid / 100) }}</dd>
+        {% endif %}
+        {% if registration.refund_amount %}
+        <dt>Refund</dt>
+        <dd>${{ "%.2f" | format(registration.refund_amount / 100) }}</dd>
+        {% endif %}
+    </dl>
+</article>
+{% endif %}
+
+<article>
+    <header>Timeline</header>
+    <dl class="detail-list">
+        <dt>Submitted</dt>
+        <dd>{{ registration.created_at.strftime('%b %d, %Y at %I:%M %p') if registration.created_at else '' }}</dd>
+        {% if registration.approved_at %}
+        <dt>Approved</dt>
+        <dd>{{ registration.approved_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
+        {% endif %}
+        {% if registration.rejected_at %}
+        <dt>Rejected</dt>
+        <dd>{{ registration.rejected_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
+        {% endif %}
+    </dl>
+</article>
+{% endblock %}

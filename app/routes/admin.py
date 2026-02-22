@@ -184,6 +184,35 @@ async def reject_registration(
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
 
+# --- Unreject registration (back to pending) ---
+
+@router.post("/registrations/{reg_id}/unreject")
+async def unreject_registration(
+    request: Request,
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    try:
+        transition_status(db, registration, "pending")
+    except ValueError as e:
+        logger.warning("Invalid transition for %s: %s", reg_id, e)
+        return RedirectResponse(
+            url=f"/admin/registrations/{reg_id}", status_code=303
+        )
+
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
 # --- Update registration fields ---
 
 @router.post("/registrations/{reg_id}/update")

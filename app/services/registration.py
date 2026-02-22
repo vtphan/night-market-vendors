@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 VALID_TRANSITIONS = {
     "pending": ["approved", "rejected"],
-    "approved": ["confirmed", "rejected"],
+    "approved": ["confirmed", "rejected", "pending"],
+    "rejected": ["pending"],
     "confirmed": ["cancelled"],
 }
 
@@ -39,6 +40,11 @@ def transition_status(
         registration.rejected_at = datetime.now(timezone.utc)
         if rejection_reason:
             registration.rejection_reason = rejection_reason
+    elif new_status == "pending":
+        # Returning from rejected — clear rejection fields
+        registration.rejected_at = None
+        registration.rejection_reason = None
+        registration.approved_at = None
 
     db.commit()
     db.refresh(registration)

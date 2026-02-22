@@ -108,10 +108,22 @@ def test_pending_to_cancelled_invalid(db):
         transition_status(db, reg, "cancelled")
 
 
-def test_rejected_to_any_invalid(db):
+def test_rejected_to_pending(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="rejected")
-    for target in ["pending", "approved", "confirmed", "cancelled"]:
+    reg.rejected_at = datetime.now(timezone.utc)
+    reg.rejection_reason = "Some reason"
+    db.commit()
+    transition_status(db, reg, "pending")
+    assert reg.status == "pending"
+    assert reg.rejected_at is None
+    assert reg.rejection_reason is None
+
+
+def test_rejected_to_other_invalid(db):
+    bt = _make_booth_type(db)
+    reg = _make_registration(db, bt.id, status="rejected")
+    for target in ["approved", "confirmed", "cancelled"]:
         with pytest.raises(ValueError, match="Cannot transition"):
             transition_status(db, reg, target)
 
@@ -124,11 +136,14 @@ def test_cancelled_to_any_invalid(db):
             transition_status(db, reg, target)
 
 
-def test_approved_to_pending_invalid(db):
+def test_approved_to_pending(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="approved")
-    with pytest.raises(ValueError, match="Cannot transition"):
-        transition_status(db, reg, "pending")
+    reg.approved_at = datetime.now(timezone.utc)
+    db.commit()
+    transition_status(db, reg, "pending")
+    assert reg.status == "pending"
+    assert reg.approved_at is None
 
 
 # --- Timestamp tests ---

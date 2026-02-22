@@ -113,6 +113,30 @@
     margin-top: 0.25rem;
 }
 
+/* Detail page definition lists */
+.detail-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 1rem;
+    margin: 0;
+}
+
+.detail-list dt {
+    font-weight: 600;
+    color: var(--pico-muted-color);
+    margin: 0;
+}
+
+.detail-list dd {
+    margin: 0;
+}
+
+.rejection-notice {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
 /* Filter bar */
 .filter-bar {
     margin-bottom: 1rem;

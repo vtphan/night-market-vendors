@@ -51,6 +51,16 @@
             {% if registration.rejection_reason %}
             <tr><th>Rejection Reason</th><td>{{ registration.rejection_reason }}</td></tr>
             {% endif %}
+            <tr>
+                <th>Insurance Docs</th>
+                <td>
+                    {% if registration.documents_approved %}
+                    <span class="status-badge confirmed">Approved</span>
+                    {% else %}
+                    <span class="status-badge pending">Pending</span>
+                    {% endif %}
+                </td>
+            </tr>
             <tr><th>Agreement IP</th><td>{{ registration.agreement_ip_address }}</td></tr>
             <tr><th>Agreement Date</th><td>{{ registration.agreement_accepted_at.strftime('%b %d, %Y %I:%M %p') if registration.agreement_accepted_at else '' }}</td></tr>
         </table>
@@ -61,43 +71,90 @@
 <article>
     <header><strong>Admin Actions</strong></header>
 
-    <!-- Update fields -->
-    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/update" style="margin-bottom: 1rem;">
+    <!-- Row 1: Approve Insurance Documents -->
+    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/update"
+          style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="grid">
-            <fieldset>
-                <label>
-                    <input type="checkbox" name="documents_approved" {{ 'checked' if registration.documents_approved }}>
-                    Documents Approved
-                </label>
-            </fieldset>
-            <select name="category">
-                <option value="food" {{ 'selected' if registration.category == 'food' }}>Food</option>
-                <option value="non_food" {{ 'selected' if registration.category == 'non_food' }}>Non-Food</option>
-            </select>
-            <button type="submit" class="secondary">Update Fields</button>
-        </div>
+        {% if registration.documents_approved %}
+        <button type="submit" class="outline" style="width: auto; margin: 0;">
+            Revoke Insurance Approval
+        </button>
+        <small style="color: var(--pico-muted-color);">Insurance documents are currently approved</small>
+        {% else %}
+        <input type="hidden" name="documents_approved" value="on">
+        <button type="submit" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;">
+            Approve Insurance Documents
+        </button>
+        {% endif %}
     </form>
 
-    <!-- Status actions -->
-    <div class="grid">
-        {% if registration.status == 'pending' %}
-        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/approve">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="contrast">Approve</button>
-        </form>
-        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/reject">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="text" name="rejection_reason" placeholder="Reason (optional)">
-            <button type="submit" class="secondary">Reject</button>
-        </form>
-        {% elif registration.status == 'approved' %}
-        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/reject">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="text" name="rejection_reason" placeholder="Reason (optional)">
-            <button type="submit" class="secondary">Revoke Approval</button>
-        </form>
-        {% endif %}
-    </div>
+    {% if registration.status == 'pending' %}
+    <hr style="margin: 1rem 0;">
+
+    <!-- Row 2: Approve Registration -->
+    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/approve"
+          style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0;"
+          onsubmit="return confirm('Approve this registration?\n\nThe vendor ({{ registration.email }}) will be notified by email with a payment link.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" style="width: auto; margin: 0; background-color: #2e7d32; border-color: #2e7d32;">
+            Approve Registration
+        </button>
+    </form>
+
+    <hr style="margin: 1rem 0;">
+
+    <!-- Row 3: Reject Registration -->
+    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/reject"
+          style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0;"
+          onsubmit="return confirm('Reject this registration?\n\nThe vendor ({{ registration.email }}) will be notified by email.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="outline secondary" style="width: auto; margin: 0;">
+            Reject Registration
+        </button>
+        <input type="text" name="rejection_reason" placeholder="Reason (optional)"
+               style="margin: 0; max-width: 300px;">
+    </form>
+
+    {% elif registration.status == 'approved' %}
+    <hr style="margin: 1rem 0;">
+
+    <!-- Row 2: Revoke Approval -->
+    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/unreject"
+          style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0;"
+          onsubmit="return confirm('Revoke this approval?\n\nThe registration will return to Pending for re-review. No email will be sent to the vendor.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="outline" style="width: auto; margin: 0;">
+            Revoke Approval
+        </button>
+        <small style="color: var(--pico-muted-color);">Returns to Pending for re-review</small>
+    </form>
+
+    {% elif registration.status == 'rejected' %}
+    <hr style="margin: 1rem 0;">
+
+    <!-- Row 2: Revoke Rejection -->
+    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/unreject"
+          style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0;"
+          onsubmit="return confirm('Revoke this rejection?\n\nThe registration will return to Pending for re-review. No email will be sent to the vendor.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="outline" style="width: auto; margin: 0;">
+            Revoke Rejection
+        </button>
+        <small style="color: var(--pico-muted-color);">Returns to Pending for re-review</small>
+    </form>
+
+    {% elif registration.status == 'confirmed' %}
+    <hr style="margin: 1rem 0;">
+    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin: 0;">
+        This registration is confirmed (paid). Cancellation with refund will be available in the payment phase.
+    </p>
+
+    {% elif registration.status == 'cancelled' %}
+    <hr style="margin: 1rem 0;">
+    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin: 0;">
+        This registration has been cancelled and refunded. No further status changes are available.
+    </p>
+    {% endif %}
+
 </article>
 {% endblock %}

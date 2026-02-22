@@ -34,14 +34,14 @@ def _get_draft(request):
     """Get registration draft from session cookie."""
     session = read_session(request)
     if session:
-        return session.get("registration_draft", {})
+        return session.get("registration_draft") or {}
     return {}
 
 
 # --- Registration gateway ---
 
 @router.get("/register", response_class=HTMLResponse)
-async def register_gateway(request: Request, edit: str = "", db: Session = Depends(get_db)):
+async def register_gateway(request: Request, edit: str = "", new: str = "", db: Session = Depends(get_db)):
     settings = db.query(EventSettings).first()
     now = datetime.now(timezone.utc)
 
@@ -61,14 +61,11 @@ async def register_gateway(request: Request, edit: str = "", db: Session = Depen
 
     email = session.get("email", "")
 
-    # Check if user already has a registration
-    existing = (
-        db.query(Registration)
-        .filter(Registration.email == email)
-        .first()
-    )
-    if existing:
-        return RedirectResponse(url="/vendor/dashboard", status_code=303)
+    # If new=1, clear old draft and start fresh
+    if new == "1":
+        response = RedirectResponse(url="/vendor/register", status_code=303)
+        update_session_data(response, session, "registration_draft", None)
+        return response
 
     # Determine which step to show based on draft
     draft = _get_draft(request)
@@ -293,6 +290,34 @@ async def confirmation_page(
     })
 
 
+# --- Registration detail ---
+
+@router.get("/registration/{registration_id}", response_class=HTMLResponse)
+async def registration_detail(
+    request: Request,
+    registration_id: str,
+    session: dict = Depends(require_vendor),
+    db: Session = Depends(get_db),
+):
+    registration = (
+        db.query(Registration)
+        .filter(
+            Registration.registration_id == registration_id,
+            Registration.email == session["email"],
+        )
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/vendor/dashboard", status_code=303)
+
+    booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+
+    return _template(request, "vendor/registration_detail.html", {
+        "registration": registration,
+        "booth_type": booth_type,
+    })
+
+
 # --- Vendor dashboard ---
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -317,6 +342,10 @@ async def vendor_dashboard(
             "booth_type": booth_types.get(reg.booth_type_id),
         })
 
+    settings = db.query(EventSettings).first()
+    registration_open = settings.is_registration_open() if settings else False
+
     return _template(request, "vendor/dashboard.html", {
         "registrations": reg_data,
+        "registration_open": registration_open,
     })
