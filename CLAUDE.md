@@ -32,7 +32,7 @@ pytest tests/test_registration_transitions.py
 pytest tests/test_auth.py::test_expired_otp_rejected -v
 
 # Stripe webhook forwarding (local dev)
-stripe listen --forward-to localhost:8000/api/webhooks/stripe
+stripe listen --forward-to 127.0.0.1:8000/api/webhooks/stripe
 ```
 
 ## Architecture
