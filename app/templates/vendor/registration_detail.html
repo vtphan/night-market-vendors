@@ -2,6 +2,12 @@
 
 {% block title %}{{ registration.registration_id }} - Asian Night Market{% endblock %}
 
+{% block extra_head %}
+{% if registration.status == "approved" and stripe_publishable_key %}
+<script src="https://js.stripe.com/v3/"></script>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <p><a href="/vendor/dashboard">&larr; Back to My Registrations</a></p>
 
@@ -61,6 +67,28 @@
         </dd>
     </dl>
 </article>
+
+{% if registration.status == "approved" and stripe_publishable_key %}
+<article>
+    <header>Complete Payment</header>
+    <p>Your registration has been approved! Please complete payment to confirm your booth.</p>
+    <p><strong>Amount due:</strong> ${{ "%.2f" | format(booth_type.price / 100) }}</p>
+    <form id="payment-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div id="card-element" style="padding: 12px; border: 1px solid var(--pico-form-element-border-color); border-radius: 4px; margin-bottom: 1rem;"></div>
+        <div id="card-errors" role="alert" style="color: #c62828; margin-bottom: 1rem;"></div>
+        <button type="submit" id="pay-button">Pay ${{ "%.2f" | format(booth_type.price / 100) }}</button>
+    </form>
+</article>
+<script>
+    window.PAYMENT_CONFIG = {
+        publishableKey: "{{ stripe_publishable_key }}",
+        registrationId: "{{ registration.registration_id }}",
+        csrfToken: "{{ csrf_token }}"
+    };
+</script>
+<script src="/static/payment.js"></script>
+{% endif %}
 
 {% if registration.status == "confirmed" or registration.amount_paid %}
 <article>

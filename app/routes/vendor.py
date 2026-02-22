@@ -14,6 +14,8 @@ from app.services.registration import (
     check_submission_rate_limit,
 )
 from app.services.email import send_submission_confirmation_email
+from app.services.payment import create_payment_intent
+from app.config import STRIPE_PUBLISHABLE_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -312,9 +314,52 @@ async def registration_detail(
 
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
 
-    return _template(request, "vendor/registration_detail.html", {
+    ctx = {
         "registration": registration,
         "booth_type": booth_type,
+    }
+    if registration.status == "approved":
+        ctx["stripe_publishable_key"] = STRIPE_PUBLISHABLE_KEY
+
+    return _template(request, "vendor/registration_detail.html", ctx)
+
+
+# --- Payment ---
+
+@router.post("/registration/{registration_id}/pay")
+async def create_payment(
+    request: Request,
+    registration_id: str,
+    session: dict = Depends(require_vendor),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    from fastapi.responses import JSONResponse
+
+    registration = (
+        db.query(Registration)
+        .filter(
+            Registration.registration_id == registration_id,
+            Registration.email == session["email"],
+        )
+        .first()
+    )
+    if not registration:
+        return JSONResponse(status_code=404, content={"error": "Registration not found"})
+
+    if registration.status != "approved":
+        return JSONResponse(status_code=400, content={"error": "Registration is not approved for payment"})
+
+    booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+    if not booth_type:
+        return JSONResponse(status_code=400, content={"error": "Booth type not found"})
+
+    client_secret = create_payment_intent(db, registration, booth_type)
+
+    return JSONResponse(content={
+        "client_secret": client_secret,
+        "amount": booth_type.price,
+        "booth_type": booth_type.name,
     })
 
 

@@ -635,7 +635,7 @@ async def test_dashboard_shows_vendor_registrations(db):
         response = await client.get("/vendor/dashboard", cookies=cookies)
         assert response.status_code == 200
         assert "ANM-2026-0001" in response.text
-        assert "Vendor Biz" in response.text
+        assert "Approved" in response.text
         # Should show option to register for another booth
         assert "Register for Another Booth" in response.text
         assert "?new=1" in response.text

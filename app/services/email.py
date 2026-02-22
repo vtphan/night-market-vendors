@@ -72,6 +72,36 @@ def send_approval_email(to: str, registration_id: str, payment_url: str) -> bool
     return send_email(to, f"Registration {registration_id} Approved!", html)
 
 
+def send_payment_confirmation_email(to: str, registration_id: str, booth_type_name: str, amount_cents: int) -> bool:
+    """Send payment confirmation email."""
+    try:
+        template = _env.get_template("payment_confirmation.html")
+        html = template.render(
+            registration_id=registration_id,
+            booth_type_name=booth_type_name,
+            amount=f"${amount_cents / 100:.2f}",
+            dashboard_url=f"{APP_URL}/vendor/dashboard",
+        )
+    except Exception:
+        logger.exception("Failed to render payment confirmation template")
+        return False
+    return send_email(to, f"Payment Confirmed - {registration_id}", html)
+
+
+def send_refund_email(to: str, registration_id: str, refund_amount_cents: int) -> bool:
+    """Send refund notification email."""
+    try:
+        template = _env.get_template("refund_confirmation.html")
+        html = template.render(
+            registration_id=registration_id,
+            refund_amount=f"${refund_amount_cents / 100:.2f}",
+        )
+    except Exception:
+        logger.exception("Failed to render refund confirmation template")
+        return False
+    return send_email(to, f"Refund Issued - {registration_id}", html)
+
+
 def send_rejection_email(to: str, registration_id: str, reason: str | None = None) -> bool:
     """Send registration rejection notification."""
     try:

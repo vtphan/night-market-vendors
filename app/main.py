@@ -153,7 +153,9 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
 from app.routes.auth import router as auth_router
 from app.routes.admin import router as admin_router
 from app.routes.vendor import router as vendor_router
+from app.routes.webhooks import router as webhooks_router
 
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(vendor_router)
+app.include_router(webhooks_router)

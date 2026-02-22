@@ -15,7 +15,8 @@ from app.services.registration import (
     transition_status,
     get_inventory,
 )
-from app.services.email import send_approval_email, send_rejection_email
+from app.services.email import send_approval_email, send_rejection_email, send_refund_email
+from app.services.payment import create_refund
 from app.config import APP_URL
 
 logger = logging.getLogger(__name__)
@@ -145,8 +146,7 @@ async def approve_registration(
             url=f"/admin/registrations/{reg_id}", status_code=303
         )
 
-    # Send approval email (payment URL will be added in Phase 3)
-    payment_url = f"{APP_URL}/vendor/dashboard"
+    payment_url = f"{APP_URL}/vendor/registration/{reg_id}"
     send_approval_email(registration.email, reg_id, payment_url)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
@@ -209,6 +209,49 @@ async def unreject_registration(
         return RedirectResponse(
             url=f"/admin/registrations/{reg_id}", status_code=303
         )
+
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
+# --- Cancel + Refund ---
+
+@router.post("/registrations/{reg_id}/cancel")
+async def cancel_registration(
+    request: Request,
+    reg_id: str,
+    refund_amount: str = Form("0"),
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    if registration.status != "confirmed":
+        logger.warning("Cannot cancel %s: status is %s", reg_id, registration.status)
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+    # Convert dollar amount to cents
+    try:
+        amount_cents = int(float(refund_amount) * 100)
+    except (ValueError, TypeError):
+        amount_cents = 0
+
+    if amount_cents > 0 and registration.stripe_payment_intent_id:
+        create_refund(db, registration, amount_cents)
+
+    try:
+        transition_status(db, registration, "cancelled")
+    except ValueError as e:
+        logger.warning("Invalid transition for %s: %s", reg_id, e)
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+    send_refund_email(registration.email, reg_id, amount_cents)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -323,8 +366,9 @@ async def export_csv(
         "Registration ID", "Status", "Business Name", "Contact Name",
         "Email", "Phone", "Category", "Cuisine Type", "Description",
         "Booth Type", "Needs Power", "Needs Water", "Needs Propane",
-        "Documents Approved", "Created At", "Approved At", "Rejected At",
-        "Rejection Reason",
+        "Documents Approved", "Amount Paid", "Refund Amount",
+        "Stripe Payment Intent ID", "Created At", "Approved At",
+        "Rejected At", "Rejection Reason",
     ])
 
     for reg in registrations:
@@ -343,6 +387,9 @@ async def export_csv(
             "Yes" if reg.needs_water else "No",
             "Yes" if reg.needs_propane else "No",
             "Yes" if reg.documents_approved else "No",
+            f"${reg.amount_paid / 100:.2f}" if reg.amount_paid else "",
+            f"${reg.refund_amount / 100:.2f}" if reg.refund_amount else "",
+            reg.stripe_payment_intent_id or "",
             reg.created_at.strftime("%Y-%m-%d %H:%M") if reg.created_at else "",
             reg.approved_at.strftime("%Y-%m-%d %H:%M") if reg.approved_at else "",
             reg.rejected_at.strftime("%Y-%m-%d %H:%M") if reg.rejected_at else "",

@@ -145,9 +145,25 @@
 
     {% elif registration.status == 'confirmed' %}
     <hr style="margin: 1rem 0;">
-    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin: 0;">
-        This registration is confirmed (paid). Cancellation with refund will be available in the payment phase.
-    </p>
+
+    {% if registration.amount_paid %}
+    <p style="margin-bottom: 0.5rem;"><strong>Amount Paid:</strong> {{ format_price(registration.amount_paid) }}</p>
+    {% endif %}
+
+    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/cancel"
+          style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0;"
+          onsubmit="return confirm('Cancel this registration and issue a refund?\n\nThe vendor ({{ registration.email }}) will be notified by email.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+            Refund $
+            <input type="number" name="refund_amount" step="0.01" min="0"
+                   value="{{ '%.2f' | format((registration.amount_paid or 0) / 100) }}"
+                   style="margin: 0; width: 120px;">
+        </label>
+        <button type="submit" style="width: auto; margin: 0; background-color: #c62828; border-color: #c62828;">
+            Cancel &amp; Refund
+        </button>
+    </form>
 
     {% elif registration.status == 'cancelled' %}
     <hr style="margin: 1rem 0;">
