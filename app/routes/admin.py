@@ -1,7 +1,7 @@
 import csv
 import io
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
@@ -332,6 +332,8 @@ async def update_inventory(
     request: Request,
     booth_type_id: int,
     total_quantity: int = Form(...),
+    price: str = Form(...),
+    description: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -339,6 +341,13 @@ async def update_inventory(
     booth_type = db.query(BoothType).filter(BoothType.id == booth_type_id).first()
     if booth_type and total_quantity >= 0:
         booth_type.total_quantity = total_quantity
+        booth_type.description = description.strip()
+        try:
+            price_cents = int(float(price) * 100)
+            if price_cents >= 0:
+                booth_type.price = price_cents
+        except (ValueError, TypeError):
+            pass
         db.commit()
     return RedirectResponse(url="/admin/inventory", status_code=303)
 
@@ -360,9 +369,16 @@ async def settings_page(
 @router.post("/settings")
 async def update_settings(
     request: Request,
+    event_name: str = Form(...),
+    event_start_date: str = Form(...),
+    event_end_date: str = Form(...),
     registration_open_date: str = Form(...),
     registration_close_date: str = Form(...),
+    banner_text: str = Form(""),
+    contact_email: str = Form(""),
     front_page_content: str = Form(""),
+    payment_instructions: str = Form(""),
+    vendor_agreement_text: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -370,10 +386,18 @@ async def update_settings(
     settings = db.query(EventSettings).first()
     if settings:
         try:
+            settings.event_name = event_name.strip()
+            settings.event_start_date = date.fromisoformat(event_start_date)
+            settings.event_end_date = date.fromisoformat(event_end_date)
             settings.registration_open_date = datetime.fromisoformat(registration_open_date)
             settings.registration_close_date = datetime.fromisoformat(registration_close_date)
+            settings.banner_text = banner_text.strip()
+            settings.contact_email = contact_email.strip()
             settings.front_page_content = front_page_content.strip()
+            settings.payment_instructions = payment_instructions.strip()
+            settings.vendor_agreement_text = vendor_agreement_text.strip()
             db.commit()
+            request.app.state.event_name = settings.event_name
         except ValueError:
             pass
     return RedirectResponse(url="/admin/settings", status_code=303)

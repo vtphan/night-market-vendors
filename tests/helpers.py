@@ -67,7 +67,8 @@ def seed_event(db):
     db.add(EventSettings(
         id=1,
         event_name="Test Event",
-        event_date=datetime(2026, 10, 17).date(),
+        event_start_date=datetime(2026, 10, 17).date(),
+        event_end_date=datetime(2026, 10, 18).date(),
         registration_open_date=datetime(2026, 6, 1),
         registration_close_date=datetime(2026, 9, 15, 23, 59, 59),
         vendor_agreement_text="Agreement text.",
@@ -82,7 +83,8 @@ def seed_event_open(db):
         settings = EventSettings(
             id=1,
             event_name="Test Event",
-            event_date=datetime(2026, 10, 17).date(),
+            event_start_date=datetime(2026, 10, 17).date(),
+            event_end_date=datetime(2026, 10, 18).date(),
             registration_open_date=datetime(2020, 1, 1),
             registration_close_date=datetime(2030, 12, 31, 23, 59, 59),
             vendor_agreement_text="Test agreement text.",
@@ -103,7 +105,8 @@ def seed_event_future(db):
         settings = EventSettings(
             id=1,
             event_name="Test Event",
-            event_date=datetime(2030, 10, 17).date(),
+            event_start_date=datetime(2030, 10, 17).date(),
+            event_end_date=datetime(2030, 10, 18).date(),
             registration_open_date=datetime(2030, 6, 1),
             registration_close_date=datetime(2030, 9, 15, 23, 59, 59),
             vendor_agreement_text="Test agreement text.",
@@ -124,7 +127,8 @@ def seed_event_closed(db):
         settings = EventSettings(
             id=1,
             event_name="Test Event",
-            event_date=datetime(2020, 10, 17).date(),
+            event_start_date=datetime(2020, 10, 17).date(),
+            event_end_date=datetime(2020, 10, 18).date(),
             registration_open_date=datetime(2020, 1, 1),
             registration_close_date=datetime(2020, 9, 15, 23, 59, 59),
             vendor_agreement_text="Test agreement text.",

@@ -3,6 +3,10 @@
 {% block title %}My Registrations - Asian Night Market{% endblock %}
 
 {% block content %}
+{% if settings and settings.banner_text %}
+<div class="site-banner">{{ settings.banner_text }}</div>
+{% endif %}
+
 <h2>My Registrations</h2>
 
 {% if registrations %}
@@ -38,5 +42,10 @@
 {% else %}
 <p>Registration is currently closed.</p>
 {% endif %}
+{% endif %}
+
+{% if settings and settings.contact_email %}
+<hr>
+<p><small>Questions? Contact us at <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>.</small></p>
 {% endif %}
 {% endblock %}

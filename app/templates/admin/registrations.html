@@ -9,7 +9,7 @@
     <div class="grid">
         <select name="status">
             <option value="">All Statuses</option>
-            {% for s in ['pending', 'approved', 'rejected', 'confirmed', 'cancelled'] %}
+            {% for s in ['pending', 'approved', 'confirmed', 'rejected', 'cancelled'] %}
             <option value="{{ s }}" {{ 'selected' if filter_status == s }}>{{ s | title }}</option>
             {% endfor %}
         </select>

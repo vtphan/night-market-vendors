@@ -399,6 +399,8 @@ async def test_update_inventory_quantity(db):
         response = await client.post(f"/admin/inventory/{booths[0].id}", data={
             "csrf_token": csrf,
             "total_quantity": "25",
+            "price": "150.00",
+            "description": "Updated description",
         }, cookies=admin_cookie())
 
         assert response.status_code == 303
@@ -451,6 +453,9 @@ async def test_update_settings_dates(db):
 
         response = await client.post("/admin/settings", data={
             "csrf_token": csrf,
+            "event_name": "Test Event",
+            "event_start_date": "2026-09-26",
+            "event_end_date": "2026-09-27",
             "registration_open_date": "2026-05-01T00:00",
             "registration_close_date": "2026-10-01T23:59",
         }, cookies=admin_cookie())

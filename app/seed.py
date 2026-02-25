@@ -25,11 +25,15 @@ def seed_event_data(db: Session) -> None:
         settings = EventSettings(
             id=1,
             event_name=evt["name"],
-            event_date=date.fromisoformat(evt["date"]),
+            event_start_date=date.fromisoformat(evt["start_date"]),
+            event_end_date=date.fromisoformat(evt["end_date"]),
             registration_open_date=datetime.fromisoformat(evt["registration_open_date"]),
             registration_close_date=datetime.fromisoformat(evt["registration_close_date"]),
             vendor_agreement_text=evt["vendor_agreement_text"],
             front_page_content=evt.get("front_page_content", "Welcome! Check back for updates about vendor registration."),
+            banner_text=evt.get("banner_text", ""),
+            contact_email=evt.get("contact_email", ""),
+            payment_instructions=evt.get("payment_instructions", ""),
         )
         db.add(settings)
         db.commit()

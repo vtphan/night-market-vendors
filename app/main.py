@@ -11,7 +11,7 @@ from app.config import DEBUG
 from app.database import Base, engine, SessionLocal, get_db
 from app.seed import seed_event_data, bootstrap_admins
 from app.session import read_session, refresh_session
-from app.models import EventSettings
+from app.models import EventSettings, BoothType
 
 # Configure logging
 logging.basicConfig(
@@ -36,6 +36,9 @@ async def lifespan(app: FastAPI):
         bootstrap_admins(db)
     finally:
         db.close()
+
+    settings = db.query(EventSettings).first()
+    app.state.event_name = settings.event_name if settings else "Vendor Registration"
 
     logger.info("Application startup complete")
     yield
@@ -66,6 +69,10 @@ def format_datetime(dt) -> str:
 
 from app.services.registration import CATEGORIES, ELECTRICAL_EQUIPMENT_OPTIONS, EQUIP_LABELS
 
+def get_event_name():
+    return getattr(app.state, "event_name", "Vendor Registration")
+
+app.state.templates.env.globals["get_event_name"] = get_event_name
 app.state.templates.env.globals["format_price"] = format_price
 app.state.templates.env.globals["format_datetime"] = format_datetime
 app.state.templates.env.globals["CATEGORIES"] = CATEGORIES
@@ -126,6 +133,13 @@ async def homepage(request: Request, db = Depends(get_db)):
 
     registration_open = (status == "open")
 
+    booth_types = (
+        db.query(BoothType)
+        .filter(BoothType.is_active == True)
+        .order_by(BoothType.sort_order)
+        .all()
+    )
+
     return app.state.templates.TemplateResponse(
         "home.html",
         {
@@ -134,6 +148,7 @@ async def homepage(request: Request, db = Depends(get_db)):
             "status": status,
             "session": session,
             "registration_open": registration_open,
+            "booth_types": booth_types,
             "get_flashed_messages": lambda: [],
         },
     )

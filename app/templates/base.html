@@ -11,7 +11,7 @@
 <body>
     <nav class="container">
         <ul>
-            <li><strong>Asian Night Market</strong></li>
+            <li><a href="/"><strong>{{ get_event_name() }}</strong></a></li>
         </ul>
         <ul>
             {% if session and session.user_type == "admin" %}

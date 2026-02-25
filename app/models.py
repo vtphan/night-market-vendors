@@ -84,11 +84,15 @@ class EventSettings(Base):
 
     id = Column(Integer, primary_key=True, default=1)
     event_name = Column(String, nullable=False)
-    event_date = Column(Date, nullable=False)
+    event_start_date = Column(Date, nullable=False)
+    event_end_date = Column(Date, nullable=False)
     registration_open_date = Column(DateTime, nullable=False)
     registration_close_date = Column(DateTime, nullable=False)
     vendor_agreement_text = Column(Text, nullable=False)
     front_page_content = Column(Text, nullable=False, default="")
+    banner_text = Column(Text, nullable=False, default="")
+    contact_email = Column(String, nullable=False, default="")
+    payment_instructions = Column(Text, nullable=False, default="")
 
     def is_registration_open(self) -> bool:
         """Check if vendor registration is currently open."""

@@ -76,6 +76,9 @@
 {% if registration.status == "approved" and stripe_publishable_key %}
 <article>
     <header>Complete Payment</header>
+    {% if settings and settings.payment_instructions %}
+    <p>{{ settings.payment_instructions }}</p>
+    {% endif %}
     <p>Your registration has been approved! Please complete payment to confirm your booth.</p>
     <p><strong>Amount due:</strong> ${{ "%.2f" | format(booth_type.price / 100) }}</p>
     <form id="payment-form">
@@ -126,4 +129,9 @@
         {% endif %}
     </dl>
 </article>
+
+{% if settings and settings.contact_email %}
+<hr>
+<p><small>Questions? Contact us at <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>.</small></p>
+{% endif %}
 {% endblock %}

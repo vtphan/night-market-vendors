@@ -304,9 +304,12 @@ async def registration_detail(
 
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
 
+    settings = db.query(EventSettings).first()
+
     ctx = {
         "registration": registration,
         "booth_type": booth_type,
+        "settings": settings,
     }
     if registration.status == "approved":
         ctx["stripe_publishable_key"] = STRIPE_PUBLISHABLE_KEY
@@ -388,4 +391,5 @@ async def vendor_dashboard(
     return _template(request, "vendor/dashboard.html", {
         "registrations": reg_data,
         "registration_open": registration_open,
+        "settings": settings,
     })

@@ -1,29 +1,33 @@
 {
   "event": {
     "name": "Asian Night Market 2026",
-    "date": "2026-10-17",
+    "start_date": "2026-09-26",
+    "end_date": "2026-09-27",
     "registration_open_date": "2026-02-01T00:00:00",
     "registration_close_date": "2026-09-15T23:59:59",
+    "banner_text": "",
+    "contact_email": "",
+    "payment_instructions": "",
     "vendor_agreement_text": "VENDOR PARTICIPATION AGREEMENT\n\nBy submitting this registration, you agree to the following terms and conditions:\n\n1. EVENT DETAILS: The Asian Night Market will be held on the date specified above. Setup begins at 2:00 PM; the event runs from 5:00 PM to 10:00 PM.\n\n2. BOOTH ASSIGNMENT: Booth locations are assigned by the organizers. Vendors may not request specific spots.\n\n3. INSURANCE: Food vendors must provide a Certificate of General Liability Insurance prior to the event.\n\n4. CANCELLATION & REFUNDS: Cancellations must be requested through the organizers. Refund amounts are at the discretion of the organizing committee.\n\n5. CONDUCT: Vendors must maintain a clean and safe booth area. Excessive noise, inappropriate signage, or disruptive behavior may result in removal without refund.\n\n6. LIABILITY: The vendor assumes all responsibility for their booth, products, and staff. The organizing committee is not liable for any loss, damage, or injury.\n\n7. HEALTH COMPLIANCE: Food vendors must comply with all local health department regulations and obtain necessary permits.\n\n8. The organizing committee reserves the right to reject or revoke participation at any time."
   },
   "booth_types": [
     {
       "name": "Premium Booth",
-      "description": "Prime location near entrance, corner spots, or high foot traffic areas. Includes a 10x10 ft space.",
+      "description": "Prime location near entrance, corner spots, or high foot traffic areas. The booth dimension is 22 ft wide (front facing) × 30 ft deep.",
       "total_quantity": 20,
       "price": 15000,
       "sort_order": 1
     },
     {
       "name": "Regular Booth",
-      "description": "Standard booth space in the main vendor area. Includes a 10x10 ft space.",
+      "description": "Standard booth space in the main vendor area. The booth dimension is 22 ft wide (front facing) × 30 ft deep.",
       "total_quantity": 80,
       "price": 10000,
       "sort_order": 2
     },
     {
       "name": "Compact Booth",
-      "description": "Smaller footprint for vendors with minimal setup. Includes a 6x6 ft space.",
+      "description": "Smaller footprint for vendors with minimal setup. The booth dimension is 12 ft wide (front facing) × 15 ft deep.",
       "total_quantity": 50,
       "price": 6000,
       "sort_order": 3

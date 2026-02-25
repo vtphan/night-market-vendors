@@ -145,3 +145,14 @@
 .filter-bar .grid {
     align-items: end;
 }
+
+/* Banner */
+.site-banner {
+    background-color: #e8f4fd;
+    border-left: 4px solid #0066cc;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 4px;
+    color: #004085;
+    font-weight: 500;
+}

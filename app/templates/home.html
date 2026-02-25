@@ -3,28 +3,48 @@
 {% block title %}{{ settings.event_name }}{% endblock %}
 
 {% block content %}
-<hgroup>
-    <h2>{{ settings.event_name }}</h2>
-    <p>{{ settings.event_date.strftime('%B %d, %Y') }}</p>
-</hgroup>
+{% if settings.banner_text %}
+<div class="site-banner">{{ settings.banner_text }}</div>
+{% endif %}
+
+{% if settings.event_start_date == settings.event_end_date %}
+<h2>{{ settings.event_start_date.strftime('%B %d, %Y') }}</h2>
+{% elif settings.event_start_date.month == settings.event_end_date.month %}
+<h2>{{ settings.event_start_date.strftime('%B %d') }}&ndash;{{ settings.event_end_date.strftime('%d, %Y') }}</h2>
+{% else %}
+<h2>{{ settings.event_start_date.strftime('%B %d') }} &ndash; {{ settings.event_end_date.strftime('%B %d, %Y') }}</h2>
+{% endif %}
 
 {% if settings.front_page_content %}
 <article>
-    {{ settings.front_page_content }}
+    {{ settings.front_page_content | safe }}
 </article>
 {% endif %}
 
-<article>
-    <header><strong>Registration Status</strong></header>
-    {% if status == "coming_soon" %}
-    <p>Vendor registration opens on <strong>{{ settings.registration_open_date.strftime('%B %d, %Y at %I:%M %p') }}</strong>.</p>
-    <p>Please check back then to register your booth.</p>
-    {% elif status == "open" %}
-    <p>Vendor registration is <strong>open</strong> and closes on <strong>{{ settings.registration_close_date.strftime('%B %d, %Y at %I:%M %p') }}</strong>.</p>
-    <p><a href="/auth/login" role="button">Register as a Vendor</a></p>
-    {% else %}
-    <p>Vendor registration is now <strong>closed</strong>.</p>
-    <p>If you have already registered, you can <a href="/auth/login">log in</a> to check your registration status.</p>
-    {% endif %}
-</article>
+{% if booth_types %}
+<h3>Booth Options</h3>
+<div class="grid">
+    {% for bt in booth_types %}
+    <article>
+        <header><strong>{{ bt.name }}</strong></header>
+        <p><strong>{{ format_price(bt.price) }}</strong></p>
+        <p>{{ bt.description }}</p>
+    </article>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if status == "coming_soon" %}
+<p>Vendor registration opens on <strong>{{ settings.registration_open_date.strftime('%B %d, %Y at %I:%M %p') }}</strong>. Check back then to register your booth.</p>
+{% elif status == "open" %}
+<p>Vendor registration is <strong>open</strong> and closes on <strong>{{ settings.registration_close_date.strftime('%B %d, %Y at %I:%M %p') }}</strong>.</p>
+<p><a href="/auth/login" role="button">Register Now</a></p>
+{% else %}
+<p>Vendor registration is now <strong>closed</strong>. If you have already registered, you can <a href="/auth/login">log in</a> to check your status.</p>
+{% endif %}
+
+{% if settings.contact_email %}
+<hr>
+<p><small>Questions? Contact us at <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>.</small></p>
+{% endif %}
 {% endblock %}
