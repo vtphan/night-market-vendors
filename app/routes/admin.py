@@ -358,8 +358,18 @@ async def reject_registration(
     if not registration:
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
+    rejection_reason = rejection_reason.strip()
+    if not rejection_reason:
+        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+        flash = [{"category": "error", "text": "A rejection reason is required."}]
+        return _template(request, "admin/registration_detail.html", {
+            "registration": registration,
+            "booth_type": booth_type,
+            "get_flashed_messages": lambda: flash,
+        }, session=session)
+
     try:
-        transition_status(db, registration, "rejected", rejection_reason=rejection_reason or None)
+        transition_status(db, registration, "rejected", rejection_reason=rejection_reason)
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
         booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()

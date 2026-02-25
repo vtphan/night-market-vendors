@@ -75,6 +75,15 @@ from app.services.registration import CATEGORIES, ELECTRICAL_EQUIPMENT_OPTIONS, 
 def get_event_name():
     return getattr(app.state, "event_name", "Vendor Registration")
 
+VENDOR_STATUS_LABELS = {
+    "rejected": "Declined",
+}
+
+def vendor_status(status: str) -> str:
+    """Vendor-friendly status label: 'rejected' → 'Declined', others title-cased."""
+    return VENDOR_STATUS_LABELS.get(status, status.title() if status else "")
+
+app.state.templates.env.filters["vendor_status"] = vendor_status
 app.state.templates.env.globals["get_event_name"] = get_event_name
 app.state.templates.env.globals["format_price"] = format_price
 app.state.templates.env.globals["format_datetime"] = format_datetime

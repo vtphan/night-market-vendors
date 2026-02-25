@@ -13,7 +13,7 @@
         <table>
             <tr><th>Business Name</th><td>{{ registration.business_name }}</td></tr>
             <tr><th>Contact Name</th><td>{{ registration.contact_name }}</td></tr>
-            <tr><th>Email</th><td>{{ registration.email }}</td></tr>
+            <tr><th>Email</th><td><a href="mailto:{{ registration.email }}">{{ registration.email }}</a></td></tr>
             <tr><th>Phone</th><td>{{ registration.phone }}</td></tr>
             <tr><th>Category</th><td>{{ CATEGORIES.get(registration.category, registration.category) }}</td></tr>
             <tr><th>Description</th><td>{{ registration.description }}</td></tr>
@@ -139,16 +139,44 @@
     <hr style="margin: 1rem 0;">
 
     <!-- Row 3: Reject Registration -->
-    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/reject"
+    <form id="reject-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/reject"
           style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0;"
-          onsubmit="return confirm('Reject this registration?\n\nThe vendor ({{ registration.email }}) will be notified by email.');">
+          onsubmit="return handleRejectSubmit(this, '{{ registration.email }}');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="outline secondary" style="width: auto; margin: 0;">
             Reject Registration
         </button>
-        <input type="text" name="rejection_reason" placeholder="Reason (optional)"
-               style="margin: 0; max-width: 300px;">
+        <select id="reject-reason-select" style="margin: 0; max-width: 360px;"
+                onchange="toggleCustomReason(this)">
+            <option value="" disabled selected>Select reason...</option>
+            <option value="We are currently out of booth space for your selected booth type. You have been placed on our waiting list, and an organizer will contact you if a spot becomes available.">Out of booth space (waitlist)</option>
+            <option value="We regret to inform you that the product or service described in your registration is not a suitable fit for this event.">Not suitable for event</option>
+            <option value="__other__">Other (custom reason)</option>
+        </select>
+        <input type="text" id="reject-reason-custom" name="rejection_reason_custom"
+               placeholder="Enter custom reason..." style="margin: 0; max-width: 360px; display: none;">
+        <input type="hidden" name="rejection_reason" id="reject-reason-hidden" value="">
     </form>
+    <script>
+    function toggleCustomReason(sel) {
+        var custom = document.getElementById('reject-reason-custom');
+        custom.style.display = sel.value === '__other__' ? '' : 'none';
+        if (sel.value !== '__other__') custom.value = '';
+    }
+    function handleRejectSubmit(form, email) {
+        var sel = document.getElementById('reject-reason-select');
+        var custom = document.getElementById('reject-reason-custom');
+        var hidden = document.getElementById('reject-reason-hidden');
+        if (!sel.value) { alert('Please select a rejection reason.'); return false; }
+        if (sel.value === '__other__') {
+            if (!custom.value.trim()) { alert('Please enter a custom rejection reason.'); return false; }
+            hidden.value = custom.value.trim();
+        } else {
+            hidden.value = sel.value;
+        }
+        return confirm('Reject this registration?\n\nThe vendor (' + email + ') will be notified by email.');
+    }
+    </script>
 
     {% elif registration.status == 'approved' %}
     <hr style="margin: 1rem 0;">

@@ -13,12 +13,12 @@
 
 <hgroup>
     <h2>{{ registration.business_name }}</h2>
-    <p>{{ registration.registration_id }} &middot; <span class="status-badge {{ registration.status }}">{{ registration.status | title }}</span></p>
+    <p>{{ registration.registration_id }} &middot; <span class="status-badge {{ registration.status }}">{{ registration.status | vendor_status }}</span></p>
 </hgroup>
 
 {% if registration.status == "rejected" and registration.rejection_reason %}
 <article class="rejection-notice">
-    <strong>Rejection reason:</strong> {{ registration.rejection_reason }}
+    <strong>Reason:</strong> {{ registration.rejection_reason }}
 </article>
 {% endif %}
 
@@ -142,7 +142,7 @@
         <dd>{{ registration.approved_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
         {% endif %}
         {% if registration.rejected_at %}
-        <dt>Rejected</dt>
+        <dt>Declined</dt>
         <dd>{{ registration.rejected_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
         {% endif %}
     </dl>
