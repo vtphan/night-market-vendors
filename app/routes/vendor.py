@@ -12,6 +12,9 @@ from app.models import Registration, BoothType, EventSettings
 from app.services.registration import (
     create_registration,
     check_submission_rate_limit,
+    get_inventory,
+    get_waitlist_position,
+    LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
 from app.services.email import send_submission_confirmation_email
@@ -84,12 +87,16 @@ async def register_gateway(request: Request, edit: str = "", new: str = "", db: 
         .order_by(BoothType.sort_order)
         .all()
     )
+    inventory = get_inventory(db)
+    booth_availability = {item["id"]: item["available"] for item in inventory}
 
     if step == 1 or step == 0:
         return _template(request, "vendor/register_step1.html", {
             "agreement_text": settings.vendor_agreement_text if settings else "",
             "insurance_instructions": settings.insurance_instructions if settings else "",
             "booth_types": booth_types,
+            "booth_availability": booth_availability,
+            "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
             "draft": draft,
             "email": email,
         })
@@ -149,6 +156,8 @@ async def register_step1(
         flash = [{"category": "error", "text": e} for e in errors]
         settings = db.query(EventSettings).first()
         booth_types = db.query(BoothType).filter(BoothType.is_active == True).order_by(BoothType.sort_order).all()
+        inventory = get_inventory(db)
+        booth_availability = {item["id"]: item["available"] for item in inventory}
         # Preserve form values in draft for re-display
         form_draft = {
             "contact_name": contact_name,
@@ -164,6 +173,8 @@ async def register_step1(
             "agreement_text": settings.vendor_agreement_text if settings else "",
             "insurance_instructions": settings.insurance_instructions if settings else "",
             "booth_types": booth_types,
+            "booth_availability": booth_availability,
+            "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
             "draft": form_draft,
             "email": email,
             "get_flashed_messages": lambda: flash,
@@ -306,6 +317,7 @@ async def registration_detail(
         "registration": registration,
         "booth_type": booth_type,
         "settings": settings,
+        "waitlist_position": get_waitlist_position(db, registration),
     }
     if registration.status == "approved":
         ctx["stripe_publishable_key"] = STRIPE_PUBLISHABLE_KEY
@@ -372,13 +384,14 @@ async def vendor_dashboard(
         .all()
     )
 
-    # Attach booth type names
+    # Attach booth type names and waitlist positions
     booth_types = {bt.id: bt for bt in db.query(BoothType).all()}
     reg_data = []
     for reg in registrations:
         reg_data.append({
             "registration": reg,
             "booth_type": booth_types.get(reg.booth_type_id),
+            "waitlist_position": get_waitlist_position(db, reg),
         })
 
     settings = db.query(EventSettings).first()

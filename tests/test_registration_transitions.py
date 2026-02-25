@@ -77,27 +77,27 @@ def test_approved_to_rejected(db):
     assert result.rejected_at is not None
 
 
-def test_approved_to_confirmed(db):
+def test_approved_to_paid(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="approved")
-    result = transition_status(db, reg, "confirmed")
-    assert result.status == "confirmed"
+    result = transition_status(db, reg, "paid")
+    assert result.status == "paid"
 
 
-def test_confirmed_to_cancelled(db):
+def test_paid_to_cancelled(db):
     bt = _make_booth_type(db)
-    reg = _make_registration(db, bt.id, status="confirmed")
+    reg = _make_registration(db, bt.id, status="paid")
     result = transition_status(db, reg, "cancelled")
     assert result.status == "cancelled"
 
 
 # --- Invalid transitions ---
 
-def test_pending_to_confirmed_invalid(db):
+def test_pending_to_paid_invalid(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="pending")
     with pytest.raises(ValueError, match="Cannot transition"):
-        transition_status(db, reg, "confirmed")
+        transition_status(db, reg, "paid")
 
 
 def test_pending_to_cancelled_invalid(db):
@@ -122,7 +122,7 @@ def test_rejected_to_pending(db):
 def test_rejected_to_other_invalid(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="rejected")
-    for target in ["approved", "confirmed", "cancelled"]:
+    for target in ["approved", "paid", "cancelled"]:
         with pytest.raises(ValueError, match="Cannot transition"):
             transition_status(db, reg, target)
 
@@ -130,7 +130,7 @@ def test_rejected_to_other_invalid(db):
 def test_cancelled_to_any_invalid(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="cancelled")
-    for target in ["pending", "approved", "rejected", "confirmed"]:
+    for target in ["pending", "approved", "rejected", "paid"]:
         with pytest.raises(ValueError, match="Cannot transition"):
             transition_status(db, reg, target)
 
@@ -243,17 +243,17 @@ def test_inventory_empty(db):
     assert inventory[0]["reserved"] == 0
 
 
-def test_inventory_counts_approved_and_confirmed(db):
+def test_inventory_counts_approved_and_paid(db):
     bt = _make_booth_type(db, qty=10)
     _make_registration(db, bt.id, status="approved", email="a@test.com", reg_id="ANM-2026-0001")
     _make_registration(db, bt.id, status="approved", email="b@test.com", reg_id="ANM-2026-0002")
-    _make_registration(db, bt.id, status="confirmed", email="c@test.com", reg_id="ANM-2026-0003")
+    _make_registration(db, bt.id, status="paid", email="c@test.com", reg_id="ANM-2026-0003")
     _make_registration(db, bt.id, status="pending", email="d@test.com", reg_id="ANM-2026-0004")
     _make_registration(db, bt.id, status="rejected", email="e@test.com", reg_id="ANM-2026-0005")
 
     inventory = get_inventory(db)
     assert inventory[0]["approved"] == 2
-    assert inventory[0]["confirmed"] == 1
+    assert inventory[0]["paid"] == 1
     assert inventory[0]["reserved"] == 3
     assert inventory[0]["available"] == 7  # 10 - 3
 

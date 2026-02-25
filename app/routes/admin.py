@@ -13,7 +13,10 @@ from app.session import require_admin
 from app.models import Registration, BoothType, EventSettings
 from app.services.registration import (
     transition_status,
+    approve_with_inventory_check,
     get_inventory,
+    get_booth_availability,
+    LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
 from app.services.email import send_approval_email, send_rejection_email, send_refund_email
@@ -43,7 +46,7 @@ async def admin_dashboard(
     db: Session = Depends(get_db),
 ):
     # Counts by status
-    statuses = ["pending", "approved", "rejected", "confirmed", "cancelled"]
+    statuses = ["pending", "approved", "rejected", "paid", "cancelled"]
     counts = {}
     for s in statuses:
         counts[s] = db.query(Registration).filter(Registration.status == s).count()
@@ -66,6 +69,7 @@ async def registration_list(
     db: Session = Depends(get_db),
     status: str = Query("", alias="status"),
     category: str = Query("", alias="category"),
+    booth_type: str = Query("", alias="booth_type"),
     insurance: str = Query("", alias="insurance"),
     search: str = Query("", alias="search"),
 ):
@@ -75,6 +79,11 @@ async def registration_list(
         query = query.filter(Registration.status == status)
     if category:
         query = query.filter(Registration.category == category)
+    if booth_type:
+        try:
+            query = query.filter(Registration.booth_type_id == int(booth_type))
+        except ValueError:
+            pass
     if insurance == "yes":
         query = query.filter(Registration.documents_approved == True)
     elif insurance == "no":
@@ -97,6 +106,7 @@ async def registration_list(
         "booth_types": booth_types,
         "filter_status": status,
         "filter_category": category,
+        "filter_booth_type": booth_type,
         "filter_insurance": insurance,
         "filter_search": search,
     }, session=session)
@@ -120,10 +130,13 @@ async def registration_detail(
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+    available = get_booth_availability(db, registration.booth_type_id)
 
     return _template(request, "admin/registration_detail.html", {
         "registration": registration,
         "booth_type": booth_type,
+        "booth_availability": available,
+        "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
     }, session=session)
 
 
@@ -146,14 +159,17 @@ async def approve_registration(
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
     try:
-        transition_status(db, registration, "approved")
+        approve_with_inventory_check(db, registration)
     except ValueError as e:
-        logger.warning("Invalid transition for %s: %s", reg_id, e)
+        logger.warning("Cannot approve %s: %s", reg_id, e)
         booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+        available = get_booth_availability(db, registration.booth_type_id)
         flash = [{"category": "error", "text": f"Cannot approve: {e}"}]
         return _template(request, "admin/registration_detail.html", {
             "registration": registration,
             "booth_type": booth_type,
+            "booth_availability": available,
+            "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
             "get_flashed_messages": lambda: flash,
         }, session=session)
 
@@ -255,7 +271,7 @@ async def cancel_registration(
     if not registration:
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
-    if registration.status != "confirmed":
+    if registration.status != "paid":
         logger.warning("Cannot cancel %s: status is %s", reg_id, registration.status)
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 

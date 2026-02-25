@@ -12,7 +12,7 @@
         <table>
             <tr><td>Pending</td><td><strong>{{ counts.pending }}</strong></td></tr>
             <tr><td>Approved</td><td><strong>{{ counts.approved }}</strong></td></tr>
-            <tr><td>Confirmed</td><td><strong>{{ counts.confirmed }}</strong></td></tr>
+            <tr><td>Paid</td><td><strong>{{ counts.paid }}</strong></td></tr>
             <tr><td>Rejected</td><td><strong>{{ counts.rejected }}</strong></td></tr>
             <tr><td>Cancelled</td><td><strong>{{ counts.cancelled }}</strong></td></tr>
             <tr><td><strong>Total</strong></td><td><strong>{{ counts.total }}</strong></td></tr>
@@ -22,14 +22,31 @@
 
     <article>
         <header><strong>Booth Inventory</strong></header>
-        <table>
-            {% for item in inventory %}
-            <tr>
-                <td>{{ item.name }}</td>
-                <td>{{ item.available }}/{{ item.total_quantity }} available</td>
-            </tr>
-            {% endfor %}
-        </table>
+        {% for item in inventory %}
+        <details {% if item.pending > 0 and item.available <= 0 %}open{% endif %}>
+            <summary>
+                <strong>{{ item.name }}</strong> —
+                {{ item.available }} available of {{ item.total_quantity }}
+                {% if item.pending > 0 %}
+                <span style="color: {% if item.available <= 0 %}#c62828{% else %}var(--pico-muted-color){% endif %};">
+                    ({{ item.pending }} pending)
+                </span>
+                {% endif %}
+            </summary>
+            <table>
+                <tr><td>Pending</td><td><strong>{{ item.pending }}</strong></td></tr>
+                <tr><td>Approved</td><td><strong>{{ item.approved }}</strong></td></tr>
+                <tr><td>Paid</td><td><strong>{{ item.paid }}</strong></td></tr>
+                <tr><td>Rejected</td><td><strong>{{ item.rejected }}</strong></td></tr>
+                <tr><td>Cancelled</td><td><strong>{{ item.cancelled }}</strong></td></tr>
+            </table>
+            {% if item.pending > 0 %}
+            <a href="/admin/registrations?status=pending&booth_type={{ item.id }}" role="button" class="outline" style="width: auto;">
+                Review {{ item.pending }} pending {{ item.name }}
+            </a>
+            {% endif %}
+        </details>
+        {% endfor %}
         <a href="/admin/inventory" role="button" class="secondary outline">Manage Inventory</a>
     </article>
 </div>

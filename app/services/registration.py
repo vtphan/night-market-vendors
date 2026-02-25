@@ -3,6 +3,7 @@ import time
 from datetime import datetime, timezone
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Registration, BoothType
@@ -13,9 +14,9 @@ logger = logging.getLogger(__name__)
 
 VALID_TRANSITIONS = {
     "pending": ["approved", "rejected"],
-    "approved": ["confirmed", "rejected", "pending"],
+    "approved": ["paid", "rejected", "pending"],
     "rejected": ["pending"],
-    "confirmed": ["cancelled"],
+    "paid": ["cancelled"],
 }
 
 CATEGORIES = {
@@ -85,6 +86,39 @@ def transition_status(
     return registration
 
 
+def approve_with_inventory_check(db: Session, registration: Registration) -> Registration:
+    """Atomically check booth availability and approve a registration.
+
+    Uses SELECT ... FOR UPDATE on the BoothType row to serialize concurrent
+    approvals for the same booth type (effective on PostgreSQL; SQLite is
+    single-writer so the risk is negligible in dev).
+
+    Raises ValueError if inventory is insufficient or the transition is invalid.
+    """
+    # Lock the booth type row — prevents concurrent approvals from reading
+    # stale counts until this transaction commits.
+    booth_type = (
+        db.query(BoothType)
+        .filter(BoothType.id == registration.booth_type_id)
+        .with_for_update()
+        .first()
+    )
+    if not booth_type:
+        raise ValueError("Booth type not found")
+
+    # Count while holding the lock
+    counts = _get_booth_counts(db, registration.booth_type_id)
+    available = booth_type.total_quantity - counts["approved"] - counts["paid"]
+
+    if available <= 0:
+        raise ValueError(
+            f"No {booth_type.name} booths available (0 remaining)"
+        )
+
+    # Transition commits the transaction, releasing the lock
+    return transition_status(db, registration, "approved")
+
+
 # --- Registration ID generation ---
 
 def generate_registration_id(db: Session) -> str:
@@ -111,29 +145,43 @@ def generate_registration_id(db: Session) -> str:
 # --- Create registration ---
 
 def create_registration(db: Session, data: dict) -> Registration:
-    """Create a new Registration with generated ID and pending status."""
-    reg_id = generate_registration_id(db)
+    """Create a new Registration with generated ID and pending status.
 
-    registration = Registration(
-        registration_id=reg_id,
-        email=data["email"],
-        business_name=data["business_name"],
-        contact_name=data["contact_name"],
-        phone=data["phone"],
-        category=data["category"],
-        description=data["description"],
-        electrical_equipment=data.get("electrical_equipment"),
-        electrical_other=data.get("electrical_other"),
-        booth_type_id=data["booth_type_id"],
-        status="pending",
-        agreement_accepted_at=data["agreement_accepted_at"],
-        agreement_ip_address=data["agreement_ip_address"],
-    )
-    db.add(registration)
-    db.commit()
-    db.refresh(registration)
-    logger.info("Created registration %s for %s", reg_id, data["email"])
-    return registration
+    Retries up to 3 times on registration ID collision (concurrent submissions).
+    """
+    for attempt in range(3):
+        reg_id = generate_registration_id(db)
+
+        registration = Registration(
+            registration_id=reg_id,
+            email=data["email"],
+            business_name=data["business_name"],
+            contact_name=data["contact_name"],
+            phone=data["phone"],
+            category=data["category"],
+            description=data["description"],
+            electrical_equipment=data.get("electrical_equipment"),
+            electrical_other=data.get("electrical_other"),
+            booth_type_id=data["booth_type_id"],
+            status="pending",
+            agreement_accepted_at=data["agreement_accepted_at"],
+            agreement_ip_address=data["agreement_ip_address"],
+        )
+        db.add(registration)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.warning(
+                "Registration ID collision on %s (attempt %d), retrying",
+                reg_id, attempt + 1,
+            )
+            continue
+        db.refresh(registration)
+        logger.info("Created registration %s for %s", reg_id, data["email"])
+        return registration
+
+    raise RuntimeError("Failed to generate unique registration ID after 3 attempts")
 
 
 # --- Rate limiting ---
@@ -141,6 +189,7 @@ def create_registration(db: Session, data: dict) -> Registration:
 _rate_limit_store: dict[str, list[float]] = {}
 RATE_LIMIT_MAX = 10
 RATE_LIMIT_WINDOW = 3600  # 1 hour
+LOW_INVENTORY_THRESHOLD = 3
 
 
 def check_submission_rate_limit(ip_address: str) -> bool:
@@ -168,7 +217,7 @@ def reset_rate_limits():
 # --- Inventory ---
 
 def get_inventory(db: Session) -> list[dict]:
-    """Return inventory for all active booth types with availability counts."""
+    """Return inventory for all active booth types with full status breakdown."""
     booth_types = (
         db.query(BoothType)
         .filter(BoothType.is_active == True)
@@ -185,30 +234,60 @@ def get_inventory(db: Session) -> list[dict]:
             "description": bt.description,
             "price": bt.price,
             "total_quantity": bt.total_quantity,
+            "pending": counts["pending"],
             "approved": counts["approved"],
-            "confirmed": counts["confirmed"],
-            "reserved": counts["approved"] + counts["confirmed"],
-            "available": bt.total_quantity - counts["approved"] - counts["confirmed"],
+            "paid": counts["paid"],
+            "rejected": counts["rejected"],
+            "cancelled": counts["cancelled"],
+            "reserved": counts["approved"] + counts["paid"],
+            "available": bt.total_quantity - counts["approved"] - counts["paid"],
         })
     return result
 
 
+def get_booth_availability(db: Session, booth_type_id: int) -> int:
+    """Return available booth count for a single booth type."""
+    booth_type = db.query(BoothType).filter(BoothType.id == booth_type_id).first()
+    if not booth_type:
+        return 0
+    counts = _get_booth_counts(db, booth_type_id)
+    return booth_type.total_quantity - counts["approved"] - counts["paid"]
+
+
+def get_waitlist_position(db: Session, registration: Registration) -> int | None:
+    """Return 1-based waitlist position for a pending registration.
+
+    Returns None if the registration is not pending or if booths are still
+    available (i.e. the vendor is not waitlisted).
+    """
+    if registration.status != "pending":
+        return None
+    available = get_booth_availability(db, registration.booth_type_id)
+    if available > 0:
+        return None
+    # Count pending registrations submitted before this one
+    ahead = (
+        db.query(func.count(Registration.id))
+        .filter(
+            Registration.booth_type_id == registration.booth_type_id,
+            Registration.status == "pending",
+            Registration.created_at < registration.created_at,
+        )
+        .scalar()
+    )
+    return ahead + 1
+
+
 def _get_booth_counts(db: Session, booth_type_id: int) -> dict:
-    """Get approved/confirmed counts for a booth type."""
-    approved_count = (
-        db.query(func.count(Registration.id))
-        .filter(
-            Registration.booth_type_id == booth_type_id,
-            Registration.status == "approved",
-        )
-        .scalar()
+    """Get counts by status for a booth type."""
+    counts = (
+        db.query(Registration.status, func.count(Registration.id))
+        .filter(Registration.booth_type_id == booth_type_id)
+        .group_by(Registration.status)
+        .all()
     )
-    confirmed_count = (
-        db.query(func.count(Registration.id))
-        .filter(
-            Registration.booth_type_id == booth_type_id,
-            Registration.status == "confirmed",
-        )
-        .scalar()
-    )
-    return {"approved": approved_count, "confirmed": confirmed_count}
+    result = {"pending": 0, "approved": 0, "paid": 0, "rejected": 0, "cancelled": 0}
+    for status, count in counts:
+        if status in result:
+            result[status] = count
+    return result

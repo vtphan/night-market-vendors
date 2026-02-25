@@ -7,7 +7,7 @@
 
 {% for item in inventory %}
 <article>
-    <header><strong>{{ item.name }}</strong> — {{ item.approved }} approved, {{ item.confirmed }} confirmed, <strong>{{ item.available }} available</strong> of {{ item.total_quantity }}</header>
+    <header><strong>{{ item.name }}</strong> — {{ item.available }} available of {{ item.total_quantity }} ({{ item.approved }} approved, {{ item.paid }} paid)</header>
     <form method="post" action="/admin/inventory/{{ item.id }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 

@@ -35,7 +35,7 @@ def create_payment_intent(db: Session, registration: Registration, booth_type: B
 
 
 def create_refund(db: Session, registration: Registration, amount_cents: int):
-    """Create a Stripe refund for a confirmed registration.
+    """Create a Stripe refund for a paid registration.
 
     Returns the Stripe Refund object.
     """

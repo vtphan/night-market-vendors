@@ -202,6 +202,43 @@ async def test_approve_already_rejected_fails_gracefully(db):
     assert reg.status == "rejected"  # Unchanged
 
 
+@pytest.mark.anyio
+async def test_approve_blocked_when_sold_out(db):
+    """Admin cannot approve when booth type has zero availability."""
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    bt = booths[0]  # Premium: total_quantity=20
+
+    # Fill all 20 slots with approved/paid registrations
+    for i in range(20):
+        make_registration(
+            db, bt.id, status="approved",
+            reg_id=f"ANM-2026-0F{i:02d}", email=f"fill{i}@test.com",
+        )
+
+    # Create one more pending registration
+    make_registration(db, bt.id, status="pending", reg_id="ANM-2026-0F99", email="overflow@test.com")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+        detail = await client.get("/admin/registrations/ANM-2026-0F99", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
+
+        with patch("app.routes.admin.send_approval_email") as mock_email:
+            response = await client.post("/admin/registrations/ANM-2026-0F99/approve", data={
+                "csrf_token": csrf,
+            }, cookies=admin_cookie())
+
+        assert response.status_code == 200
+        assert "Cannot approve" in response.text
+        assert "0 remaining" in response.text
+        mock_email.assert_not_called()
+
+    reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0F99").first()
+    db.refresh(reg)
+    assert reg.status == "pending"  # Unchanged
+
+
 # ========================================
 # Reject
 # ========================================
@@ -415,14 +452,14 @@ async def test_inventory_reflects_approved_registrations(db):
     seed_admin(db)
     booths = seed_booth_types(db)
     make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0060", email="a@t.com")
-    make_registration(db, booths[0].id, status="confirmed", reg_id="ANM-2026-0061", email="b@t.com")
+    make_registration(db, booths[0].id, status="paid", reg_id="ANM-2026-0061", email="b@t.com")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/admin/inventory", cookies=admin_cookie())
         assert response.status_code == 200
-        # Premium booth: 20 total, 1 approved, 1 confirmed = 18 available
-        assert "18" in response.text
+        # Premium booth: 20 total, 1 approved, 1 paid = 18 available of 20
+        assert "18 available of 20" in response.text
 
 
 # ========================================

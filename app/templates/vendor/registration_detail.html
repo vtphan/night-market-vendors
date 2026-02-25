@@ -22,6 +22,15 @@
 </article>
 {% endif %}
 
+{% if waitlist_position %}
+<article style="border-left: 4px solid #e65100; padding-left: 1rem;">
+    <p style="margin: 0;">
+        <strong style="color: #e65100;">Waitlist position: #{{ waitlist_position }}</strong><br>
+        <small>All {{ booth_type.name }} booths are currently reserved. Your application is #{{ waitlist_position }} on the waitlist and will be reviewed if a spot opens up.</small>
+    </p>
+</article>
+{% endif %}
+
 <div class="grid">
     <article>
         <header>Business Information</header>
@@ -69,7 +78,7 @@
     </dl>
 </article>
 
-{% if settings and settings.insurance_instructions and registration.status in ["pending", "approved", "confirmed"] %}
+{% if settings and settings.insurance_instructions and registration.status in ["pending", "approved", "paid"] %}
 <article>
     {{ settings.insurance_instructions | safe }}
 </article>
@@ -100,7 +109,7 @@
 <script src="/static/payment.js"></script>
 {% endif %}
 
-{% if registration.status == "confirmed" or registration.amount_paid %}
+{% if registration.status == "paid" or registration.amount_paid %}
 <article>
     <header>Payment</header>
     <dl class="detail-list">

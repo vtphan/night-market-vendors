@@ -57,7 +57,7 @@
                 <th>Insurance Docs</th>
                 <td>
                     {% if registration.documents_approved %}
-                    <span class="status-badge confirmed">Approved</span>
+                    <span class="status-badge paid">Approved</span>
                     {% else %}
                     <span class="status-badge pending">Pending</span>
                     {% endif %}
@@ -93,12 +93,25 @@
     {% if registration.status == 'pending' %}
     <hr style="margin: 1rem 0;">
 
+    {% if booth_availability is defined %}
+    {% if booth_availability <= 0 %}
+    <p style="color: #c62828; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.5rem;">
+        No {{ booth_type.name }} booths available (0 remaining). Cannot approve.
+    </p>
+    {% elif booth_availability <= LOW_INVENTORY_THRESHOLD %}
+    <p style="color: #e65100; font-size: 0.9rem; margin-bottom: 0.5rem;">
+        Low inventory: only {{ booth_availability }} {{ booth_type.name }} booth{{ 's' if booth_availability != 1 }} remaining.
+    </p>
+    {% endif %}
+    {% endif %}
+
     <!-- Row 2: Approve Registration -->
     <form method="post" action="/admin/registrations/{{ registration.registration_id }}/approve"
           style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0;"
           onsubmit="return confirm('Approve this registration?\n\nThe vendor ({{ registration.email }}) will be notified by email with a payment link.');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" style="width: auto; margin: 0; background-color: #2e7d32; border-color: #2e7d32;">
+        <button type="submit" style="width: auto; margin: 0; background-color: #2e7d32; border-color: #2e7d32;"
+                {% if booth_availability is defined and booth_availability <= 0 %}disabled{% endif %}>
             Approve Registration
         </button>
     </form>
@@ -145,7 +158,7 @@
         <small style="color: var(--pico-muted-color);">Returns to Pending for re-review</small>
     </form>
 
-    {% elif registration.status == 'confirmed' %}
+    {% elif registration.status == 'paid' %}
     <hr style="margin: 1rem 0;">
 
     {% if registration.amount_paid %}

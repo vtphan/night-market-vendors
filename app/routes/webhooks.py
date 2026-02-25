@@ -70,7 +70,7 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict):
         return
 
     try:
-        transition_status(db, registration, "confirmed")
+        transition_status(db, registration, "paid")
     except ValueError as e:
         logger.error("Failed to confirm registration %s: %s", registration.registration_id, e)
         return

@@ -49,7 +49,7 @@ async def test_webhook_payment_succeeded(mock_construct, mock_email, db):
 
     assert response.status_code == 200
     db.refresh(reg)
-    assert reg.status == "confirmed"
+    assert reg.status == "paid"
     assert reg.amount_paid == 15000
     mock_email.assert_called_once()
 
@@ -193,7 +193,7 @@ async def test_create_refund(mock_refund_create, db):
     from app.services.payment import create_refund
 
     booths = seed_booth_types(db)
-    reg = make_registration(db, booths[0].id, status="confirmed",
+    reg = make_registration(db, booths[0].id, status="paid",
                             stripe_pi_id="pi_confirmed_123", amount_paid=15000)
 
     mock_refund_create.return_value = MagicMock(id="re_test_123")
@@ -293,10 +293,10 @@ async def test_vendor_pay_rejects_wrong_vendor(db):
 @pytest.mark.anyio
 @patch("app.routes.admin.create_refund")
 @patch("app.routes.admin.send_refund_email")
-async def test_admin_cancel_confirmed_registration(mock_email, mock_refund, db):
+async def test_admin_cancel_paid_registration(mock_email, mock_refund, db):
     seed_admin(db)
     booths = seed_booth_types(db)
-    reg = make_registration(db, booths[0].id, status="confirmed",
+    reg = make_registration(db, booths[0].id, status="paid",
                             stripe_pi_id="pi_cancel_test", amount_paid=15000)
 
     transport = ASGITransport(app=app)
@@ -322,8 +322,8 @@ async def test_admin_cancel_confirmed_registration(mock_email, mock_refund, db):
 
 
 @pytest.mark.anyio
-async def test_admin_cancel_rejects_non_confirmed(db):
-    """Cannot cancel a registration that is not confirmed."""
+async def test_admin_cancel_rejects_non_paid(db):
+    """Cannot cancel a registration that is not paid."""
     seed_admin(db)
     booths = seed_booth_types(db)
     reg = make_registration(db, booths[0].id, status="approved")
@@ -395,7 +395,7 @@ async def test_registration_detail_no_payment_form_for_pending(db):
 async def test_csv_export_includes_payment_fields(db):
     seed_admin(db)
     booths = seed_booth_types(db)
-    make_registration(db, booths[0].id, status="confirmed",
+    make_registration(db, booths[0].id, status="paid",
                       stripe_pi_id="pi_csv_test", amount_paid=15000)
 
     transport = ASGITransport(app=app)

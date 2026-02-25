@@ -140,7 +140,7 @@ async def test_stripe_refund_failure_shows_flash_error(db):
     seed_event(db)
     booths = seed_booth_types(db)
     reg = make_registration(
-        db, booths[0].id, status="confirmed",
+        db, booths[0].id, status="paid",
         stripe_pi_id="pi_test_123", amount_paid=15000,
     )
 
@@ -167,7 +167,7 @@ async def test_stripe_refund_failure_shows_flash_error(db):
 
         # Registration should still be confirmed
         db.refresh(reg)
-        assert reg.status == "confirmed"
+        assert reg.status == "paid"
 
 
 # ========================================
@@ -175,11 +175,11 @@ async def test_stripe_refund_failure_shows_flash_error(db):
 # ========================================
 
 @pytest.mark.anyio
-async def test_approve_confirmed_registration_shows_flash_error(db):
+async def test_approve_paid_registration_shows_flash_error(db):
     seed_admin(db)
     seed_event(db)
     booths = seed_booth_types(db)
-    reg = make_registration(db, booths[0].id, status="confirmed")
+    reg = make_registration(db, booths[0].id, status="paid")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:

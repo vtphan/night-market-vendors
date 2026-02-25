@@ -42,9 +42,9 @@ stripe listen --forward-to 127.0.0.1:8000/api/webhooks/stripe
 ```
 Pending → Approved        (admin approves)
 Pending → Rejected        (admin rejects)
-Approved → Confirmed      (vendor pays via Stripe)
+Approved → Paid           (vendor pays via Stripe)
 Approved → Rejected       (admin revokes before payment)
-Confirmed → Cancelled     (admin cancels + Stripe refund)
+Paid → Cancelled          (admin cancels + Stripe refund)
 ```
 
 All transitions enforced in `app/services/registration.py`. Any transition not in this list must be rejected.
@@ -58,7 +58,7 @@ One registration = one vendor + one booth. No separate vendors/orders tables.
 ### Key Design Decisions
 
 - **Approval-first workflow:** Admin must approve before vendor can pay. No inventory race conditions — admin decides based on dashboard availability counts.
-- **Inventory is derived, not stored:** Available booths = `total_quantity - COUNT(status IN ('approved', 'confirmed'))`. No counter columns.
+- **Inventory is derived, not stored:** Available booths = `total_quantity - COUNT(status IN ('approved', 'paid'))`. No counter columns. Enforced atomically via `SELECT ... FOR UPDATE` on approval.
 - **OTP auth for everyone:** Vendors and admins use the same passwordless OTP flow. Admin access determined by `admin_users` table (bootstrapped from `ADMIN_EMAILS` env var).
 - **`documents_approved` is informational only:** Does not affect registration status or block payment.
 - **Schema changes during dev:** Delete `data/app.db` and restart (runs `create_all()` + seed). No Alembic.
@@ -83,7 +83,7 @@ config/event.json   — booth types, event settings (seed data)
 
 - PaymentIntent created server-side only for Approved registrations
 - Card input via Stripe Elements (PCI-compliant; card data never touches our server)
-- `payment_intent.succeeded` webhook transitions Approved → Confirmed
+- `payment_intent.succeeded` webhook transitions Approved → Paid
 - Refunds via `stripe.Refund.create()` on admin cancellation
 - Webhook idempotency enforced via `stripe_events` table
 

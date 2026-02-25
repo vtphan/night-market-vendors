@@ -9,7 +9,7 @@
     <div class="grid">
         <select name="status">
             <option value="">All Statuses</option>
-            {% for s in ['pending', 'approved', 'confirmed', 'rejected', 'cancelled'] %}
+            {% for s in ['pending', 'approved', 'paid', 'rejected', 'cancelled'] %}
             <option value="{{ s }}" {{ 'selected' if filter_status == s }}>{{ s | title }}</option>
             {% endfor %}
         </select>
@@ -18,6 +18,13 @@
             <option value="">All Categories</option>
             {% for key, label in CATEGORIES.items() %}
             <option value="{{ key }}" {{ 'selected' if filter_category == key }}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="booth_type">
+            <option value="">All Booth Types</option>
+            {% for bt_id, bt in booth_types.items() %}
+            <option value="{{ bt_id }}" {{ 'selected' if filter_booth_type == bt_id|string }}>{{ bt.name }}</option>
             {% endfor %}
         </select>
 

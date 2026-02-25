@@ -548,7 +548,7 @@ async def test_dashboard_hides_register_link_when_closed(db):
         category="food",
         description="Food",
         booth_type_id=booths[0].id,
-        status="confirmed",
+        status="paid",
         agreement_accepted_at=datetime.now(timezone.utc),
         agreement_ip_address="127.0.0.1",
     )

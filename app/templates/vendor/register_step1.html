@@ -70,11 +70,19 @@
         <h3>Booth Selection</h3>
 
         {% for bt in booth_types %}
-        <label class="booth-option">
+        {% set avail = booth_availability.get(bt.id, 0) %}
+        {% set sold_out = avail <= 0 %}
+        <label class="booth-option" {% if sold_out %}style="opacity: 0.5; cursor: not-allowed;"{% endif %}>
             <input type="radio" name="booth_type_id" value="{{ bt.id }}"
-                   {{ 'checked' if draft.get('booth_type_id') == bt.id }} required>
+                   {% if not sold_out and draft.get('booth_type_id') == bt.id %}checked{% endif %}
+                   {% if sold_out %}disabled{% endif %} required>
             <div>
                 <strong>{{ bt.name }}</strong> — {{ format_price(bt.price) }}
+                {% if sold_out %}
+                <span style="color: #c62828; font-weight: bold; font-size: 0.85rem; margin-left: 0.5rem;">Sold Out</span>
+                {% elif avail <= LOW_INVENTORY_THRESHOLD %}
+                <span style="color: #e65100; font-weight: bold; font-size: 0.85rem; margin-left: 0.5rem;">Only {{ avail }} left</span>
+                {% endif %}
                 <br><small>{{ bt.description }}</small>
             </div>
         </label>
