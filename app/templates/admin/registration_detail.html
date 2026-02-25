@@ -71,6 +71,16 @@
     </article>
 </div>
 
+<!-- Admin Notes -->
+<article>
+    <header><strong>Admin Notes</strong></header>
+    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/notes">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <textarea name="admin_notes" rows="3" placeholder="Add internal notes about this registration...">{{ registration.admin_notes or '' }}</textarea>
+        <button type="submit" style="width: auto;">Save Notes</button>
+    </form>
+</article>
+
 <!-- Admin Actions -->
 <article>
     <header><strong>Admin Actions</strong></header>

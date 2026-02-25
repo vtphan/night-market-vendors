@@ -32,6 +32,7 @@ class Registration(Base):
     agreement_accepted_at = Column(DateTime, nullable=False)
     agreement_ip_address = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
+    admin_notes = Column(Text, nullable=True)
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 
 

@@ -344,6 +344,30 @@ async def update_registration(
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
 
+# --- Admin Notes ---
+
+@router.post("/registrations/{reg_id}/notes")
+async def update_notes(
+    request: Request,
+    reg_id: str,
+    admin_notes: str = Form(""),
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    registration.admin_notes = admin_notes.strip() or None
+    db.commit()
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
 # --- Insurance ---
 
 @router.get("/insurance/{stored_filename}")
@@ -508,7 +532,7 @@ async def export_csv(
         "Booth Type", "Electrical Equipment", "Electrical Other",
         "Insurance", "Amount Paid", "Refund Amount",
         "Stripe Payment Intent ID", "Created At", "Approved At",
-        "Rejected At", "Rejection Reason",
+        "Rejected At", "Rejection Reason", "Admin Notes",
     ])
 
     for reg in registrations:
@@ -540,6 +564,7 @@ async def export_csv(
             reg.approved_at.strftime("%Y-%m-%d %H:%M") if reg.approved_at else "",
             reg.rejected_at.strftime("%Y-%m-%d %H:%M") if reg.rejected_at else "",
             reg.rejection_reason or "",
+            reg.admin_notes or "",
         ])
 
     output.seek(0)
