@@ -82,7 +82,7 @@ Admin reviews pending registrations via the dashboard. For each registration, ad
 
 Admin decides approvals based on dashboard inventory counts, vendor mix, and event needs. No automated inventory enforcement.
 
-**Food vendor document verification:** Food vendors submit required documents (Certificate of General Liability Insurance, food handler's permit) externally — via email or a shared Google Drive folder. The admin reviews documents outside the app and tracks verification via an informational `documents_approved` checkbox on the registration. This checkbox does not affect registration status or block payment — it's a tracking tool for the admin.
+**Insurance document upload:** Vendors upload their Certificate of General Liability Insurance at `/vendor/insurance`. Insurance is per-vendor email (not per-registration) — one upload covers all of a vendor's registrations. Files are stored on disk in `uploads/insurance/`. Admins review and approve (or revoke approval of) uploaded documents from the registration detail page. Document approval is informational only — it does not affect registration status or block payment.
 
 ### 2.4 Phase 3 — Payment
 
@@ -123,7 +123,7 @@ All payments are online via Stripe. No pay-by-check option. Payment is only avai
 
 A `refund_amount` field (in cents, default 0) records any refund issued on cancellation.
 
-A `documents_approved` boolean (default false) tracks whether the admin has verified the food vendor's external documents. This is informational only — it does not affect registration status.
+Insurance document approval is tracked in the separate `insurance_documents` table (per-vendor email). This is informational only — it does not affect registration status.
 
 ### 4.2 Valid Status Transitions
 
@@ -172,7 +172,7 @@ Category is set at registration. Admin can change it if needed. Vendors contact 
 - Search by vendor name, email, or registration ID
 - Click into a registration for full details: profile info, booth type, payment, status
 - Approve or reject pending registrations
-- Food vendor registrations: informational "documents approved" checkbox (does not affect status)
+- Insurance document review: view uploaded documents, approve or revoke approval from registration detail (does not affect status)
 - Cancel a confirmed registration with optional refund amount (via Stripe)
 - Export registrations to CSV (profile info, booth type, amount, status)
 

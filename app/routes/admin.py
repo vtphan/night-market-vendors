@@ -4,13 +4,13 @@ import logging
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, Form, Query
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.csrf import generate_csrf_token, require_csrf
 from app.session import require_admin
-from app.models import Registration, BoothType, EventSettings
+from app.models import Registration, BoothType, EventSettings, InsuranceDocument
 from app.services.registration import (
     transition_status,
     approve_with_inventory_check,
@@ -84,10 +84,15 @@ async def registration_list(
             query = query.filter(Registration.booth_type_id == int(booth_type))
         except ValueError:
             pass
-    if insurance == "yes":
-        query = query.filter(Registration.documents_approved == True)
+    if insurance == "approved":
+        emails_approved = db.query(InsuranceDocument.email).filter(InsuranceDocument.is_approved == True).subquery()
+        query = query.filter(Registration.email.in_(emails_approved))
+    elif insurance == "uploaded":
+        emails_uploaded = db.query(InsuranceDocument.email).filter(InsuranceDocument.is_approved == False).subquery()
+        query = query.filter(Registration.email.in_(emails_uploaded))
     elif insurance == "no":
-        query = query.filter(Registration.documents_approved == False)
+        emails_with_doc = db.query(InsuranceDocument.email).subquery()
+        query = query.filter(~Registration.email.in_(emails_with_doc))
     if search:
         term = f"%{search}%"
         query = query.filter(
@@ -101,9 +106,13 @@ async def registration_list(
 
     booth_types = {bt.id: bt for bt in db.query(BoothType).all()}
 
+    # Build insurance doc lookup by email
+    insurance_docs = {doc.email: doc for doc in db.query(InsuranceDocument).all()}
+
     return _template(request, "admin/registrations.html", {
         "registrations": registrations,
         "booth_types": booth_types,
+        "insurance_docs": insurance_docs,
         "filter_status": status,
         "filter_category": category,
         "filter_booth_type": booth_type,
@@ -131,12 +140,14 @@ async def registration_detail(
 
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
     available = get_booth_availability(db, registration.booth_type_id)
+    insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
 
     return _template(request, "admin/registration_detail.html", {
         "registration": registration,
         "booth_type": booth_type,
         "booth_availability": available,
         "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
+        "insurance_doc": insurance_doc,
     }, session=session)
 
 
@@ -278,6 +289,8 @@ async def cancel_registration(
     # Convert dollar amount to cents
     try:
         amount_cents = int(float(refund_amount) * 100)
+        if amount_cents < 0:
+            amount_cents = 0
     except (ValueError, TypeError):
         amount_cents = 0
 
@@ -311,7 +324,6 @@ async def cancel_registration(
 async def update_registration(
     request: Request,
     reg_id: str,
-    documents_approved: str = Form(""),
     category: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -325,9 +337,61 @@ async def update_registration(
     if not registration:
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
-    registration.documents_approved = documents_approved == "on"
     if category in CATEGORIES:
         registration.category = category
+
+    db.commit()
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
+# --- Insurance ---
+
+@router.get("/insurance/{stored_filename}")
+async def admin_insurance_file(
+    request: Request,
+    stored_filename: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(InsuranceDocument).filter(InsuranceDocument.stored_filename == stored_filename).first()
+    if not doc:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    file_path = request.app.state.uploads_dir / stored_filename
+    if not file_path.exists():
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=doc.content_type,
+        filename=doc.original_filename,
+    )
+
+
+@router.post("/registrations/{reg_id}/insurance/approve")
+async def toggle_insurance_approval(
+    request: Request,
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
+    if not doc:
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+    if doc.is_approved:
+        doc.is_approved = False
+        doc.approved_by = None
+        doc.approved_at = None
+    else:
+        doc.is_approved = True
+        doc.approved_by = session["email"]
+        doc.approved_at = datetime.now(timezone.utc)
 
     db.commit()
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
@@ -434,6 +498,7 @@ async def export_csv(
 ):
     registrations = db.query(Registration).order_by(Registration.created_at.desc()).all()
     booth_types = {bt.id: bt.name for bt in db.query(BoothType).all()}
+    insurance_docs = {doc.email: doc for doc in db.query(InsuranceDocument).all()}
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -441,12 +506,20 @@ async def export_csv(
         "Registration ID", "Status", "Business Name", "Contact Name",
         "Email", "Phone", "Category", "Description",
         "Booth Type", "Electrical Equipment", "Electrical Other",
-        "Documents Approved", "Amount Paid", "Refund Amount",
+        "Insurance", "Amount Paid", "Refund Amount",
         "Stripe Payment Intent ID", "Created At", "Approved At",
         "Rejected At", "Rejection Reason",
     ])
 
     for reg in registrations:
+        ins_doc = insurance_docs.get(reg.email)
+        if ins_doc and ins_doc.is_approved:
+            insurance_status = "Approved"
+        elif ins_doc:
+            insurance_status = "Uploaded"
+        else:
+            insurance_status = "No"
+
         writer.writerow([
             reg.registration_id,
             reg.status,
@@ -459,7 +532,7 @@ async def export_csv(
             booth_types.get(reg.booth_type_id, "Unknown"),
             reg.electrical_equipment or "",
             reg.electrical_other or "",
-            "Yes" if reg.documents_approved else "No",
+            insurance_status,
             f"${reg.amount_paid / 100:.2f}" if reg.amount_paid else "",
             f"${reg.refund_amount / 100:.2f}" if reg.refund_amount else "",
             reg.stripe_payment_intent_id or "",

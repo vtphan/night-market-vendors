@@ -4,7 +4,7 @@ import re
 import time
 from datetime import datetime, timezone
 
-from app.models import AdminUser, BoothType, EventSettings, Registration
+from app.models import AdminUser, BoothType, EventSettings, InsuranceDocument, Registration
 from app.session import _serializer
 
 
@@ -140,6 +140,25 @@ def seed_event_closed(db):
         settings.registration_close_date = datetime(2020, 9, 15, 23, 59, 59)
         db.commit()
     return settings
+
+
+def make_insurance_doc(db, email="vendor@test.com", approved=False,
+                       stored_filename="abc123.pdf", original_filename="insurance.pdf"):
+    """Create a test insurance document record."""
+    doc = InsuranceDocument(
+        email=email,
+        original_filename=original_filename,
+        stored_filename=stored_filename,
+        content_type="application/pdf",
+        file_size=1024,
+        is_approved=approved,
+        approved_by="admin@test.com" if approved else None,
+        approved_at=datetime.now(timezone.utc) if approved else None,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return doc
 
 
 def make_registration(db, booth_type_id, status="pending", email="vendor@test.com",

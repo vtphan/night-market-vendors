@@ -30,7 +30,8 @@
 
         <select name="insurance">
             <option value="">Insurance: All</option>
-            <option value="yes" {{ 'selected' if filter_insurance == 'yes' }}>Insurance: Yes</option>
+            <option value="approved" {{ 'selected' if filter_insurance == 'approved' }}>Insurance: Approved</option>
+            <option value="uploaded" {{ 'selected' if filter_insurance == 'uploaded' }}>Insurance: Uploaded</option>
             <option value="no" {{ 'selected' if filter_insurance == 'no' }}>Insurance: No</option>
         </select>
 
@@ -69,7 +70,10 @@
                 <td>{{ CATEGORIES.get(reg.category, reg.category) }}</td>
                 <td>{{ booth_types[reg.booth_type_id].name if reg.booth_type_id in booth_types else 'N/A' }}</td>
                 <td><span class="status-badge {{ reg.status }}">{{ reg.status | title }}</span></td>
-                <td>{{ 'Yes' if reg.documents_approved else 'No' }}</td>
+                <td>
+                    {% set ins_doc = insurance_docs.get(reg.email) %}
+                    {% if ins_doc and ins_doc.is_approved %}Approved{% elif ins_doc %}Uploaded{% else %}No{% endif %}
+                </td>
                 <td>{{ reg.created_at.strftime('%b %d') if reg.created_at else '' }}</td>
                 <td><a href="/admin/registrations/{{ reg.registration_id }}">View</a></td>
             </tr>

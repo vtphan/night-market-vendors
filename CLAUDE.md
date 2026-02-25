@@ -51,16 +51,16 @@ All transitions enforced in `app/services/registration.py`. Any transition not i
 
 ### Database Tables
 
-Six tables defined in `app/models.py`: `registrations`, `booth_types`, `admin_users`, `otp_codes`, `stripe_events`, `event_settings`. Schema details in `docs/architecture.md` §3.
+Seven tables defined in `app/models.py`: `registrations`, `booth_types`, `admin_users`, `otp_codes`, `stripe_events`, `event_settings`, `insurance_documents`. Schema details in `docs/architecture.md` §3.
 
-One registration = one vendor + one booth. No separate vendors/orders tables.
+One registration = one vendor + one booth. No separate vendors/orders tables. Insurance documents are per-vendor email (not per-registration).
 
 ### Key Design Decisions
 
 - **Approval-first workflow:** Admin must approve before vendor can pay. No inventory race conditions — admin decides based on dashboard availability counts.
 - **Inventory is derived, not stored:** Available booths = `total_quantity - COUNT(status IN ('approved', 'paid'))`. No counter columns. Enforced atomically via `SELECT ... FOR UPDATE` on approval.
 - **OTP auth for everyone:** Vendors and admins use the same passwordless OTP flow. Admin access determined by `admin_users` table (bootstrapped from `ADMIN_EMAILS` env var).
-- **`documents_approved` is informational only:** Does not affect registration status or block payment.
+- **Insurance is per-vendor, not per-registration:** The `insurance_documents` table is keyed by vendor email. One upload covers all of a vendor's registrations. Admin approves/revokes via the registration detail page.
 - **Schema changes during dev:** Delete `data/app.db` and restart (runs `create_all()` + seed). No Alembic.
 
 ### Project Structure

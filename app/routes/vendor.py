@@ -1,14 +1,17 @@
 import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi import APIRouter, Depends, Request, Form, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.csrf import generate_csrf_token, require_csrf
 from app.session import read_session, update_session_data, require_vendor
-from app.models import Registration, BoothType, EventSettings
+from app.models import Registration, BoothType, EventSettings, InsuranceDocument
 from app.services.registration import (
     create_registration,
     check_submission_rate_limit,
@@ -24,6 +27,10 @@ from app.config import STRIPE_PUBLISHABLE_KEY
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vendor", tags=["vendor"])
+
+ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
+ALLOWED_CONTENT_TYPES = {"application/pdf", "image/png", "image/jpeg"}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 def _template(request, name, ctx):
@@ -316,12 +323,14 @@ async def registration_detail(
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
 
     settings = db.query(EventSettings).first()
+    insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
 
     ctx = {
         "registration": registration,
         "booth_type": booth_type,
         "settings": settings,
         "waitlist_position": get_waitlist_position(db, registration),
+        "insurance_doc": insurance_doc,
     }
     if registration.status == "approved":
         ctx["stripe_publishable_key"] = STRIPE_PUBLISHABLE_KEY
@@ -400,9 +409,130 @@ async def vendor_dashboard(
 
     settings = db.query(EventSettings).first()
     registration_open = settings.is_registration_open() if settings else False
+    insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
 
     return _template(request, "vendor/dashboard.html", {
         "registrations": reg_data,
         "registration_open": registration_open,
         "settings": settings,
+        "insurance_doc": insurance_doc,
     })
+
+
+# --- Insurance ---
+
+@router.get("/insurance", response_class=HTMLResponse)
+async def insurance_page(
+    request: Request,
+    session: dict = Depends(require_vendor),
+    db: Session = Depends(get_db),
+):
+    insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
+    settings = db.query(EventSettings).first()
+    return _template(request, "vendor/insurance.html", {
+        "insurance_doc": insurance_doc,
+        "settings": settings,
+    })
+
+
+@router.post("/insurance/upload")
+async def insurance_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    session: dict = Depends(require_vendor),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    email = session["email"]
+    uploads_dir: Path = request.app.state.uploads_dir
+
+    # Validate extension
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        flash = [{"category": "error", "text": f"File type not allowed. Please upload a PDF, PNG, or JPG file."}]
+        insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
+        settings = db.query(EventSettings).first()
+        return _template(request, "vendor/insurance.html", {
+            "insurance_doc": insurance_doc,
+            "settings": settings,
+            "get_flashed_messages": lambda: flash,
+        })
+
+    # Validate content type
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        flash = [{"category": "error", "text": "File type not allowed. Please upload a PDF, PNG, or JPG file."}]
+        insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
+        settings = db.query(EventSettings).first()
+        return _template(request, "vendor/insurance.html", {
+            "insurance_doc": insurance_doc,
+            "settings": settings,
+            "get_flashed_messages": lambda: flash,
+        })
+
+    # Read file and validate size
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        flash = [{"category": "error", "text": "File is too large. Maximum size is 10 MB."}]
+        insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
+        settings = db.query(EventSettings).first()
+        return _template(request, "vendor/insurance.html", {
+            "insurance_doc": insurance_doc,
+            "settings": settings,
+            "get_flashed_messages": lambda: flash,
+        })
+
+    stored_filename = f"{uuid4().hex}{ext}"
+    file_path = uploads_dir / stored_filename
+
+    # Check for existing document — replace it
+    existing = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
+    if existing:
+        old_path = uploads_dir / existing.stored_filename
+        if old_path.exists():
+            old_path.unlink()
+        existing.original_filename = file.filename or "unknown"
+        existing.stored_filename = stored_filename
+        existing.content_type = file.content_type
+        existing.file_size = len(contents)
+        existing.is_approved = False
+        existing.approved_by = None
+        existing.approved_at = None
+        existing.uploaded_at = datetime.now(timezone.utc)
+    else:
+        doc = InsuranceDocument(
+            email=email,
+            original_filename=file.filename or "unknown",
+            stored_filename=stored_filename,
+            content_type=file.content_type,
+            file_size=len(contents),
+        )
+        db.add(doc)
+
+    # Write file to disk
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    db.commit()
+    return RedirectResponse(url="/vendor/insurance", status_code=303)
+
+
+@router.get("/insurance/file/{stored_filename}")
+async def insurance_file(
+    request: Request,
+    stored_filename: str,
+    session: dict = Depends(require_vendor),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(InsuranceDocument).filter(InsuranceDocument.stored_filename == stored_filename).first()
+    if not doc or doc.email != session["email"]:
+        return RedirectResponse(url="/vendor/insurance", status_code=303)
+
+    file_path = request.app.state.uploads_dir / stored_filename
+    if not file_path.exists():
+        return RedirectResponse(url="/vendor/insurance", status_code=303)
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=doc.content_type,
+        filename=doc.original_filename,
+    )

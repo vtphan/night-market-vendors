@@ -352,33 +352,8 @@ async def test_revoke_rejected_registration(db):
 
 
 # ========================================
-# Update fields (documents_approved, category)
+# Update fields (category)
 # ========================================
-
-@pytest.mark.anyio
-async def test_update_documents_approved(db):
-    seed_admin(db)
-    booths = seed_booth_types(db)
-    make_registration(db, booths[0].id, reg_id="ANM-2026-0040")
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        detail = await client.get("/admin/registrations/ANM-2026-0040", cookies=admin_cookie())
-        csrf = extract_csrf(detail.text)
-
-        response = await client.post("/admin/registrations/ANM-2026-0040/update", data={
-            "csrf_token": csrf,
-            "documents_approved": "on",
-            "category": "food",
-        }, cookies=admin_cookie())
-
-        assert response.status_code == 303
-
-    reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0040").first()
-    db.refresh(reg)
-    assert reg.documents_approved is True
-    assert reg.status == "pending"  # documents_approved does NOT change status
-
 
 @pytest.mark.anyio
 async def test_update_category(db):
@@ -393,7 +368,6 @@ async def test_update_category(db):
 
         response = await client.post("/admin/registrations/ANM-2026-0041/update", data={
             "csrf_token": csrf,
-            "documents_approved": "",
             "category": "merchandise",
         }, cookies=admin_cookie())
 
@@ -402,7 +376,6 @@ async def test_update_category(db):
     reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0041").first()
     db.refresh(reg)
     assert reg.category == "merchandise"
-    assert reg.documents_approved is False
 
 
 # ========================================

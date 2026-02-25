@@ -23,7 +23,6 @@ class Registration(Base):
     electrical_other = Column(Text, nullable=True)
     booth_type_id = Column(Integer, ForeignKey("booth_types.id"), nullable=False)
     status = Column(String(50), nullable=False, default="pending", index=True)
-    documents_approved = Column(Boolean, default=False)
     stripe_payment_intent_id = Column(String, nullable=True)
     amount_paid = Column(Integer, nullable=True)
     refund_amount = Column(Integer, default=0)
@@ -76,6 +75,21 @@ class StripeEvent(Base):
     stripe_event_id = Column(String, unique=True, nullable=False)
     event_type = Column(String, nullable=False)
     processed_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class InsuranceDocument(Base):
+    __tablename__ = "insurance_documents"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    original_filename = Column(String, nullable=False)
+    stored_filename = Column(String, unique=True, nullable=False)
+    content_type = Column(String, nullable=False)
+    file_size = Column(Integer, nullable=False)
+    is_approved = Column(Boolean, default=False)
+    approved_by = Column(String, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    uploaded_at = Column(DateTime, nullable=False, server_default=func.now())
 
 
 class EventSettings(Base):

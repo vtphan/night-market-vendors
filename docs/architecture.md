@@ -59,6 +59,8 @@ project/
 │   └── test_auth.py
 ├── data/
 │   └── app.db               # SQLite database (auto-created, not committed)
+├── uploads/
+│   └── insurance/            # Vendor insurance document files (not committed)
 ├── .env                     # Environment variables (never committed)
 ├── .gitignore
 ├── requirements.txt
@@ -91,7 +93,6 @@ One row per registration. Combines vendor profile, booth selection, payment, and
 | `electrical_other` | Text | Nullable | Free-text for unlisted equipment |
 | `booth_type_id` | Integer | FK → booth_types, not null | Vendor must select during registration |
 | `status` | String(50) | Not null, indexed | pending, approved, rejected, confirmed, cancelled |
-| `documents_approved` | Boolean | Default false | Informational only — admin tracks food vendor doc verification |
 | `stripe_payment_intent_id` | String | Nullable | Populated after payment |
 | `amount_paid` | Integer | Nullable | In cents; populated after payment |
 | `refund_amount` | Integer | Default 0 | In cents |
@@ -159,7 +160,24 @@ Webhook idempotency — prevents processing the same event twice.
 | `event_type` | String | Not null | |
 | `processed_at` | DateTime | Not null, default now | |
 
-### 3.6 event_settings
+### 3.6 insurance_documents
+
+Insurance documents are per-vendor email (not per-registration). One upload covers all of a vendor's registrations. Files stored on disk in `uploads/insurance/`.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `id` | Integer | PK, auto-increment | |
+| `email` | String | Unique, not null | One document per vendor email |
+| `original_filename` | String | Not null | Name of the uploaded file |
+| `stored_filename` | String | Not null | Name used on disk in `uploads/insurance/` |
+| `content_type` | String | Not null | MIME type (e.g., `application/pdf`) |
+| `file_size` | Integer | Not null | In bytes |
+| `is_approved` | Boolean | Default false | Admin approval status |
+| `approved_by` | String | Nullable | Admin email who approved |
+| `approved_at` | DateTime | Nullable | When admin approved |
+| `uploaded_at` | DateTime | Not null, default now | |
+
+### 3.7 event_settings
 
 Single-row table. Seeded from `config/event.json`. Registration dates are admin-editable via dashboard; all other fields require config change and redeploy.
 

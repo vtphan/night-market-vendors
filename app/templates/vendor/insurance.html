@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Insurance Document - Asian Night Market{% endblock %}
+
+{% block content %}
+<p><a href="/vendor/dashboard">&larr; Back to My Registrations</a></p>
+
+<h2>Insurance Document</h2>
+
+{% if settings and settings.insurance_instructions %}
+<article>
+    {{ settings.insurance_instructions | safe }}
+</article>
+{% endif %}
+
+<article>
+    <header><strong>Document Status</strong></header>
+
+    {% if insurance_doc and insurance_doc.is_approved %}
+        <p><span class="status-badge paid">Approved</span></p>
+        <dl class="detail-list">
+            <dt>File</dt>
+            <dd><a href="/vendor/insurance/file/{{ insurance_doc.stored_filename }}">{{ insurance_doc.original_filename }}</a></dd>
+            <dt>Size</dt>
+            <dd>{{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB</dd>
+            <dt>Uploaded</dt>
+            <dd>{{ insurance_doc.uploaded_at.strftime('%b %d, %Y at %I:%M %p') if insurance_doc.uploaded_at else '' }}</dd>
+        </dl>
+    {% elif insurance_doc %}
+        <p><span class="status-badge pending">Pending Review</span></p>
+        <dl class="detail-list">
+            <dt>File</dt>
+            <dd><a href="/vendor/insurance/file/{{ insurance_doc.stored_filename }}">{{ insurance_doc.original_filename }}</a></dd>
+            <dt>Size</dt>
+            <dd>{{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB</dd>
+            <dt>Uploaded</dt>
+            <dd>{{ insurance_doc.uploaded_at.strftime('%b %d, %Y at %I:%M %p') if insurance_doc.uploaded_at else '' }}</dd>
+        </dl>
+
+        <hr>
+        <p><small>Need to replace this file? Upload a new one below (this will reset approval status).</small></p>
+        <form method="post" action="/vendor/insurance/upload" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
+            <button type="submit">Replace Document</button>
+        </form>
+    {% else %}
+        <p>No document uploaded yet. Please upload your insurance certificate below.</p>
+        <form method="post" action="/vendor/insurance/upload" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
+            <button type="submit">Upload Document</button>
+        </form>
+        <p><small>Accepted formats: PDF, PNG, JPG. Maximum size: 10 MB.</small></p>
+    {% endif %}
+</article>
+{% endblock %}

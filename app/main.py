@@ -39,6 +39,10 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
+    uploads_dir = Path(__file__).resolve().parent.parent / "uploads" / "insurance"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    app.state.uploads_dir = uploads_dir
+
     logger.info("Application startup complete")
     yield
     # Shutdown

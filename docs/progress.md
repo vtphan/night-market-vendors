@@ -12,6 +12,25 @@
 
 <!-- Format: date, what happened, any decisions or blockers. Keep it simple. -->
 
+### 2026-02-25 — Insurance document upload feature
+
+Replaced the informational `documents_approved` boolean on `registrations` with a dedicated `insurance_documents` table and file upload workflow.
+
+**What changed:**
+
+1. **Removed `documents_approved` column** from the `registrations` table.
+2. **New `insurance_documents` table.** Columns: `id`, `email` (unique), `original_filename`, `stored_filename`, `content_type`, `file_size`, `is_approved`, `approved_by`, `approved_at`, `uploaded_at`. One document per vendor email — insurance is per-vendor, not per-registration.
+3. **Vendor upload page at `/vendor/insurance`.** Vendors upload their Certificate of General Liability Insurance through the app instead of submitting externally via email or Google Drive.
+4. **Admin approve/revoke from registration detail.** Admins review uploaded documents and approve or revoke approval directly from the registration detail page.
+5. **File storage.** Uploaded files stored on disk in `uploads/insurance/`.
+
+**Decisions made:**
+
+- Insurance keyed by vendor email, not registration ID. One upload covers all of a vendor's registrations. This avoids duplicate uploads for vendors with multiple registrations.
+- Document approval remains informational only — does not affect registration status or block payment.
+
+---
+
 ### 2026-02-21 — Phase 2 complete: Vendor Registration, Admin Review & UX Improvements
 
 Phase 2 built and verified. Vendor registration form, admin review workflow, homepage, and auth improvements all working end-to-end. 82 tests passing.

@@ -9,6 +9,21 @@
 
 <h2>My Registrations</h2>
 
+{% if registrations | length > 0 %}
+<article style="padding: 0.75rem 1rem; margin-bottom: 1rem;">
+    {% if insurance_doc and insurance_doc.is_approved %}
+    <span class="status-badge paid">Approved</span> Insurance document on file.
+    <a href="/vendor/insurance">View</a>
+    {% elif insurance_doc %}
+    <span class="status-badge pending">Pending Review</span> Insurance document uploaded.
+    <a href="/vendor/insurance">View</a>
+    {% else %}
+    <strong>Insurance:</strong> Upload required.
+    <a href="/vendor/insurance">Upload now</a>
+    {% endif %}
+</article>
+{% endif %}
+
 {% if registrations %}
 <figure>
     <table>

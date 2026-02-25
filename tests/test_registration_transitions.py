@@ -164,17 +164,6 @@ def test_reject_sets_rejected_at_and_reason(db):
     assert reg.rejection_reason == "Not a good fit"
 
 
-def test_documents_approved_does_not_affect_status(db):
-    """documents_approved is informational only — changing it doesn't transition status."""
-    bt = _make_booth_type(db)
-    reg = _make_registration(db, bt.id, status="pending")
-    reg.documents_approved = True
-    db.commit()
-    db.refresh(reg)
-    assert reg.status == "pending"
-    assert reg.documents_approved is True
-
-
 # --- Registration ID ---
 
 def test_registration_id_format(db):
