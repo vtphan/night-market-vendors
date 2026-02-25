@@ -17,7 +17,7 @@
 | **Payments** | Stripe (PaymentIntents API + Stripe.js) |
 | **Email** | Resend |
 | **Hosting** | Railway |
-| **Authentication** | Custom OTP |
+| **Authentication** | Custom OTP + Google OAuth (optional) |
 
 Everything runs on one server: SQLite database file, FastAPI serves pages. Python is the developer's primary language. Server-rendered HTML keeps the frontend minimal — no React, no HTMX.
 
@@ -215,7 +215,29 @@ Rate limit: max 5 OTPs per email per hour.
 
 On startup, app reads `ADMIN_EMAILS` and creates `admin_users` rows for new emails. After OTP verification, app checks `admin_users` (active) to grant admin access.
 
-### 4.3 Sessions
+### 4.3 Google OAuth (Optional)
+
+An alternative "Sign in with Google" login method is available for both vendors and admins when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables are set. OTP remains available as a fallback.
+
+**Flow:**
+
+1. User clicks "Sign in with Google" on login page.
+2. `GET /auth/google?role=admin|vendor` generates a signed state cookie and redirects to Google.
+3. Google authenticates user and redirects to `GET /auth/google/callback`.
+4. Callback verifies state cookie, exchanges code for tokens, extracts email from ID token.
+5. Role-based validation (same rules as OTP): admin emails checked against `admin_users`, vendors allowed if registration is open.
+6. Session created via `create_session()` — same session format as OTP.
+
+**State management:** Uses a short-lived (5 min) signed cookie (`oauth_state`) via `itsdangerous`. No server-side session storage needed.
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_CLIENT_ID` | OAuth client ID from Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | OAuth client secret |
+
+Both variables optional — when absent, the Google button is hidden and `/auth/google` redirects to the OTP login page.
+
+### 4.4 Sessions
 
 - Signed cookies using `SECRET_KEY`. Flags: `HttpOnly`, `Secure`, `SameSite=Lax`.
 - Vendor sessions: 24-hour inactivity timeout.

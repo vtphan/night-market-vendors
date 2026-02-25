@@ -5,6 +5,20 @@
 {% block content %}
 <h2>Event Settings</h2>
 
+{% if admin_emails %}
+<article>
+    <fieldset>
+        <legend><strong>Admin Access</strong></legend>
+        <p>The following emails have admin access (configured via <code>ADMIN_EMAILS</code> environment variable):</p>
+        <ul>
+            {% for email in admin_emails %}
+            <li>{{ email }}</li>
+            {% endfor %}
+        </ul>
+    </fieldset>
+</article>
+{% endif %}
+
 {% if settings %}
 <article>
     <form method="post" action="/admin/settings">

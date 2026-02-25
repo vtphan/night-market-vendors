@@ -12,6 +12,25 @@
 
 <!-- Format: date, what happened, any decisions or blockers. Keep it simple. -->
 
+### 2026-02-25 — Google OAuth login + admin emails in settings
+
+Added optional "Sign in with Google" as an alternative to OTP for both vendors and admins. Also added a read-only admin emails list to the settings page.
+
+**What changed:**
+
+1. **Google OAuth login.** New routes `GET /auth/google` and `GET /auth/google/callback` using `authlib`. State managed via signed cookie (no server-side sessions). Same role-based validation as OTP (admin emails checked against `admin_users`, vendors allowed when registration is open). Enabled when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` env vars are set; otherwise hidden.
+2. **Login page "Sign in with Google" button.** Conditionally shown below the OTP form when OAuth is enabled. Uses PicoCSS secondary button styling.
+3. **Admin emails on settings page.** New read-only fieldset showing all emails configured in `ADMIN_EMAILS` env var. Display-only — not editable in the UI.
+4. **9 new tests.** OAuth redirect, callback success (admin + vendor), admin rejection, invalid state, Google error, disabled state, button visibility.
+
+**Decisions made:**
+
+- OAuth state stored in a signed cookie with 5-minute expiry, not server-side sessions. Keeps the app stateless.
+- Google OAuth is optional — OTP still works without Google credentials configured.
+- `authlib` chosen for OAuth/OIDC handling (state/nonce management, ID token verification).
+
+---
+
 ### 2026-02-25 — Insurance document upload feature
 
 Replaced the informational `documents_approved` boolean on `registrations` with a dedicated `insurance_documents` table and file upload workflow.

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -7,6 +7,7 @@ from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.models import AdminUser, OTPCode
 from app.services.otp import generate_otp, hash_otp, verify_otp, create_otp, validate_otp
+from app.routes.auth import _state_serializer
 
 
 # --- OTP unit tests ---
@@ -180,3 +181,180 @@ async def test_login_sends_otp(db):
             )
             assert response.status_code == 200
             assert "Verification Code" in response.text
+
+
+# --- Google OAuth tests ---
+
+def _make_state(role="admin"):
+    """Create a valid signed OAuth state cookie value."""
+    import secrets
+    state_data = {"role": role, "nonce": secrets.token_urlsafe(16)}
+    return _state_serializer.dumps(state_data)
+
+
+def _mock_google_token_exchange(email):
+    """Return a mock httpx.AsyncClient that simulates Google token + JWKS responses."""
+    mock_client = AsyncMock()
+    # Token endpoint response
+    mock_token_resp = MagicMock()
+    mock_token_resp.json.return_value = {"id_token": "fake.id.token", "access_token": "fake"}
+    # JWKS endpoint response
+    mock_jwks_resp = MagicMock()
+    mock_jwks_resp.json.return_value = {"keys": []}
+    mock_client.post = AsyncMock(return_value=mock_token_resp)
+    mock_client.get = AsyncMock(return_value=mock_jwks_resp)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    # Mock jose_jwt.decode to return claims with the email
+    mock_claims = MagicMock()
+    mock_claims.get.side_effect = lambda key, default="": email if key == "email" else default
+    mock_claims.validate.return_value = None
+
+    return mock_client, mock_claims
+
+
+@pytest.mark.anyio
+async def test_google_oauth_redirect():
+    with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True), \
+         patch("app.routes.auth.GOOGLE_CLIENT_ID", "test-client-id"):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+            response = await client.get("/auth/google?role=admin")
+            assert response.status_code == 302
+            assert "accounts.google.com" in response.headers["location"]
+            assert "oauth_state" in response.cookies
+
+
+@pytest.mark.anyio
+async def test_google_oauth_callback_admin_success(db):
+    db.add(AdminUser(email="admin@test.com", is_active=True))
+    db.commit()
+
+    state = _make_state("admin")
+    mock_client, mock_claims = _mock_google_token_exchange("admin@test.com")
+
+    with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True), \
+         patch("app.routes.auth.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.routes.auth.jose_jwt.decode", return_value=mock_claims):
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+            response = await client.get(
+                f"/auth/google/callback?state={state}&code=fake_code",
+                cookies={"oauth_state": state},
+            )
+            assert response.status_code == 303
+            assert response.headers["location"] == "/admin"
+            assert "session" in response.cookies
+
+
+@pytest.mark.anyio
+async def test_google_oauth_callback_vendor_success(db):
+    # Open registration so vendor login is allowed
+    from app.models import EventSettings
+    settings = db.query(EventSettings).first()
+    if settings:
+        settings.registration_open_date = datetime.now(timezone.utc) - timedelta(days=1)
+        settings.registration_close_date = datetime.now(timezone.utc) + timedelta(days=30)
+    else:
+        from datetime import date
+        db.add(EventSettings(
+            event_name="Test",
+            event_start_date=date.today(),
+            event_end_date=date.today(),
+            registration_open_date=datetime.now(timezone.utc) - timedelta(days=1),
+            registration_close_date=datetime.now(timezone.utc) + timedelta(days=30),
+            vendor_agreement_text="agree",
+        ))
+    db.commit()
+
+    state = _make_state("vendor")
+    mock_client, mock_claims = _mock_google_token_exchange("vendor@example.com")
+
+    with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True), \
+         patch("app.routes.auth.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.routes.auth.jose_jwt.decode", return_value=mock_claims):
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+            response = await client.get(
+                f"/auth/google/callback?state={state}&code=fake_code",
+                cookies={"oauth_state": state},
+            )
+            assert response.status_code == 303
+            assert response.headers["location"] == "/vendor/dashboard"
+            assert "session" in response.cookies
+
+
+@pytest.mark.anyio
+async def test_google_oauth_callback_admin_rejected(db):
+    # No admin user seeded — email not authorized
+    state = _make_state("admin")
+    mock_client, mock_claims = _mock_google_token_exchange("notadmin@example.com")
+
+    with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True), \
+         patch("app.routes.auth.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.routes.auth.jose_jwt.decode", return_value=mock_claims):
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+            response = await client.get(
+                f"/auth/google/callback?state={state}&code=fake_code",
+                cookies={"oauth_state": state},
+            )
+            assert response.status_code == 403
+            assert "not authorized" in response.text
+
+
+@pytest.mark.anyio
+async def test_google_oauth_callback_invalid_state():
+    with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+            response = await client.get(
+                "/auth/google/callback?state=bad_state&code=fake_code",
+                cookies={"oauth_state": "different_state"},
+            )
+            assert response.status_code == 303
+            assert "/auth/login" in response.headers["location"]
+
+
+@pytest.mark.anyio
+async def test_google_oauth_callback_google_error():
+    with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+            response = await client.get("/auth/google/callback?error=access_denied")
+            assert response.status_code == 303
+            assert "/auth/login" in response.headers["location"]
+
+
+@pytest.mark.anyio
+async def test_google_oauth_disabled_when_no_env_vars():
+    with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", False):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+            response = await client.get("/auth/google?role=admin")
+            assert response.status_code == 303
+            assert "/auth/login" in response.headers["location"]
+
+
+@pytest.mark.anyio
+async def test_google_button_shown_when_enabled():
+    with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/auth/login?role=admin")
+            assert response.status_code == 200
+            assert "Sign in with Google" in response.text
+
+
+@pytest.mark.anyio
+async def test_google_button_hidden_when_disabled():
+    with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", False):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/auth/login?role=admin")
+            assert response.status_code == 200
+            assert "Sign in with Google" not in response.text

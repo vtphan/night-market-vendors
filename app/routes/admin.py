@@ -23,7 +23,7 @@ from app.services.registration import (
 )
 from app.services.email import send_approval_email, send_rejection_email, send_refund_email
 from app.services.payment import create_refund
-from app.config import APP_URL
+from app.config import APP_URL, ADMIN_EMAILS
 
 logger = logging.getLogger(__name__)
 
@@ -626,6 +626,7 @@ async def settings_page(
     settings = db.query(EventSettings).first()
     return _template(request, "admin/settings.html", {
         "settings": settings,
+        "admin_emails": ADMIN_EMAILS,
     }, session=session)
 
 

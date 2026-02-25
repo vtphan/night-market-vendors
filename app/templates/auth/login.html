@@ -15,5 +15,11 @@
         <input type="email" id="email" name="email" placeholder="you@example.com" required autofocus>
         <button type="submit">Send Verification Code</button>
     </form>
+    {% if google_oauth_enabled %}
+    <hr>
+    <a href="/auth/google?role={{ role }}" role="button" class="secondary" style="width:100%;text-align:center">
+        Sign in with Google
+    </a>
+    {% endif %}
 </article>
 {% endblock %}
