@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timezone
 
 from sqlalchemy import func, or_, and_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.models import Registration, BoothType
@@ -54,8 +54,13 @@ def transition_status(
     registration: Registration,
     new_status: str,
     rejection_reason: str | None = None,
+    _commit: bool = True,
 ) -> Registration:
-    """Enforce status state machine. Raises ValueError on invalid transition."""
+    """Enforce status state machine. Raises ValueError on invalid transition.
+
+    Pass _commit=False to defer the commit to the caller (useful when
+    batching multiple changes into a single transaction).
+    """
     allowed = VALID_TRANSITIONS.get(registration.status, [])
     if new_status not in allowed:
         raise ValueError(
@@ -76,8 +81,9 @@ def transition_status(
         registration.rejection_reason = None
         registration.approved_at = None
 
-    db.commit()
-    db.refresh(registration)
+    if _commit:
+        db.commit()
+        db.refresh(registration)
     logger.info(
         "Registration %s transitioned to %s",
         registration.registration_id,
@@ -90,13 +96,15 @@ def approve_with_inventory_check(db: Session, registration: Registration) -> Reg
     """Atomically check booth availability and approve a registration.
 
     Uses SELECT ... FOR UPDATE on the BoothType row to serialize concurrent
-    approvals for the same booth type (effective on PostgreSQL; SQLite is
-    single-writer so the risk is negligible in dev).
+    approvals for the same booth type. NOTE: with_for_update() is a no-op on
+    SQLite — concurrency safety on SQLite relies on the single-writer property
+    and our single-threaded request model. On PostgreSQL (production) it
+    provides true row-level locking.
 
     Raises ValueError if inventory is insufficient or the transition is invalid.
     """
-    # Lock the booth type row — prevents concurrent approvals from reading
-    # stale counts until this transaction commits.
+    # Lock the booth type row (PostgreSQL) — prevents concurrent approvals
+    # from reading stale counts until this transaction commits.
     booth_type = (
         db.query(BoothType)
         .filter(BoothType.id == registration.booth_type_id)
@@ -170,11 +178,11 @@ def create_registration(db: Session, data: dict) -> Registration:
         db.add(registration)
         try:
             db.commit()
-        except IntegrityError:
+        except (IntegrityError, OperationalError) as exc:
             db.rollback()
             logger.warning(
-                "Registration ID collision on %s (attempt %d), retrying",
-                reg_id, attempt + 1,
+                "Registration ID collision or DB contention on %s (attempt %d): %s",
+                reg_id, attempt + 1, exc,
             )
             continue
         db.refresh(registration)
