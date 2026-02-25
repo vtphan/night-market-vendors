@@ -88,6 +88,7 @@ async def register_gateway(request: Request, edit: str = "", new: str = "", db: 
     if step == 1 or step == 0:
         return _template(request, "vendor/register_step1.html", {
             "agreement_text": settings.vendor_agreement_text if settings else "",
+            "insurance_instructions": settings.insurance_instructions if settings else "",
             "booth_types": booth_types,
             "draft": draft,
             "email": email,
@@ -161,6 +162,7 @@ async def register_step1(
         }
         return _template(request, "vendor/register_step1.html", {
             "agreement_text": settings.vendor_agreement_text if settings else "",
+            "insurance_instructions": settings.insurance_instructions if settings else "",
             "booth_types": booth_types,
             "draft": form_draft,
             "email": email,

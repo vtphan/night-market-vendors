@@ -34,20 +34,13 @@
     </article>
 </div>
 
-<div class="grid">
-    <article>
-        <header><strong>Quick Actions</strong></header>
-        {% if counts.pending > 0 %}
-        <p><a href="/admin/registrations?status=pending" role="button">Review {{ counts.pending }} Pending</a></p>
-        {% else %}
-        <p>No pending registrations to review.</p>
-        {% endif %}
-        <p><a href="/admin/export" role="button" class="secondary outline">Export CSV</a></p>
-    </article>
-
-    <article>
-        <header><strong>Settings</strong></header>
-        <p><a href="/admin/settings" role="button" class="secondary outline">Registration Dates</a></p>
-    </article>
-</div>
+<article>
+    <header><strong>Quick Actions</strong></header>
+    {% if counts.pending > 0 %}
+    <p><a href="/admin/registrations?status=pending" role="button">Review {{ counts.pending }} Pending</a></p>
+    {% else %}
+    <p>No pending registrations to review.</p>
+    {% endif %}
+    <p><a href="/admin/export" role="button" class="secondary outline">Export CSV</a></p>
+</article>
 {% endblock %}

@@ -158,7 +158,11 @@ async def approve_registration(
         }, session=session)
 
     payment_url = f"{APP_URL}/vendor/registration/{reg_id}"
-    send_approval_email(registration.email, reg_id, payment_url)
+    settings = db.query(EventSettings).first()
+    send_approval_email(
+        registration.email, reg_id, payment_url,
+        insurance_instructions=settings.insurance_instructions if settings else "",
+    )
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -378,6 +382,7 @@ async def update_settings(
     contact_email: str = Form(""),
     front_page_content: str = Form(""),
     payment_instructions: str = Form(""),
+    insurance_instructions: str = Form(""),
     vendor_agreement_text: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -395,6 +400,7 @@ async def update_settings(
             settings.contact_email = contact_email.strip()
             settings.front_page_content = front_page_content.strip()
             settings.payment_instructions = payment_instructions.strip()
+            settings.insurance_instructions = insurance_instructions.strip()
             settings.vendor_agreement_text = vendor_agreement_text.strip()
             db.commit()
             request.app.state.event_name = settings.event_name

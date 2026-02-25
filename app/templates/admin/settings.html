@@ -10,50 +10,69 @@
     <form method="post" action="/admin/settings">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-        <label for="event_name">Event Name</label>
-        <input type="text" id="event_name" name="event_name"
-               value="{{ settings.event_name }}" required
-               placeholder="Displayed as the page title and heading">
+        <fieldset>
+            <legend><strong>Event Details</strong></legend>
 
-        <div class="grid">
-            <div>
-                <label for="event_start_date">Event Start Date</label>
-                <input type="date" id="event_start_date" name="event_start_date"
-                       value="{{ settings.event_start_date.strftime('%Y-%m-%d') }}" required>
+            <label for="event_name">Event Name</label>
+            <input type="text" id="event_name" name="event_name"
+                   value="{{ settings.event_name }}" required
+                   placeholder="Displayed as the page title and heading">
+
+            <div class="grid">
+                <div>
+                    <label for="event_start_date">Event Start Date</label>
+                    <input type="date" id="event_start_date" name="event_start_date"
+                           value="{{ settings.event_start_date.strftime('%Y-%m-%d') }}" required>
+                </div>
+                <div>
+                    <label for="event_end_date">Event End Date</label>
+                    <input type="date" id="event_end_date" name="event_end_date"
+                           value="{{ settings.event_end_date.strftime('%Y-%m-%d') }}" required>
+                </div>
             </div>
-            <div>
-                <label for="event_end_date">Event End Date</label>
-                <input type="date" id="event_end_date" name="event_end_date"
-                       value="{{ settings.event_end_date.strftime('%Y-%m-%d') }}" required>
-            </div>
-        </div>
 
-        <label for="registration_open_date">Registration Opens</label>
-        <input type="datetime-local" id="registration_open_date" name="registration_open_date"
-               value="{{ settings.registration_open_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+            <label for="contact_email">Contact Email</label>
+            <input type="email" id="contact_email" name="contact_email"
+                   value="{{ settings.contact_email or '' }}"
+                   placeholder="Shown at the bottom of vendor-facing pages">
+        </fieldset>
 
-        <label for="registration_close_date">Registration Closes</label>
-        <input type="datetime-local" id="registration_close_date" name="registration_close_date"
-               value="{{ settings.registration_close_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+        <fieldset>
+            <legend><strong>Registration Window</strong></legend>
 
-        <label for="banner_text">Banner Text</label>
-        <input type="text" id="banner_text" name="banner_text"
-               value="{{ settings.banner_text or '' }}"
-               placeholder="Shown as a highlighted banner on the homepage and vendor dashboard">
+            <label for="registration_open_date">Registration Opens</label>
+            <input type="datetime-local" id="registration_open_date" name="registration_open_date"
+                   value="{{ settings.registration_open_date.strftime('%Y-%m-%dT%H:%M') }}" required>
 
-        <label for="contact_email">Contact Email</label>
-        <input type="email" id="contact_email" name="contact_email"
-               value="{{ settings.contact_email or '' }}"
-               placeholder="Shown at the bottom of vendor-facing pages">
+            <label for="registration_close_date">Registration Closes</label>
+            <input type="datetime-local" id="registration_close_date" name="registration_close_date"
+                   value="{{ settings.registration_close_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+        </fieldset>
 
-        <label for="front_page_content">Front Page Content <small>(HTML supported)</small></label>
-        <textarea id="front_page_content" name="front_page_content" rows="6" placeholder="Displayed on the homepage. You can use HTML tags like &lt;p&gt;, &lt;strong&gt;, &lt;ul&gt;, etc.">{{ settings.front_page_content or '' }}</textarea>
+        <fieldset>
+            <legend><strong>Site Content</strong></legend>
 
-        <label for="payment_instructions">Payment Instructions</label>
-        <textarea id="payment_instructions" name="payment_instructions" rows="4" placeholder="Shown to vendors on the payment page when their registration is approved">{{ settings.payment_instructions or '' }}</textarea>
+            <label for="banner_text">Banner Text</label>
+            <input type="text" id="banner_text" name="banner_text"
+                   value="{{ settings.banner_text or '' }}"
+                   placeholder="Shown as a highlighted banner on the homepage and vendor dashboard">
 
-        <label for="vendor_agreement_text">Vendor Agreement Text</label>
-        <textarea id="vendor_agreement_text" name="vendor_agreement_text" rows="8" placeholder="The agreement vendors must accept during registration">{{ settings.vendor_agreement_text or '' }}</textarea>
+            <label for="front_page_content">Front Page Content <small>(HTML supported)</small></label>
+            <textarea id="front_page_content" name="front_page_content" rows="6" placeholder="Displayed on the homepage. You can use HTML tags like &lt;p&gt;, &lt;strong&gt;, &lt;ul&gt;, etc.">{{ settings.front_page_content or '' }}</textarea>
+        </fieldset>
+
+        <fieldset>
+            <legend><strong>Vendor Instructions</strong></legend>
+
+            <label for="insurance_instructions">Insurance Instructions <small>(HTML supported)</small></label>
+            <textarea id="insurance_instructions" name="insurance_instructions" rows="8" placeholder="Shown on the registration form, vendor status page, and approval email. Include certificate holder info and insurance purchase links.">{{ settings.insurance_instructions or '' }}</textarea>
+
+            <label for="payment_instructions">Payment Instructions</label>
+            <textarea id="payment_instructions" name="payment_instructions" rows="4" placeholder="Shown to vendors on the payment page when their registration is approved">{{ settings.payment_instructions or '' }}</textarea>
+
+            <label for="vendor_agreement_text">Vendor Agreement Text</label>
+            <textarea id="vendor_agreement_text" name="vendor_agreement_text" rows="8" placeholder="The agreement vendors must accept during registration">{{ settings.vendor_agreement_text or '' }}</textarea>
+        </fieldset>
 
         <button type="submit">Save Changes</button>
     </form>

@@ -58,13 +58,14 @@ def send_submission_confirmation_email(to: str, registration_id: str, booth_type
     return send_email(to, f"Registration {registration_id} Received", html)
 
 
-def send_approval_email(to: str, registration_id: str, payment_url: str) -> bool:
+def send_approval_email(to: str, registration_id: str, payment_url: str, insurance_instructions: str = "") -> bool:
     """Send registration approval notification with payment link."""
     try:
         template = _env.get_template("approval.html")
         html = template.render(
             registration_id=registration_id,
             payment_url=payment_url,
+            insurance_instructions=insurance_instructions,
         )
     except Exception:
         logger.exception("Failed to render approval email template")

@@ -92,6 +92,7 @@ class EventSettings(Base):
     banner_text = Column(Text, nullable=False, default="")
     contact_email = Column(String, nullable=False, default="")
     payment_instructions = Column(Text, nullable=False, default="")
+    insurance_instructions = Column(Text, nullable=False, default="")
 
     def is_registration_open(self) -> bool:
         """Check if vendor registration is currently open."""

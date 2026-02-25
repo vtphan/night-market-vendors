@@ -8,6 +8,10 @@
         <a href="{{ payment_url }}" style="display: inline-block; background: #0066cc; color: #fff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: bold;">Complete Payment</a>
     </p>
     <p>Please complete your payment promptly to secure your booth. Unpaid registrations may be offered to other vendors.</p>
+    {% if insurance_instructions %}
+    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+    <div>{{ insurance_instructions }}</div>
+    {% endif %}
     <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
     <p style="font-size: 12px; color: #888;">Asian Night Market - Vendor Registration System</p>
 </body>

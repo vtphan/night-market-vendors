@@ -34,6 +34,7 @@ def seed_event_data(db: Session) -> None:
             banner_text=evt.get("banner_text", ""),
             contact_email=evt.get("contact_email", ""),
             payment_instructions=evt.get("payment_instructions", ""),
+            insurance_instructions=evt.get("insurance_instructions", ""),
         )
         db.add(settings)
         db.commit()

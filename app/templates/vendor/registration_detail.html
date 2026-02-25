@@ -69,6 +69,12 @@
     </dl>
 </article>
 
+{% if settings and settings.insurance_instructions and registration.status in ["pending", "approved", "confirmed"] %}
+<article>
+    {{ settings.insurance_instructions | safe }}
+</article>
+{% endif %}
+
 {% if registration.status == "approved" and stripe_publishable_key %}
 <article>
     <header>Complete Payment</header>
