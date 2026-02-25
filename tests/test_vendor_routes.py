@@ -29,7 +29,6 @@ def _make_complete_draft(booth_type_id):
         "phone": "555-0100",
         "category": "food",
         "description": "Delicious food",
-        "cuisine_type": "Thai",
         "electrical_equipment": "microwave,fryer",
         "electrical_other": "",
         "booth_type_id": booth_type_id,
@@ -48,7 +47,6 @@ def _step1_form_data(csrf, booth_type_id, **overrides):
         "business_name": "Test Biz",
         "category": "food",
         "description": "Authentic Thai cuisine",
-        "cuisine_type": "Thai",
         "booth_type_id": str(booth_type_id),
         "agreement_accepted": "yes",
     }
@@ -238,45 +236,6 @@ async def test_step1_rejects_invalid_category(db):
         )
         assert response.status_code == 200
         assert "valid category" in response.text.lower()
-
-
-@pytest.mark.anyio
-async def test_step1_food_requires_cuisine_type(db):
-    seed_event_open(db)
-    booths = seed_booth_types(db)
-    cookies = vendor_cookie()
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        page = await client.get("/vendor/register", cookies=cookies)
-        csrf = extract_csrf(page.text)
-
-        response = await client.post(
-            "/vendor/register/step1",
-            data=_step1_form_data(csrf, booths[1].id, category="food", cuisine_type=""),
-            cookies=cookies,
-        )
-        assert response.status_code == 200
-        assert "cuisine type" in response.text.lower()
-
-
-@pytest.mark.anyio
-async def test_step1_non_food_does_not_require_cuisine(db):
-    seed_event_open(db)
-    booths = seed_booth_types(db)
-    cookies = vendor_cookie()
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        page = await client.get("/vendor/register", cookies=cookies)
-        csrf = extract_csrf(page.text)
-
-        response = await client.post(
-            "/vendor/register/step1",
-            data=_step1_form_data(csrf, booths[1].id, category="merchandise", cuisine_type=""),
-            cookies=cookies,
-        )
-        assert response.status_code == 303
 
 
 @pytest.mark.anyio

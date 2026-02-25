@@ -417,7 +417,7 @@ async def export_csv(
     writer = csv.writer(output)
     writer.writerow([
         "Registration ID", "Status", "Business Name", "Contact Name",
-        "Email", "Phone", "Category", "Cuisine Type", "Description",
+        "Email", "Phone", "Category", "Description",
         "Booth Type", "Electrical Equipment", "Electrical Other",
         "Documents Approved", "Amount Paid", "Refund Amount",
         "Stripe Payment Intent ID", "Created At", "Approved At",
@@ -433,7 +433,6 @@ async def export_csv(
             reg.email,
             reg.phone,
             CATEGORIES.get(reg.category, reg.category),
-            reg.cuisine_type or "",
             reg.description,
             booth_types.get(reg.booth_type_id, "Unknown"),
             reg.electrical_equipment or "",

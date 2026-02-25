@@ -154,7 +154,6 @@ def make_registration(db, booth_type_id, status="pending", email="vendor@test.co
         phone="555-0100",
         category="food",
         description="Delicious food",
-        cuisine_type="Thai",
         booth_type_id=booth_type_id,
         status=status,
         agreement_accepted_at=datetime.now(timezone.utc),

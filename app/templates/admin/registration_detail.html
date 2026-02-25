@@ -16,9 +16,6 @@
             <tr><th>Email</th><td>{{ registration.email }}</td></tr>
             <tr><th>Phone</th><td>{{ registration.phone }}</td></tr>
             <tr><th>Category</th><td>{{ CATEGORIES.get(registration.category, registration.category) }}</td></tr>
-            {% if registration.cuisine_type %}
-            <tr><th>Cuisine Type</th><td>{{ registration.cuisine_type }}</td></tr>
-            {% endif %}
             <tr><th>Description</th><td>{{ registration.description }}</td></tr>
             <tr>
                 <th>Electrical Equipment</th>

@@ -122,7 +122,6 @@ def create_registration(db: Session, data: dict) -> Registration:
         phone=data["phone"],
         category=data["category"],
         description=data["description"],
-        cuisine_type=data.get("cuisine_type"),
         electrical_equipment=data.get("electrical_equipment"),
         electrical_other=data.get("electrical_other"),
         booth_type_id=data["booth_type_id"],

@@ -19,7 +19,6 @@ class Registration(Base):
     phone = Column(String, nullable=False)
     category = Column(String(30), nullable=False)
     description = Column(Text, nullable=False)
-    cuisine_type = Column(String, nullable=True)
     electrical_equipment = Column(String, nullable=True)
     electrical_other = Column(Text, nullable=True)
     booth_type_id = Column(Integer, ForeignKey("booth_types.id"), nullable=False)

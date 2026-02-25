@@ -121,7 +121,7 @@ A phase is complete when:
 **Deliverables:**
 
 - Vendor agreement page (Step 1): accept/decline, records name, email, IP, timestamp
-- Contact info & profile form (Step 2): name, email (pre-filled from OTP), phone, category, description, cuisine type, utility needs — server-side validation
+- Contact info & profile form (Step 2): name, email (pre-filled from OTP), phone, category, description, electrical equipment needs — server-side validation
 - Booth selection (Step 3): vendor selects preferred booth type
 - Review & submit page (Step 4): summary, no payment
 - Registration saved with status **Pending** on submit

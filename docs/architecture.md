@@ -85,12 +85,10 @@ One row per registration. Combines vendor profile, booth selection, payment, and
 | `business_name` | String | Not null | |
 | `contact_name` | String | Not null | |
 | `phone` | String | Not null | |
-| `category` | Enum(food, non_food) | Not null | Set at registration; admin-changeable |
+| `category` | String(30) | Not null | food, beverage, merchandise, entertainment, non_profit, health_beauty, promotion, other |
 | `description` | Text | Not null | What they sell |
-| `cuisine_type` | String | Nullable | Food vendors only |
-| `needs_power` | Boolean | Default false | |
-| `needs_water` | Boolean | Default false | |
-| `needs_propane` | Boolean | Default false | |
+| `electrical_equipment` | String | Nullable | Comma-separated list (e.g., "microwave,fryer") |
+| `electrical_other` | Text | Nullable | Free-text for unlisted equipment |
 | `booth_type_id` | Integer | FK → booth_types, not null | Vendor must select during registration |
 | `status` | String(50) | Not null, indexed | pending, approved, rejected, confirmed, cancelled |
 | `documents_approved` | Boolean | Default false | Informational only — admin tracks food vendor doc verification |
@@ -169,10 +167,15 @@ Single-row table. Seeded from `config/event.json`. Registration dates are admin-
 |--------|------|-------------|-------|
 | `id` | Integer | PK, default 1 | Always one row |
 | `event_name` | String | Not null | |
-| `event_date` | Date | Not null | |
+| `event_start_date` | Date | Not null | |
+| `event_end_date` | Date | Not null | |
 | `registration_open_date` | DateTime | Not null | Admin-editable |
 | `registration_close_date` | DateTime | Not null | Admin-editable |
 | `vendor_agreement_text` | Text | Not null | |
+| `front_page_content` | Text | Not null, default "" | Homepage content |
+| `banner_text` | Text | Not null, default "" | Site banner |
+| `contact_email` | String | Not null, default "" | |
+| `payment_instructions` | Text | Not null, default "" | Shown on payment page |
 
 ---
 

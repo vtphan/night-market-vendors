@@ -42,9 +42,9 @@ All vendors must review and accept the Vendor Participation Agreement before pro
 - Primary contact name
 - Email address (verified via OTP before registration; used as login identifier)
 - Phone number
-- Vendor category: **Food & Beverage** or **Non-Food** (Merchandise, Arts & Crafts, Services, Nonprofit/Community, etc.)
-- Description of what the vendor intends to sell
-- Food vendors: cuisine type and whether they require power, water, or propane
+- Vendor category: Food, Beverage, Merchandise, Entertainment, Non-Profit, Health & Beauty, Promotion, or Other
+- Description of what the vendor intends to sell (vendors are prompted to include specifics like cuisine type)
+- Electrical equipment needs (microwave, fryer, warmer, rice cooker, griddle, blender, or other)
 
 **Step 3: Booth Selection**
 

@@ -19,9 +19,6 @@
             <tr><th>Phone</th><td>{{ draft.get('phone', '') }}</td></tr>
             <tr><th>Business Name</th><td>{{ draft.get('business_name', '') }}</td></tr>
             <tr><th>Category</th><td>{{ CATEGORIES.get(draft.get('category', ''), draft.get('category', '')) }}</td></tr>
-            {% if draft.get('cuisine_type') %}
-            <tr><th>Cuisine Type</th><td>{{ draft.get('cuisine_type') }}</td></tr>
-            {% endif %}
             <tr><th>Description</th><td>{{ draft.get('description', '') }}</td></tr>
             <tr>
                 <th>Electrical Equipment</th>

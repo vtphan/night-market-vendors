@@ -28,10 +28,6 @@
         <dl class="detail-list">
             <dt>Category</dt>
             <dd>{{ CATEGORIES.get(registration.category, registration.category) }}</dd>
-            {% if registration.cuisine_type %}
-            <dt>Cuisine Type</dt>
-            <dd>{{ registration.cuisine_type }}</dd>
-            {% endif %}
             <dt>Description</dt>
             <dd>{{ registration.description }}</dd>
         </dl>

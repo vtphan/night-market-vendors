@@ -34,11 +34,10 @@ async def lifespan(app: FastAPI):
     try:
         seed_event_data(db)
         bootstrap_admins(db)
+        settings = db.query(EventSettings).first()
+        app.state.event_name = settings.event_name if settings else "Vendor Registration"
     finally:
         db.close()
-
-    settings = db.query(EventSettings).first()
-    app.state.event_name = settings.event_name if settings else "Vendor Registration"
 
     logger.info("Application startup complete")
     yield

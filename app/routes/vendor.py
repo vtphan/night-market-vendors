@@ -112,7 +112,6 @@ async def register_step1(
     category: str = Form(...),
     description: str = Form(...),
     booth_type_id: int = Form(...),
-    cuisine_type: str = Form(""),
     electrical_equipment: list[str] = Form([]),
     electrical_other: str = Form(""),
     agreement_accepted: str = Form(""),
@@ -139,8 +138,6 @@ async def register_step1(
         errors.append("Please select a valid category.")
     if not description.strip():
         errors.append("Description is required.")
-    if category == "food" and not cuisine_type.strip():
-        errors.append("Cuisine type is required for food vendors.")
 
     # Validate booth type
     booth_type = db.query(BoothType).filter(BoothType.id == booth_type_id, BoothType.is_active == True).first()
@@ -158,7 +155,6 @@ async def register_step1(
             "business_name": business_name,
             "category": category,
             "description": description,
-            "cuisine_type": cuisine_type,
             "electrical_equipment": electrical_equipment,
             "electrical_other": electrical_other,
             "booth_type_id": booth_type_id,
@@ -179,7 +175,6 @@ async def register_step1(
         "business_name": business_name.strip(),
         "category": category,
         "description": description.strip(),
-        "cuisine_type": cuisine_type.strip() if category == "food" else "",
         "electrical_equipment": ",".join(electrical_equipment) if electrical_equipment else "",
         "electrical_other": electrical_other.strip(),
         "booth_type_id": booth_type.id,
@@ -232,7 +227,6 @@ async def register_submit(
         "phone": draft["phone"],
         "category": draft["category"],
         "description": draft["description"],
-        "cuisine_type": draft.get("cuisine_type") or None,
         "electrical_equipment": draft.get("electrical_equipment") or None,
         "electrical_other": draft.get("electrical_other") or None,
         "booth_type_id": draft["booth_type_id"],

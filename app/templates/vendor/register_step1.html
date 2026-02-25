@@ -40,15 +40,9 @@
             {% endfor %}
         </select>
 
-        <div id="cuisine_field" style="{{ '' if draft.get('category') == 'food' else 'display: none;' }}">
-            <label for="cuisine_type">Cuisine Type</label>
-            <input type="text" id="cuisine_type" name="cuisine_type"
-                   value="{{ draft.get('cuisine_type', '') }}" placeholder="e.g., Japanese, Thai, Vietnamese">
-        </div>
-
         <label for="description">Description of Products/Services</label>
         <textarea id="description" name="description" rows="3" required
-                  placeholder="Describe what you will be selling or offering...">{{ draft.get('description', '') }}</textarea>
+                  placeholder="e.g., Thai street food, handmade jewelry, henna art, bubble tea...">{{ draft.get('description', '') }}</textarea>
 
         <fieldset>
             <legend>Electrical Equipment</legend>
@@ -104,9 +98,4 @@
     </form>
 </article>
 
-<script>
-    document.getElementById('category').addEventListener('change', function() {
-        document.getElementById('cuisine_field').style.display = this.value === 'food' ? '' : 'none';
-    });
-</script>
 {% endblock %}
