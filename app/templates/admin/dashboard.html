@@ -3,27 +3,59 @@
 {% block title %}Admin Dashboard - Asian Night Market{% endblock %}
 
 {% block content %}
+<style>.dashboard-grid { display: grid; grid-template-columns: 1fr; gap: var(--pico-grid-column-gap, 1rem); align-items: start; } @media (min-width: 768px) { .dashboard-grid { grid-template-columns: 1fr 1fr; } }</style>
 <h2>Admin Dashboard</h2>
 <p>Welcome, {{ session.email }}.</p>
 
-<div class="grid">
-    <article>
-        <header><strong>Registrations</strong></header>
-        <table>
-            <tr><td>Pending</td><td><strong>{{ counts.pending }}</strong></td></tr>
-            <tr><td>Approved</td><td><strong>{{ counts.approved }}</strong></td></tr>
-            <tr><td>Paid</td><td><strong>{{ counts.paid }}</strong></td></tr>
-            <tr><td>Rejected</td><td><strong>{{ counts.rejected }}</strong></td></tr>
-            <tr><td>Cancelled</td><td><strong>{{ counts.cancelled }}</strong></td></tr>
-            <tr><td><strong>Total</strong></td><td><strong>{{ counts.total }}</strong></td></tr>
-        </table>
-        <a href="/admin/registrations" role="button" class="secondary outline">View All Registrations</a>
-    </article>
+<div class="dashboard-grid">
+    <!-- Left column -->
+    <div>
+        <article>
+            <header><strong>Registrations</strong></header>
+            <table>
+                <tr><td><a href="/admin/registrations?status=pending">Pending</a></td><td><strong>{{ counts.pending }}</strong></td></tr>
+                <tr><td><a href="/admin/registrations?status=approved">Approved</a></td><td><strong>{{ counts.approved }}</strong></td></tr>
+                <tr><td><a href="/admin/registrations?status=paid">Paid</a></td><td><strong>{{ counts.paid }}</strong></td></tr>
+                <tr><td><a href="/admin/registrations?status=rejected">Rejected</a></td><td><strong>{{ counts.rejected }}</strong></td></tr>
+                <tr><td><a href="/admin/registrations?status=cancelled">Cancelled</a></td><td><strong>{{ counts.cancelled }}</strong></td></tr>
+                <tr><td><strong><a href="/admin/registrations">Total</a></strong></td><td><strong>{{ counts.total }}</strong></td></tr>
+            </table>
+        </article>
 
+        <article>
+            <header><strong>Insurance</strong></header>
+            <table>
+                <tr>
+                    <td><a href="/admin/registrations?insurance=approved">Approved</a></td>
+                    <td><strong>{{ insurance_counts.approved }}</strong></td>
+                </tr>
+                <tr>
+                    <td><a href="/admin/registrations?insurance=uploaded">Pending Review</a></td>
+                    <td><strong>{{ insurance_counts.uploaded }}</strong></td>
+                </tr>
+                <tr>
+                    <td><a href="/admin/registrations?insurance=no">Not Uploaded</a></td>
+                    <td><strong>{{ insurance_counts.none }}</strong></td>
+                </tr>
+            </table>
+        </article>
+
+        <article>
+            <header><strong>Quick Actions</strong></header>
+            {% if counts.pending > 0 %}
+            <p><a href="/admin/registrations?status=pending" role="button">Review {{ counts.pending }} Pending</a></p>
+            {% else %}
+            <p>No pending registrations to review.</p>
+            {% endif %}
+            <p><a href="/admin/export" role="button" class="secondary outline">Export CSV</a></p>
+        </article>
+    </div>
+
+    <!-- Right column -->
     <article>
-        <header><strong>Booth Inventory</strong></header>
+        <header><strong>Registrations by Booth Type</strong></header>
         {% for item in inventory %}
-        <details {% if item.pending > 0 and item.available <= 0 %}open{% endif %}>
+        <details open>
             <summary>
                 <strong>{{ item.name }}</strong> —
                 {{ item.available }} available of {{ item.total_quantity }}
@@ -34,30 +66,15 @@
                 {% endif %}
             </summary>
             <table>
-                <tr><td>Pending</td><td><strong>{{ item.pending }}</strong></td></tr>
-                <tr><td>Approved</td><td><strong>{{ item.approved }}</strong></td></tr>
-                <tr><td>Paid</td><td><strong>{{ item.paid }}</strong></td></tr>
-                <tr><td>Rejected</td><td><strong>{{ item.rejected }}</strong></td></tr>
-                <tr><td>Cancelled</td><td><strong>{{ item.cancelled }}</strong></td></tr>
+                <tr><td><a href="/admin/registrations?status=pending&booth_type={{ item.id }}">Pending</a></td><td><strong>{{ item.pending }}</strong></td></tr>
+                <tr><td><a href="/admin/registrations?status=approved&booth_type={{ item.id }}">Approved</a></td><td><strong>{{ item.approved }}</strong></td></tr>
+                <tr><td><a href="/admin/registrations?status=paid&booth_type={{ item.id }}">Paid</a></td><td><strong>{{ item.paid }}</strong></td></tr>
+                <tr><td><a href="/admin/registrations?status=rejected&booth_type={{ item.id }}">Rejected</a></td><td><strong>{{ item.rejected }}</strong></td></tr>
+                <tr><td><a href="/admin/registrations?status=cancelled&booth_type={{ item.id }}">Cancelled</a></td><td><strong>{{ item.cancelled }}</strong></td></tr>
             </table>
-            {% if item.pending > 0 %}
-            <a href="/admin/registrations?status=pending&booth_type={{ item.id }}" role="button" class="outline" style="width: auto;">
-                Review {{ item.pending }} pending {{ item.name }}
-            </a>
-            {% endif %}
         </details>
         {% endfor %}
         <a href="/admin/inventory" role="button" class="secondary outline">Manage Inventory</a>
     </article>
 </div>
-
-<article>
-    <header><strong>Quick Actions</strong></header>
-    {% if counts.pending > 0 %}
-    <p><a href="/admin/registrations?status=pending" role="button">Review {{ counts.pending }} Pending</a></p>
-    {% else %}
-    <p>No pending registrations to review.</p>
-    {% endif %}
-    <p><a href="/admin/export" role="button" class="secondary outline">Export CSV</a></p>
-</article>
 {% endblock %}

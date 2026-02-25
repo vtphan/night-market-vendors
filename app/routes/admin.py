@@ -54,9 +54,29 @@ async def admin_dashboard(
 
     inventory = get_inventory(db)
 
+    # Insurance counts (per unique vendor email with active registrations)
+    active_emails_q = (
+        db.query(Registration.email)
+        .filter(Registration.status.in_(["pending", "approved", "paid"]))
+        .distinct()
+    )
+    active_email_list = [r[0] for r in active_emails_q.all()]
+    all_docs = {
+        doc.email: doc
+        for doc in db.query(InsuranceDocument)
+        .filter(InsuranceDocument.email.in_(active_email_list))
+        .all()
+    }
+    insurance_counts = {
+        "approved": sum(1 for e in active_email_list if e in all_docs and all_docs[e].is_approved),
+        "uploaded": sum(1 for e in active_email_list if e in all_docs and not all_docs[e].is_approved),
+        "none": sum(1 for e in active_email_list if e not in all_docs),
+    }
+
     return _template(request, "admin/dashboard.html", {
         "counts": counts,
         "inventory": inventory,
+        "insurance_counts": insurance_counts,
     }, session=session)
 
 
