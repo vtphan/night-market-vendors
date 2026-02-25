@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
+from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -73,10 +74,15 @@ async def admin_dashboard(
         "none": sum(1 for e in active_email_list if e not in all_docs),
     }
 
+    notes_count = db.query(Registration).filter(
+        sa_func.length(sa_func.trim(Registration.admin_notes)) > 0
+    ).count()
+
     return _template(request, "admin/dashboard.html", {
         "counts": counts,
         "inventory": inventory,
         "insurance_counts": insurance_counts,
+        "notes_count": notes_count,
     }, session=session)
 
 
@@ -91,6 +97,7 @@ async def registration_list(
     category: str = Query("", alias="category"),
     booth_type: str = Query("", alias="booth_type"),
     insurance: str = Query("", alias="insurance"),
+    notes: str = Query("", alias="notes"),
     search: str = Query("", alias="search"),
 ):
     query = db.query(Registration)
@@ -113,6 +120,8 @@ async def registration_list(
     elif insurance == "no":
         emails_with_doc = db.query(InsuranceDocument.email).subquery()
         query = query.filter(~Registration.email.in_(emails_with_doc))
+    if notes == "yes":
+        query = query.filter(sa_func.length(sa_func.trim(Registration.admin_notes)) > 0)
     if search:
         term = f"%{search}%"
         query = query.filter(
