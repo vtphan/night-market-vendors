@@ -411,11 +411,46 @@ async def vendor_dashboard(
     registration_open = settings.is_registration_open() if settings else False
     insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
 
+    # Build "Needs Attention" items for the vendor
+    needs_attention = []
+    has_active = any(
+        r["registration"].status in ("pending", "approved", "paid")
+        for r in reg_data
+    )
+
+    # Approved registrations awaiting payment
+    for item in reg_data:
+        if item["registration"].status == "approved":
+            needs_attention.append({
+                "type": "payment",
+                "message": f"{item['registration'].business_name} — approved, awaiting payment",
+                "link": f"/vendor/registration/{item['registration'].registration_id}",
+                "link_text": "Pay now",
+            })
+
+    # Insurance: needs upload or pending review (only if vendor has active registrations)
+    if has_active:
+        if not insurance_doc:
+            needs_attention.append({
+                "type": "insurance",
+                "message": "Insurance document required",
+                "link": "/vendor/insurance",
+                "link_text": "Upload now",
+            })
+        elif not insurance_doc.is_approved:
+            needs_attention.append({
+                "type": "insurance_pending",
+                "message": "Insurance document uploaded — awaiting admin review",
+                "link": "/vendor/insurance",
+                "link_text": "View",
+            })
+
     return _template(request, "vendor/dashboard.html", {
         "registrations": reg_data,
         "registration_open": registration_open,
         "settings": settings,
         "insurance_doc": insurance_doc,
+        "needs_attention": needs_attention,
     })
 
 

@@ -1,11 +1,12 @@
 import csv
 import io
 import logging
-from datetime import date, datetime, timezone
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
-from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func, extract
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -78,11 +79,126 @@ async def admin_dashboard(
         sa_func.length(sa_func.trim(Registration.admin_notes)) > 0
     ).count()
 
+    # Revenue: total paid amount
+    revenue_total = db.query(sa_func.coalesce(sa_func.sum(Registration.amount_paid), 0)).filter(
+        Registration.status == "paid"
+    ).scalar() or 0
+    refund_total = db.query(sa_func.coalesce(sa_func.sum(Registration.refund_amount), 0)).filter(
+        Registration.status.in_(["paid", "cancelled"])
+    ).scalar() or 0
+
+    # Revenue by booth type
+    revenue_by_booth = (
+        db.query(BoothType.name, sa_func.sum(Registration.amount_paid))
+        .join(BoothType, Registration.booth_type_id == BoothType.id)
+        .filter(Registration.status == "paid")
+        .group_by(BoothType.name)
+        .all()
+    )
+
+    # Recent pending registrations (up to 5)
+    recent_pending = (
+        db.query(Registration)
+        .filter(Registration.status == "pending")
+        .order_by(Registration.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    # Last registration timestamp
+    last_registration = (
+        db.query(Registration.created_at)
+        .order_by(Registration.created_at.desc())
+        .first()
+    )
+    last_registration_at = last_registration[0] if last_registration else None
+
+    # Registration time distribution (last 30 days, by day)
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    daily_counts_raw = (
+        db.query(
+            sa_func.date(Registration.created_at).label("day"),
+            sa_func.count(Registration.id),
+        )
+        .filter(Registration.created_at >= thirty_days_ago)
+        .group_by("day")
+        .order_by("day")
+        .all()
+    )
+    # Fill in missing days with 0
+    daily_counts = []
+    if daily_counts_raw:
+        day_map = {row[0]: row[1] for row in daily_counts_raw}
+        start_date = thirty_days_ago.date()
+        end_date = datetime.now(timezone.utc).date()
+        current = start_date
+        while current <= end_date:
+            daily_counts.append({
+                "date": current.strftime("%b %d"),
+                "count": day_map.get(str(current), 0),
+            })
+            current += timedelta(days=1)
+
+    # Hourly distribution (all time)
+    hourly_counts_raw = (
+        db.query(
+            extract("hour", Registration.created_at).label("hour"),
+            sa_func.count(Registration.id),
+        )
+        .group_by("hour")
+        .order_by("hour")
+        .all()
+    )
+    hourly_counts = [0] * 24
+    for row in hourly_counts_raw:
+        if row[0] is not None:
+            hourly_counts[int(row[0])] = row[1]
+
+    # Capacity alerts: booth types where pending registrations meet or exceed available slots
+    capacity_alerts = []
+    for item in inventory:
+        if item["pending"] > 0 and item["available"] <= item["pending"]:
+            overflow = item["pending"] - item["available"]
+            capacity_alerts.append({
+                "id": item["id"],
+                "name": item["name"],
+                "available": item["available"],
+                "pending": item["pending"],
+                "overflow": overflow,  # how many pending can't fit
+                "total_quantity": item["total_quantity"],
+                "reserved": item["reserved"],
+            })
+
+    # Insurance docs pending review (up to 5)
+    pending_insurance = []
+    emails_with_pending_docs = (
+        db.query(InsuranceDocument)
+        .filter(InsuranceDocument.is_approved == False)
+        .limit(5)
+        .all()
+    )
+    for doc in emails_with_pending_docs:
+        reg = db.query(Registration).filter(
+            Registration.email == doc.email,
+            Registration.status.in_(["pending", "approved", "paid"]),
+        ).first()
+        if reg:
+            pending_insurance.append({"doc": doc, "registration": reg})
+
     return _template(request, "admin/dashboard.html", {
         "counts": counts,
         "inventory": inventory,
         "insurance_counts": insurance_counts,
         "notes_count": notes_count,
+        "revenue_total": revenue_total,
+        "refund_total": refund_total,
+        "revenue_by_booth": revenue_by_booth,
+        "recent_pending": recent_pending,
+        "last_registration_at": last_registration_at,
+        "daily_counts": daily_counts,
+        "hourly_counts": hourly_counts,
+        "pending_insurance": pending_insurance,
+        "capacity_alerts": capacity_alerts,
     }, session=session)
 
 

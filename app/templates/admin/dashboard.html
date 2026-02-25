@@ -2,80 +2,589 @@
 
 {% block title %}Admin Dashboard - Asian Night Market{% endblock %}
 
+{% block extra_head %}
+<style>
+/* Dashboard layout */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    align-items: start;
+}
+@media (min-width: 992px) {
+    .dashboard-grid { grid-template-columns: 7fr 5fr; }
+}
+
+/* Summary strip */
+.summary-strip {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+@media (min-width: 768px) {
+    .summary-strip { grid-template-columns: repeat(4, 1fr); }
+}
+.summary-card {
+    background: var(--pico-card-background-color);
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    text-align: center;
+}
+.summary-card .big-number {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0;
+}
+.summary-card .label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--pico-muted-color);
+    margin-top: 0.25rem;
+}
+.summary-card.highlight-pending .big-number { color: #b45309; }
+.summary-card.highlight-revenue .big-number { color: #15803d; }
+.summary-card.highlight-paid .big-number { color: #1d4ed8; }
+.summary-card.highlight-fill .big-number { color: #7c3aed; }
+
+/* Meta line */
+.meta-line {
+    font-size: 0.85rem;
+    color: var(--pico-muted-color);
+    margin-bottom: 1.25rem;
+}
+.meta-line .fresh { color: #15803d; font-weight: 500; }
+.meta-line .stale { color: #b45309; font-weight: 500; }
+
+/* Status table with badges */
+.status-table { width: 100%; border-collapse: collapse; }
+.status-table td { padding: 0.4rem 0; border: none; }
+.status-table td:last-child { text-align: right; }
+.status-table .badge {
+    display: inline-block;
+    min-width: 2rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+}
+.badge-pending { background-color: #fef3c7; color: #92400e; }
+.badge-approved { background-color: #dbeafe; color: #1e40af; }
+.badge-paid { background-color: #d1fae5; color: #065f46; }
+.badge-rejected { background-color: #fee2e2; color: #991b1b; }
+.badge-cancelled { background-color: #e5e7eb; color: #374151; }
+.badge-total { background-color: #f3f4f6; color: #111827; }
+
+/* Capacity bars */
+.capacity-bar-wrap {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+}
+.capacity-bar-wrap:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.capacity-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.3rem;
+}
+.capacity-bar-header strong { font-size: 0.95rem; }
+.capacity-bar-header .capacity-text {
+    font-size: 0.8rem;
+    color: var(--pico-muted-color);
+}
+.capacity-bar {
+    width: 100%;
+    height: 22px;
+    background: #f3f4f6;
+    border-radius: 11px;
+    overflow: hidden;
+    position: relative;
+}
+.capacity-bar .segment {
+    height: 100%;
+    float: left;
+    transition: width 0.3s ease;
+}
+.segment-paid { background: #22c55e; }
+.segment-approved { background: #3b82f6; }
+.segment-pending { background: #f59e0b; }
+.capacity-bar-legend {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--pico-muted-color);
+}
+.legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.25rem;
+    vertical-align: middle;
+}
+
+/* Pending action items */
+.action-list { list-style: none; padding: 0; margin: 0; }
+.action-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+    font-size: 0.9rem;
+}
+.action-list li:last-child { border-bottom: none; }
+.action-list .business { font-weight: 500; }
+.action-list .meta {
+    font-size: 0.8rem;
+    color: var(--pico-muted-color);
+}
+.action-list .time-ago {
+    font-size: 0.78rem;
+    color: var(--pico-muted-color);
+    white-space: nowrap;
+}
+
+/* Revenue breakdown */
+.revenue-list { list-style: none; padding: 0; margin: 0; }
+.revenue-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.3rem 0;
+    font-size: 0.9rem;
+}
+
+/* Chart area */
+.chart-container {
+    position: relative;
+    width: 100%;
+    overflow-x: auto;
+}
+.chart-container svg { display: block; width: 100%; }
+.chart-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+.chart-tab {
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border: 1px solid var(--pico-muted-border-color);
+    background: none;
+    color: var(--pico-color);
+}
+.chart-tab.active {
+    background: var(--pico-primary-background);
+    color: #fff;
+    border-color: var(--pico-primary-background);
+}
+
+/* Section headers inside articles */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.section-header a { font-size: 0.85rem; }
+
+/* Compact cards on right */
+.compact-cards { display: flex; flex-direction: column; gap: 1.25rem; }
+</style>
+{% endblock %}
+
 {% block content %}
-<style>.dashboard-grid { display: grid; grid-template-columns: 1fr; gap: var(--pico-grid-column-gap, 1rem); align-items: start; } @media (min-width: 768px) { .dashboard-grid { grid-template-columns: 1fr 1fr; } }</style>
 <h2>Admin Dashboard</h2>
-<p>Welcome, {{ session.email }}.</p>
+
+<!-- Meta line with last registration info -->
+<p class="meta-line">
+    Welcome, {{ session.email }}.
+    {% if last_registration_at %}
+    &nbsp;&middot;&nbsp;
+    Last registration:
+    <span id="last-reg-time" data-ts="{{ last_registration_at.isoformat() }}Z"></span>
+    {% endif %}
+</p>
+
+<!-- Summary strip -->
+<div class="summary-strip">
+    <a href="/admin/registrations?status=pending" style="text-decoration:none; color:inherit;">
+        <div class="summary-card highlight-pending">
+            <div class="big-number">{{ counts.pending }}</div>
+            <div class="label">Pending Review</div>
+        </div>
+    </a>
+    <div class="summary-card highlight-revenue">
+        <div class="big-number">${{ "%.0f"|format(revenue_total / 100) }}</div>
+        <div class="label">Revenue</div>
+    </div>
+    <a href="/admin/registrations?status=paid" style="text-decoration:none; color:inherit;">
+        <div class="summary-card highlight-paid">
+            <div class="big-number">{{ counts.paid }}</div>
+            <div class="label">Paid</div>
+        </div>
+    </a>
+    <div class="summary-card highlight-fill">
+        {% set total_capacity = inventory | sum(attribute='total_quantity') %}
+        {% set total_filled = inventory | sum(attribute='approved') + inventory | sum(attribute='paid') %}
+        <div class="big-number">{{ "%.0f"|format(total_filled / total_capacity * 100) if total_capacity > 0 else 0 }}%</div>
+        <div class="label">Booths Filled</div>
+    </div>
+</div>
 
 <div class="dashboard-grid">
-    <!-- Left column -->
+    <!-- Left column (primary) -->
     <div>
+        <!-- Needs Attention -->
+        {% if recent_pending or pending_insurance or capacity_alerts %}
         <article>
-            <header><strong>Registrations</strong></header>
-            <table>
-                <tr><td><a href="/admin/registrations?status=pending">Pending</a></td><td><strong>{{ counts.pending }}</strong></td></tr>
-                <tr><td><a href="/admin/registrations?status=approved">Approved</a></td><td><strong>{{ counts.approved }}</strong></td></tr>
-                <tr><td><a href="/admin/registrations?status=paid">Paid</a></td><td><strong>{{ counts.paid }}</strong></td></tr>
-                <tr><td><a href="/admin/registrations?status=rejected">Rejected</a></td><td><strong>{{ counts.rejected }}</strong></td></tr>
-                <tr><td><a href="/admin/registrations?status=cancelled">Cancelled</a></td><td><strong>{{ counts.cancelled }}</strong></td></tr>
-                <tr><td><strong><a href="/admin/registrations">Total</a></strong></td><td><strong>{{ counts.total }}</strong></td></tr>
-            </table>
-            <a href="/admin/export" role="button" class="secondary outline">Export CSV</a>
+            <header>
+                <div class="section-header">
+                    <strong>Needs Attention</strong>
+                    <a href="/admin/registrations?status=pending">View all &rarr;</a>
+                </div>
+            </header>
+            {% if capacity_alerts %}
+            <small><strong>Booth Capacity Alerts</strong></small>
+            <ul class="action-list">
+                {% for alert in capacity_alerts %}
+                <li>
+                    <div>
+                        <a href="/admin/registrations?status=pending&booth_type={{ alert.id }}" class="business">{{ alert.name }}</a>
+                        <div class="meta">
+                            {% if alert.available <= 0 %}
+                                <span style="color: #dc2626; font-weight: 600;">Full</span> &mdash;
+                                {{ alert.pending }} pending, {{ alert.overflow }} won't fit
+                            {% else %}
+                                <span style="color: #b45309; font-weight: 600;">{{ alert.available }} left</span> &mdash;
+                                {{ alert.pending }} pending will fill remaining slots
+                            {% endif %}
+                        </div>
+                    </div>
+                    <span style="font-size: 0.85em; white-space: nowrap; color: {% if alert.available <= 0 %}#dc2626{% else %}#b45309{% endif %};">
+                        {{ alert.reserved }}/{{ alert.total_quantity }} reserved
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% if recent_pending %}
+            <small><strong>Recent Pending Registrations</strong></small>
+            <ul class="action-list">
+                {% for reg in recent_pending %}
+                <li>
+                    <div>
+                        <a href="/admin/registrations/{{ reg.registration_id }}" class="business">{{ reg.business_name }}</a>
+                        <div class="meta">{{ reg.contact_name }} &middot; {{ reg.email }}</div>
+                    </div>
+                    <span class="time-ago" data-ts="{{ reg.created_at.isoformat() }}Z"></span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% if pending_insurance %}
+            <small style="display:block; margin-top:1rem;"><strong>Insurance Pending Review</strong></small>
+            <ul class="action-list">
+                {% for item in pending_insurance %}
+                <li>
+                    <div>
+                        <a href="/admin/registrations/{{ item.registration.registration_id }}" class="business">{{ item.registration.business_name }}</a>
+                        <div class="meta">Uploaded {{ item.doc.uploaded_at.strftime("%b %d") }}</div>
+                    </div>
+                    <span class="time-ago" data-ts="{{ item.doc.uploaded_at.isoformat() }}Z"></span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </article>
+        {% endif %}
+
+        <!-- Booth Capacity -->
+        <article>
+            <header>
+                <div class="section-header">
+                    <strong>Booth Capacity</strong>
+                    <a href="/admin/inventory">Manage &rarr;</a>
+                </div>
+            </header>
+            {% for item in inventory %}
+            <div class="capacity-bar-wrap">
+                <div class="capacity-bar-header">
+                    <strong>{{ item.name }}</strong>
+                    <span class="capacity-text">
+                        {{ item.available }} available, {{ item.total_quantity }} total
+                        {% if item.pending > 0 %}
+                        <span style="color: {% if item.available <= 0 %}#dc2626{% else %}#b45309{% endif %};">
+                            ({{ item.pending }} pending)
+                        </span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% set filled = item.paid + item.approved + item.pending %}
+                <div class="capacity-bar">
+                    {% if item.total_quantity > 0 %}
+                    <div class="segment segment-paid" style="width: {{ (item.paid / item.total_quantity * 100)|round(1) }}%"></div>
+                    <div class="segment segment-approved" style="width: {{ (item.approved / item.total_quantity * 100)|round(1) }}%"></div>
+                    <div class="segment segment-pending" style="width: {{ (item.pending / item.total_quantity * 100)|round(1) }}%"></div>
+                    {% endif %}
+                </div>
+                <div class="capacity-bar-legend">
+                    <span><span class="legend-dot" style="background:#22c55e;"></span>Paid {{ item.paid }}</span>
+                    <span><span class="legend-dot" style="background:#3b82f6;"></span>Approved {{ item.approved }}</span>
+                    <span><span class="legend-dot" style="background:#f59e0b;"></span>Pending {{ item.pending }}</span>
+                </div>
+            </div>
+            {% endfor %}
         </article>
 
+        <!-- Registration Timeline Chart -->
+        <article>
+            <header><strong>Registration Activity</strong></header>
+            <div class="chart-tabs">
+                <button class="chart-tab active" onclick="showChart('daily')">Last 30 Days</button>
+                <button class="chart-tab" onclick="showChart('hourly')">By Hour</button>
+            </div>
+            <div class="chart-container" id="chart-daily">
+                <canvas id="daily-chart" height="180"></canvas>
+            </div>
+            <div class="chart-container" id="chart-hourly" style="display:none;">
+                <canvas id="hourly-chart" height="180"></canvas>
+            </div>
+        </article>
+    </div>
+
+    <!-- Right column (secondary) -->
+    <div class="compact-cards">
+        <!-- Registration counts -->
+        <article>
+            <header><strong>All Registrations</strong></header>
+            <table class="status-table">
+                <tr>
+                    <td><a href="/admin/registrations?status=pending">Pending</a></td>
+                    <td><span class="badge badge-pending">{{ counts.pending }}</span></td>
+                </tr>
+                <tr>
+                    <td><a href="/admin/registrations?status=approved">Approved</a></td>
+                    <td><span class="badge badge-approved">{{ counts.approved }}</span></td>
+                </tr>
+                <tr>
+                    <td><a href="/admin/registrations?status=paid">Paid</a></td>
+                    <td><span class="badge badge-paid">{{ counts.paid }}</span></td>
+                </tr>
+                <tr>
+                    <td><a href="/admin/registrations?status=rejected">Rejected</a></td>
+                    <td><span class="badge badge-rejected">{{ counts.rejected }}</span></td>
+                </tr>
+                <tr>
+                    <td><a href="/admin/registrations?status=cancelled">Cancelled</a></td>
+                    <td><span class="badge badge-cancelled">{{ counts.cancelled }}</span></td>
+                </tr>
+                <tr>
+                    <td><strong><a href="/admin/registrations">Total</a></strong></td>
+                    <td><span class="badge badge-total">{{ counts.total }}</span></td>
+                </tr>
+            </table>
+            <footer>
+                <a href="/admin/export" role="button" class="secondary outline" style="width:100%;">Export CSV</a>
+            </footer>
+        </article>
+
+        <!-- Revenue -->
+        <article>
+            <header><strong>Revenue</strong></header>
+            <div style="text-align:center; margin-bottom:0.75rem;">
+                <div style="font-size:1.5rem; font-weight:700; color:#15803d;">
+                    ${{ "%.2f"|format(revenue_total / 100) }}
+                </div>
+                {% if refund_total > 0 %}
+                <div style="font-size:0.85rem; color:#dc2626;">
+                    Refunded: ${{ "%.2f"|format(refund_total / 100) }}
+                </div>
+                {% endif %}
+                <div style="font-size:0.85rem; color:var(--pico-muted-color);">
+                    Net: ${{ "%.2f"|format((revenue_total - refund_total) / 100) }}
+                </div>
+            </div>
+            {% if revenue_by_booth %}
+            <ul class="revenue-list">
+                {% for name, amount in revenue_by_booth %}
+                <li>
+                    <span>{{ name }}</span>
+                    <strong>${{ "%.2f"|format((amount or 0) / 100) }}</strong>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </article>
+
+        <!-- Insurance -->
         <article>
             <header><strong>Insurance</strong></header>
-            <table>
+            <table class="status-table">
                 <tr>
                     <td><a href="/admin/registrations?insurance=approved">Approved</a></td>
-                    <td><strong>{{ insurance_counts.approved }}</strong></td>
+                    <td><span class="badge badge-paid">{{ insurance_counts.approved }}</span></td>
                 </tr>
                 <tr>
                     <td><a href="/admin/registrations?insurance=uploaded">Pending Review</a></td>
-                    <td><strong>{{ insurance_counts.uploaded }}</strong></td>
+                    <td><span class="badge badge-pending">{{ insurance_counts.uploaded }}</span></td>
                 </tr>
                 <tr>
                     <td><a href="/admin/registrations?insurance=no">Not Uploaded</a></td>
-                    <td><strong>{{ insurance_counts.none }}</strong></td>
+                    <td><span class="badge badge-rejected">{{ insurance_counts.none }}</span></td>
                 </tr>
             </table>
         </article>
 
+        <!-- Admin Notes -->
         <article>
             <header><strong>Admin Notes</strong></header>
-            <table>
+            <table class="status-table">
                 <tr>
                     <td><a href="/admin/registrations?notes=yes">With Notes</a></td>
-                    <td><strong>{{ notes_count }}</strong></td>
+                    <td><span class="badge badge-total">{{ notes_count }}</span></td>
                 </tr>
             </table>
         </article>
     </div>
-
-    <!-- Right column -->
-    <article>
-        <header><strong>Registrations by Booth Type</strong></header>
-        {% for item in inventory %}
-        <details open>
-            <summary>
-                <strong>{{ item.name }}</strong> —
-                {{ item.available }} available of {{ item.total_quantity }}
-                {% if item.pending > 0 %}
-                <span style="color: {% if item.available <= 0 %}#c62828{% else %}var(--pico-muted-color){% endif %};">
-                    ({{ item.pending }} pending)
-                </span>
-                {% endif %}
-            </summary>
-            <table>
-                <tr><td><a href="/admin/registrations?status=pending&booth_type={{ item.id }}">Pending</a></td><td><strong>{{ item.pending }}</strong></td></tr>
-                <tr><td><a href="/admin/registrations?status=approved&booth_type={{ item.id }}">Approved</a></td><td><strong>{{ item.approved }}</strong></td></tr>
-                <tr><td><a href="/admin/registrations?status=paid&booth_type={{ item.id }}">Paid</a></td><td><strong>{{ item.paid }}</strong></td></tr>
-                <tr><td><a href="/admin/registrations?status=rejected&booth_type={{ item.id }}">Rejected</a></td><td><strong>{{ item.rejected }}</strong></td></tr>
-                <tr><td><a href="/admin/registrations?status=cancelled&booth_type={{ item.id }}">Cancelled</a></td><td><strong>{{ item.cancelled }}</strong></td></tr>
-            </table>
-        </details>
-        {% endfor %}
-        <a href="/admin/inventory" role="button" class="secondary outline">Manage Inventory</a>
-    </article>
 </div>
+
+<script>
+// Relative time display
+function timeAgo(dateStr) {
+    const now = new Date();
+    const then = new Date(dateStr);
+    const seconds = Math.floor((now - then) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + 'm ago';
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + 'h ago';
+    const days = Math.floor(hours / 24);
+    if (days < 30) return days + 'd ago';
+    return then.toLocaleDateString();
+}
+
+document.querySelectorAll('[data-ts]').forEach(el => {
+    const ts = el.getAttribute('data-ts');
+    el.textContent = timeAgo(ts);
+    // Color-code last registration freshness
+    if (el.id === 'last-reg-time') {
+        const hours = (Date.now() - new Date(ts).getTime()) / 3600000;
+        el.className = hours < 24 ? 'fresh' : 'stale';
+    }
+});
+
+// Chart rendering (lightweight canvas)
+const dailyData = {{ daily_counts | tojson }};
+const hourlyData = {{ hourly_counts | tojson }};
+
+function drawBarChart(canvasId, labels, values, barColor) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+
+    // Size canvas for retina
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = 180 * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = '180px';
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = 180;
+    const pad = { top: 20, right: 10, bottom: 35, left: 40 };
+    const chartW = w - pad.left - pad.right;
+    const chartH = h - pad.top - pad.bottom;
+
+    const maxVal = Math.max(...values, 1);
+    const barW = Math.max(2, (chartW / values.length) - 2);
+    const gap = (chartW - barW * values.length) / values.length;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Grid lines
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 0.5;
+    const gridLines = 4;
+    for (let i = 0; i <= gridLines; i++) {
+        const y = pad.top + (chartH / gridLines) * i;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+        // Y label
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '10px system-ui';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round(maxVal - (maxVal / gridLines) * i), pad.left - 5, y + 3);
+    }
+
+    // Bars
+    values.forEach((val, i) => {
+        const x = pad.left + i * (barW + gap) + gap / 2;
+        const barH = (val / maxVal) * chartH;
+        const y = pad.top + chartH - barH;
+
+        ctx.fillStyle = barColor;
+        ctx.beginPath();
+        const r = Math.min(3, barW / 2);
+        ctx.moveTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.arcTo(x + barW, y, x + barW, y + r, r);
+        ctx.lineTo(x + barW, pad.top + chartH);
+        ctx.lineTo(x, pad.top + chartH);
+        ctx.closePath();
+        ctx.fill();
+
+        // X labels (show every Nth)
+        const labelEvery = Math.ceil(labels.length / 10);
+        if (i % labelEvery === 0) {
+            ctx.fillStyle = '#9ca3af';
+            ctx.font = '9px system-ui';
+            ctx.textAlign = 'center';
+            ctx.save();
+            ctx.translate(x + barW / 2, h - 5);
+            ctx.rotate(-0.5);
+            ctx.fillText(labels[i], 0, 0);
+            ctx.restore();
+        }
+    });
+}
+
+function showChart(type) {
+    document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('chart-daily').style.display = type === 'daily' ? '' : 'none';
+    document.getElementById('chart-hourly').style.display = type === 'hourly' ? '' : 'none';
+    event.target.classList.add('active');
+    if (type === 'daily') renderDaily();
+    else renderHourly();
+}
+
+function renderDaily() {
+    if (!dailyData.length) return;
+    const labels = dailyData.map(d => d.date);
+    const values = dailyData.map(d => d.count);
+    drawBarChart('daily-chart', labels, values, '#6366f1');
+}
+
+function renderHourly() {
+    const labels = hourlyData.map((_, i) => {
+        const h = i % 12 || 12;
+        return h + (i < 12 ? 'a' : 'p');
+    });
+    drawBarChart('hourly-chart', labels, hourlyData, '#8b5cf6');
+}
+
+// Initial render
+setTimeout(renderDaily, 50);
+</script>
 {% endblock %}

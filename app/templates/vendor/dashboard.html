@@ -8,19 +8,31 @@
 {% endif %}
 
 <h2>My Registrations</h2>
+<p style="color: var(--pico-muted-color);">Welcome, {{ session.email }}.</p>
 
-{% if registrations | length > 0 %}
+{% if needs_attention %}
+<article style="padding: 0.75rem 1rem; margin-bottom: 1rem; border-left: 4px solid #b45309;">
+    <strong style="display: block; margin-bottom: 0.5rem;">Needs Attention</strong>
+    {% for item in needs_attention %}
+    <div style="display: flex; justify-content: space-between; align-items: center;{% if not loop.last %} margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--pico-muted-border-color);{% endif %}">
+        <span>
+            {% if item.type == 'payment' %}
+            <span class="status-badge approved" style="margin-right: 0.25rem;">Action Required</span>
+            {% elif item.type == 'insurance' %}
+            <span class="status-badge pending" style="margin-right: 0.25rem;">Missing</span>
+            {% elif item.type == 'insurance_pending' %}
+            <span class="status-badge pending" style="margin-right: 0.25rem;">Pending Review</span>
+            {% endif %}
+            {{ item.message }}
+        </span>
+        <a href="{{ item.link }}" role="button" class="outline" style="white-space: nowrap; padding: 0.25rem 0.75rem; font-size: 0.85em; margin-left: 1rem;">{{ item.link_text }}</a>
+    </div>
+    {% endfor %}
+</article>
+{% elif registrations | length > 0 and insurance_doc and insurance_doc.is_approved %}
 <article style="padding: 0.75rem 1rem; margin-bottom: 1rem;">
-    {% if insurance_doc and insurance_doc.is_approved %}
     <span class="status-badge paid">Approved</span> Insurance document on file.
     <a href="/vendor/insurance">View</a>
-    {% elif insurance_doc %}
-    <span class="status-badge pending">Pending Review</span> Insurance document uploaded.
-    <a href="/vendor/insurance">View</a>
-    {% else %}
-    <strong>Insurance:</strong> Upload required.
-    <a href="/vendor/insurance">Upload now</a>
-    {% endif %}
 </article>
 {% endif %}
 
