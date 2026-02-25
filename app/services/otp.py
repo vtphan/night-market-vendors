@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -35,7 +35,7 @@ def create_otp(db: Session, email: str) -> str | None:
     email = email.lower().strip()
 
     # Rate limit: max 5 OTPs per email per hour
-    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
     recent_count = (
         db.query(OTPCode)
         .filter(OTPCode.email == email, OTPCode.created_at >= one_hour_ago)
@@ -48,7 +48,7 @@ def create_otp(db: Session, email: str) -> str | None:
     otp = OTPCode(
         email=email,
         code_hash=hash_otp(code),
-        expires_at=datetime.utcnow() + timedelta(minutes=10),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
     )
     db.add(otp)
     db.commit()
@@ -62,7 +62,7 @@ def validate_otp(db: Session, email: str, code: str) -> bool:
     Returns True on success, False on failure.
     """
     email = email.lower().strip()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Get the most recent unused, non-expired OTP for this email
     otp = (

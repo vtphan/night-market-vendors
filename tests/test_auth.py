@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -36,7 +36,7 @@ def test_expired_otp_rejected(db):
     otp = OTPCode(
         email=email,
         code_hash=hash_otp(code),
-        expires_at=datetime.utcnow() - timedelta(minutes=1),  # expired
+        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),  # expired
     )
     db.add(otp)
     db.commit()
@@ -50,7 +50,7 @@ def test_used_otp_cannot_be_reused(db):
     otp = OTPCode(
         email=email,
         code_hash=hash_otp(code),
-        expires_at=datetime.utcnow() + timedelta(minutes=10),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
         used=True,
     )
     db.add(otp)
@@ -65,7 +65,7 @@ def test_max_5_attempts_enforced(db):
     otp = OTPCode(
         email=email,
         code_hash=hash_otp(code),
-        expires_at=datetime.utcnow() + timedelta(minutes=10),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
         attempts=5,
     )
     db.add(otp)
