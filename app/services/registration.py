@@ -269,9 +269,10 @@ def get_waitlist_position(db: Session, registration: Registration) -> int | None
     ahead = (
         db.query(func.count(Registration.id))
         .filter(
+            Registration.id != registration.id,
             Registration.booth_type_id == registration.booth_type_id,
             Registration.status == "pending",
-            Registration.created_at < registration.created_at,
+            Registration.created_at <= registration.created_at,
         )
         .scalar()
     )

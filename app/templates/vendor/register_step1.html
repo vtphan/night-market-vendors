@@ -106,7 +106,11 @@
             </label>
         </fieldset>
 
-        <button type="submit">Review Registration</button>
+        {% set any_available = booth_availability.values() | select('gt', 0) | list %}
+        <button type="submit" {% if not any_available %}disabled{% endif %}>Review Registration</button>
+        {% if not any_available %}
+        <p><small style="color: #c62828;">All booth types are currently sold out.</small></p>
+        {% endif %}
     </form>
 </article>
 

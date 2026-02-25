@@ -119,7 +119,7 @@ async def register_step1(
     business_name: str = Form(...),
     category: str = Form(...),
     description: str = Form(...),
-    booth_type_id: int = Form(...),
+    booth_type_id: int | None = Form(None),
     electrical_equipment: list[str] = Form([]),
     electrical_other: str = Form(""),
     agreement_accepted: str = Form(""),
@@ -148,9 +148,13 @@ async def register_step1(
         errors.append("Description is required.")
 
     # Validate booth type
-    booth_type = db.query(BoothType).filter(BoothType.id == booth_type_id, BoothType.is_active == True).first()
-    if not booth_type:
-        errors.append("Please select a valid booth type.")
+    booth_type = None
+    if booth_type_id is None:
+        errors.append("Please select a booth type.")
+    else:
+        booth_type = db.query(BoothType).filter(BoothType.id == booth_type_id, BoothType.is_active == True).first()
+        if not booth_type:
+            errors.append("Please select a valid booth type.")
 
     if errors:
         flash = [{"category": "error", "text": e} for e in errors]
