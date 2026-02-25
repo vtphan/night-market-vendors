@@ -37,16 +37,21 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         logger.info("Duplicate webhook event %s, skipping", event["id"])
         return JSONResponse(status_code=200, content={"status": "duplicate"})
 
-    # Record event
+    try:
+        if event["type"] == "payment_intent.succeeded":
+            _handle_payment_succeeded(db, event["data"]["object"])
+        elif event["type"] == "charge.refunded":
+            _handle_charge_refunded(db, event["data"]["object"])
+        else:
+            logger.info("Unhandled webhook event type: %s", event["type"])
+    except Exception:
+        db.rollback()
+        logger.exception("Webhook handler failed for event %s", event["id"])
+        return JSONResponse(status_code=500, content={"error": "Handler failed"})
+
+    # Record event AFTER handler succeeds so failed events can be retried
     db.add(StripeEvent(stripe_event_id=event["id"], event_type=event["type"]))
     db.commit()
-
-    if event["type"] == "payment_intent.succeeded":
-        _handle_payment_succeeded(db, event["data"]["object"])
-    elif event["type"] == "charge.refunded":
-        _handle_charge_refunded(db, event["data"]["object"])
-    else:
-        logger.info("Unhandled webhook event type: %s", event["type"])
 
     return JSONResponse(status_code=200, content={"status": "ok"})
 
