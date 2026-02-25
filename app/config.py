@@ -10,7 +10,7 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "noreply@example.com")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY", "")
 APP_URL = os.getenv("APP_URL", "http://localhost:8000")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/app.db")
 
@@ -21,6 +21,11 @@ ADMIN_EMAILS = [
 ]
 
 DEBUG = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
+
+if not SECRET_KEY and not DEBUG:
+    raise RuntimeError("SECRET_KEY environment variable is required in production")
+if not SECRET_KEY:
+    SECRET_KEY = "dev-only-insecure-key"
 
 # Google OAuth (optional — OTP still works without these)
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")

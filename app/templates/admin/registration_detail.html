@@ -92,19 +92,23 @@
             View: {{ insurance_doc.original_filename }}
         </a>
         <small style="color: var(--pico-muted-color);">{{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB</small>
-        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/approve"
+        {% if insurance_doc.is_approved %}
+        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/revoke"
               style="margin: 0;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            {% if insurance_doc.is_approved %}
             <button type="submit" class="outline" style="width: auto; margin: 0;">
                 Revoke Insurance Approval
             </button>
-            {% else %}
+        </form>
+        {% else %}
+        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/approve"
+              style="margin: 0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;">
                 Approve Insurance Document
             </button>
-            {% endif %}
         </form>
+        {% endif %}
     </div>
     {% else %}
     <p style="margin-bottom: 0;"><small style="color: var(--pico-muted-color);">No insurance document uploaded by this vendor.</small></p>

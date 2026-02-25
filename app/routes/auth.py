@@ -321,6 +321,13 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 
         claims = jose_jwt.decode(id_token, jwks)
         claims.validate()
+
+        # Verify nonce matches
+        expected_nonce = state_data.get("nonce")
+        if claims.get("nonce") != expected_nonce:
+            logger.warning("OAuth nonce mismatch")
+            return RedirectResponse(url="/auth/login", status_code=303)
+
         email = claims.get("email", "").lower().strip()
     except (JoseError, httpx.HTTPError, Exception):
         logger.exception("Failed to exchange/verify Google OAuth token")

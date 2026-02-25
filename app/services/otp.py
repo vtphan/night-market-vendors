@@ -58,7 +58,7 @@ def create_otp(db: Session, email: str) -> str | None:
 def validate_otp(db: Session, email: str, code: str) -> bool:
     """Validate an OTP code for the given email.
 
-    Checks: not expired, not used, attempts < 5, code matches.
+    Checks: not expired, not used, attempts < 3, code matches.
     Returns True on success, False on failure.
     """
     email = email.lower().strip()
@@ -71,7 +71,7 @@ def validate_otp(db: Session, email: str, code: str) -> bool:
             OTPCode.email == email,
             OTPCode.used == False,
             OTPCode.expires_at > now,
-            OTPCode.attempts < 5,
+            OTPCode.attempts < 3,
         )
         .order_by(OTPCode.created_at.desc())
         .first()

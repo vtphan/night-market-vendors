@@ -2,7 +2,7 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -265,14 +265,20 @@ def get_waitlist_position(db: Session, registration: Registration) -> int | None
     available = get_booth_availability(db, registration.booth_type_id)
     if available > 0:
         return None
-    # Count pending registrations submitted before this one
+    # Count pending registrations submitted before this one (tie-break by ID)
     ahead = (
         db.query(func.count(Registration.id))
         .filter(
             Registration.id != registration.id,
             Registration.booth_type_id == registration.booth_type_id,
             Registration.status == "pending",
-            Registration.created_at <= registration.created_at,
+            or_(
+                Registration.created_at < registration.created_at,
+                and_(
+                    Registration.created_at == registration.created_at,
+                    Registration.id < registration.id,
+                ),
+            ),
         )
         .scalar()
     )

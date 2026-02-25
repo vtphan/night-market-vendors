@@ -449,6 +449,15 @@ async def cancel_registration(
     except (ValueError, TypeError):
         amount_cents = 0
 
+    if amount_cents > 0 and not registration.stripe_payment_intent_id:
+        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+        flash = [{"category": "error", "text": "Cannot refund: no payment record found."}]
+        return _template(request, "admin/registration_detail.html", {
+            "registration": registration,
+            "booth_type": booth_type,
+            "get_flashed_messages": lambda: flash,
+        }, session=session)
+
     if amount_cents > 0 and registration.stripe_payment_intent_id:
         try:
             create_refund(db, registration, amount_cents)
@@ -548,7 +557,32 @@ async def admin_insurance_file(
 
 
 @router.post("/registrations/{reg_id}/insurance/approve")
-async def toggle_insurance_approval(
+async def approve_insurance(
+    request: Request,
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
+    if not doc:
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+    if not doc.is_approved:
+        doc.is_approved = True
+        doc.approved_by = session["email"]
+        doc.approved_at = datetime.now(timezone.utc)
+        db.commit()
+
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
+@router.post("/registrations/{reg_id}/insurance/revoke")
+async def revoke_insurance(
     request: Request,
     reg_id: str,
     session: dict = Depends(require_admin),
@@ -567,12 +601,8 @@ async def toggle_insurance_approval(
         doc.is_approved = False
         doc.approved_by = None
         doc.approved_at = None
-    else:
-        doc.is_approved = True
-        doc.approved_by = session["email"]
-        doc.approved_at = datetime.now(timezone.utc)
+        db.commit()
 
-    db.commit()
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
 
@@ -665,7 +695,12 @@ async def update_settings(
             db.commit()
             request.app.state.event_name = settings.event_name
         except ValueError:
-            pass
+            flash = [{"category": "error", "text": "Invalid date format. Please use YYYY-MM-DD."}]
+            return _template(request, "admin/settings.html", {
+                "settings": settings,
+                "admin_emails": ADMIN_EMAILS,
+                "get_flashed_messages": lambda: flash,
+            }, session=session)
     return RedirectResponse(url="/admin/settings", status_code=303)
 
 

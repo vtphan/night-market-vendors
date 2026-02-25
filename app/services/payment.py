@@ -24,7 +24,6 @@ def create_payment_intent(db: Session, registration: Registration, booth_type: B
 
     registration.stripe_payment_intent_id = intent.id
     db.commit()
-    db.refresh(registration)
 
     logger.info(
         "Created PaymentIntent %s for registration %s ($%.2f)",
@@ -47,7 +46,6 @@ def create_refund(db: Session, registration: Registration, amount_cents: int):
 
     registration.refund_amount = amount_cents
     db.commit()
-    db.refresh(registration)
 
     logger.info(
         "Created refund for registration %s ($%.2f)",

@@ -274,6 +274,7 @@ async def test_reject_registration_with_reason(db):
 
 @pytest.mark.anyio
 async def test_reject_registration_without_reason(db):
+    """Empty rejection reason is blocked with an error message."""
     seed_admin(db)
     booths = seed_booth_types(db)
     make_registration(db, booths[0].id, status="pending", reg_id="ANM-2026-0031")
@@ -289,12 +290,13 @@ async def test_reject_registration_without_reason(db):
                 "rejection_reason": "",
             }, cookies=admin_cookie())
 
-        assert response.status_code == 303
-        mock_email.assert_called_once_with("vendor@test.com", "ANM-2026-0031", None)
+        assert response.status_code == 200
+        assert "rejection reason is required" in response.text.lower()
+        mock_email.assert_not_called()
 
     reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0031").first()
     db.refresh(reg)
-    assert reg.status == "rejected"
+    assert reg.status == "pending"
 
 
 @pytest.mark.anyio

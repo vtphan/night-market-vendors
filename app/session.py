@@ -3,7 +3,7 @@ import time
 from typing import Optional
 
 from fastapi import Request, Response, Depends, HTTPException
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from itsdangerous import URLSafeTimedSerializer, BadSignature
 from sqlalchemy.orm import Session
 
 from app.config import SECRET_KEY, DEBUG
@@ -43,13 +43,17 @@ def read_session(request: Request) -> Optional[dict]:
         return None
 
     try:
-        # Max age = 24h (we check inactivity separately)
-        data = _serializer.loads(cookie, max_age=VENDOR_TIMEOUT)
-    except (BadSignature, SignatureExpired):
+        data = _serializer.loads(cookie)  # validate signature only
+    except BadSignature:
+        return None
+
+    # Check role-specific max age
+    timeout = ADMIN_TIMEOUT if data.get("user_type") == "admin" else VENDOR_TIMEOUT
+    created_at = data.get("created_at", 0)
+    if time.time() - created_at > timeout:
         return None
 
     # Check inactivity timeout
-    timeout = ADMIN_TIMEOUT if data.get("user_type") == "admin" else VENDOR_TIMEOUT
     if time.time() - data.get("last_activity", 0) > timeout:
         return None
 

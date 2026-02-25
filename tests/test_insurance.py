@@ -256,7 +256,7 @@ async def test_admin_revoke_insurance(db):
         detail = await client.get("/admin/registrations/ANM-2026-0091", cookies=admin_cookie())
         csrf = extract_csrf(detail.text)
 
-        response = await client.post("/admin/registrations/ANM-2026-0091/insurance/approve",
+        response = await client.post("/admin/registrations/ANM-2026-0091/insurance/revoke",
             data={"csrf_token": csrf},
             cookies=admin_cookie(),
         )
@@ -315,4 +315,4 @@ async def test_vendor_dashboard_shows_upload_required(db):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/vendor/dashboard", cookies=vendor_cookie())
         assert response.status_code == 200
-        assert "Upload required" in response.text
+        assert "Insurance document required" in response.text

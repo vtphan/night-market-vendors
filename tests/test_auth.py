@@ -186,13 +186,14 @@ async def test_login_sends_otp(db):
 # --- Google OAuth tests ---
 
 def _make_state(role="admin"):
-    """Create a valid signed OAuth state cookie value."""
+    """Create a valid signed OAuth state cookie value. Returns (state, nonce)."""
     import secrets
-    state_data = {"role": role, "nonce": secrets.token_urlsafe(16)}
-    return _state_serializer.dumps(state_data)
+    nonce = secrets.token_urlsafe(16)
+    state_data = {"role": role, "nonce": nonce}
+    return _state_serializer.dumps(state_data), nonce
 
 
-def _mock_google_token_exchange(email):
+def _mock_google_token_exchange(email, nonce=None):
     """Return a mock httpx.AsyncClient that simulates Google token + JWKS responses."""
     mock_client = AsyncMock()
     # Token endpoint response
@@ -206,9 +207,10 @@ def _mock_google_token_exchange(email):
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    # Mock jose_jwt.decode to return claims with the email
+    # Mock jose_jwt.decode to return claims with the email and nonce
+    claims_data = {"email": email, "nonce": nonce}
     mock_claims = MagicMock()
-    mock_claims.get.side_effect = lambda key, default="": email if key == "email" else default
+    mock_claims.get.side_effect = lambda key, default="": claims_data.get(key, default)
     mock_claims.validate.return_value = None
 
     return mock_client, mock_claims
@@ -231,8 +233,8 @@ async def test_google_oauth_callback_admin_success(db):
     db.add(AdminUser(email="admin@test.com", is_active=True))
     db.commit()
 
-    state = _make_state("admin")
-    mock_client, mock_claims = _mock_google_token_exchange("admin@test.com")
+    state, nonce = _make_state("admin")
+    mock_client, mock_claims = _mock_google_token_exchange("admin@test.com", nonce=nonce)
 
     with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True), \
          patch("app.routes.auth.httpx.AsyncClient", return_value=mock_client), \
@@ -269,8 +271,8 @@ async def test_google_oauth_callback_vendor_success(db):
         ))
     db.commit()
 
-    state = _make_state("vendor")
-    mock_client, mock_claims = _mock_google_token_exchange("vendor@example.com")
+    state, nonce = _make_state("vendor")
+    mock_client, mock_claims = _mock_google_token_exchange("vendor@example.com", nonce=nonce)
 
     with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True), \
          patch("app.routes.auth.httpx.AsyncClient", return_value=mock_client), \
@@ -290,8 +292,8 @@ async def test_google_oauth_callback_vendor_success(db):
 @pytest.mark.anyio
 async def test_google_oauth_callback_admin_rejected(db):
     # No admin user seeded — email not authorized
-    state = _make_state("admin")
-    mock_client, mock_claims = _mock_google_token_exchange("notadmin@example.com")
+    state, nonce = _make_state("admin")
+    mock_client, mock_claims = _mock_google_token_exchange("notadmin@example.com", nonce=nonce)
 
     with patch("app.routes.auth.GOOGLE_OAUTH_ENABLED", True), \
          patch("app.routes.auth.httpx.AsyncClient", return_value=mock_client), \
