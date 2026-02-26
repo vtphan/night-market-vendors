@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Request, Form, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from sqlalchemy.orm import Session
 
@@ -20,9 +20,9 @@ from app.services.registration import (
     LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
-from app.services.email import send_submission_confirmation_email
+from app.services.email import send_submission_confirmation_email, send_admin_notification_email
 from app.services.payment import create_payment_intent
-from app.config import STRIPE_PUBLISHABLE_KEY
+from app.config import STRIPE_PUBLISHABLE_KEY, APP_URL
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +218,7 @@ async def register_step1(
 @router.post("/register/submit")
 async def register_submit(
     request: Request,
+    background_tasks: BackgroundTasks,
     _csrf: None = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
@@ -260,13 +261,25 @@ async def register_submit(
 
     registration = create_registration(db, data)
 
-    # Send confirmation email (non-blocking)
+    # Send confirmation email in background
     booth_type = db.query(BoothType).filter(BoothType.id == draft["booth_type_id"]).first()
-    send_submission_confirmation_email(
+    background_tasks.add_task(
+        send_submission_confirmation_email,
         draft["email"],
         registration.registration_id,
         booth_type.name if booth_type else "Unknown",
     )
+
+    # Admin notification
+    settings = db.query(EventSettings).first()
+    if settings and settings.notify_new_registration:
+        background_tasks.add_task(
+            send_admin_notification_email,
+            "new_registration",
+            registration.registration_id,
+            draft["business_name"],
+            f"{APP_URL}/admin/registrations/{registration.registration_id}",
+        )
 
     # Clear draft from session
     response = RedirectResponse(
@@ -473,6 +486,7 @@ async def insurance_page(
 @router.post("/insurance/upload")
 async def insurance_upload(
     request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     session: dict = Depends(require_vendor),
     db: Session = Depends(get_db),
@@ -548,6 +562,24 @@ async def insurance_upload(
         f.write(contents)
 
     db.commit()
+
+    # Admin notification for insurance upload
+    settings = db.query(EventSettings).first()
+    if settings and settings.notify_insurance_uploaded:
+        # Find an active registration for this vendor to link in the notification
+        reg = db.query(Registration).filter(
+            Registration.email == email,
+            Registration.status.in_(["pending", "approved", "paid"]),
+        ).first()
+        if reg:
+            background_tasks.add_task(
+                send_admin_notification_email,
+                "insurance_uploaded",
+                reg.registration_id,
+                reg.business_name,
+                f"{APP_URL}/admin/registrations/{reg.registration_id}",
+            )
+
     return RedirectResponse(url="/vendor/insurance", status_code=303)
 
 

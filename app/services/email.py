@@ -4,7 +4,7 @@ from pathlib import Path
 import resend
 from jinja2 import Environment, FileSystemLoader
 
-from app.config import RESEND_API_KEY, EMAIL_FROM, APP_URL
+from app.config import RESEND_API_KEY, EMAIL_FROM, APP_URL, ADMIN_EMAILS
 
 logger = logging.getLogger(__name__)
 
@@ -115,3 +115,35 @@ def send_rejection_email(to: str, registration_id: str, reason: str | None = Non
         logger.exception("Failed to render rejection email template")
         return False
     return send_email(to, f"Registration {registration_id} Update", html)
+
+
+def send_admin_notification_email(
+    event_type: str,
+    registration_id: str,
+    business_name: str,
+    detail_url: str,
+) -> None:
+    """Send a notification email to all admin emails."""
+    if not ADMIN_EMAILS:
+        return
+    try:
+        template = _env.get_template("admin_notification.html")
+        html = template.render(
+            event_type=event_type,
+            registration_id=registration_id,
+            business_name=business_name,
+            detail_url=detail_url,
+        )
+    except Exception:
+        logger.exception("Failed to render admin notification template")
+        return
+
+    subject_map = {
+        "new_registration": f"Night Market: New Registration {registration_id}",
+        "payment_received": f"Night Market: Payment Received {registration_id}",
+        "insurance_uploaded": f"Night Market: Insurance Uploaded {registration_id}",
+    }
+    subject = subject_map.get(event_type, f"Night Market: {registration_id}")
+
+    for admin_email in ADMIN_EMAILS:
+        send_email(admin_email, subject, html)

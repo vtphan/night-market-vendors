@@ -1,15 +1,15 @@
 import logging
 
 import stripe
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, BackgroundTasks, Request, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from app.config import STRIPE_WEBHOOK_SECRET
+from app.config import STRIPE_WEBHOOK_SECRET, APP_URL
 from app.database import get_db
-from app.models import Registration, BoothType, StripeEvent
+from app.models import Registration, BoothType, StripeEvent, EventSettings
 from app.services.registration import transition_status
-from app.services.email import send_payment_confirmation_email
+from app.services.email import send_payment_confirmation_email, send_admin_notification_email
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="", tags=["webhooks"])
 
 
 @router.post("/api/webhooks/stripe")
-async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
@@ -39,7 +39,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
     try:
         if event["type"] == "payment_intent.succeeded":
-            _handle_payment_succeeded(db, event["data"]["object"])
+            _handle_payment_succeeded(db, event["data"]["object"], background_tasks)
         elif event["type"] == "charge.refunded":
             _handle_charge_refunded(db, event["data"]["object"])
         else:
@@ -56,7 +56,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     return JSONResponse(status_code=200, content={"status": "ok"})
 
 
-def _handle_payment_succeeded(db: Session, payment_intent: dict):
+def _handle_payment_succeeded(db: Session, payment_intent: dict, background_tasks: BackgroundTasks):
     pi_id = payment_intent["id"]
     registration = db.query(Registration).filter(
         Registration.stripe_payment_intent_id == pi_id
@@ -88,12 +88,24 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict):
         BoothType.id == registration.booth_type_id
     ).first()
 
-    send_payment_confirmation_email(
+    background_tasks.add_task(
+        send_payment_confirmation_email,
         registration.email,
         registration.registration_id,
         booth_type.name if booth_type else "Unknown",
         payment_intent["amount"],
     )
+
+    # Admin notification
+    settings = db.query(EventSettings).first()
+    if settings and settings.notify_payment_received:
+        background_tasks.add_task(
+            send_admin_notification_email,
+            "payment_received",
+            registration.registration_id,
+            registration.business_name,
+            f"{APP_URL}/admin/registrations/{registration.registration_id}",
+        )
 
     logger.info("Registration %s confirmed via webhook", registration.registration_id)
 

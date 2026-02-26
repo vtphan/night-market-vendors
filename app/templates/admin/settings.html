@@ -88,6 +88,29 @@
             <textarea id="vendor_agreement_text" name="vendor_agreement_text" rows="8" placeholder="The agreement vendors must accept during registration">{{ settings.vendor_agreement_text or '' }}</textarea>
         </fieldset>
 
+        <fieldset>
+            <legend><strong>Email Notifications</strong></legend>
+            <p>Send email notifications to all admin addresses when these events occur:</p>
+
+            <label>
+                <input type="checkbox" name="notify_new_registration" value="on"
+                       {% if settings.notify_new_registration %}checked{% endif %}>
+                New vendor registration submitted
+            </label>
+
+            <label>
+                <input type="checkbox" name="notify_payment_received" value="on"
+                       {% if settings.notify_payment_received %}checked{% endif %}>
+                Payment received
+            </label>
+
+            <label>
+                <input type="checkbox" name="notify_insurance_uploaded" value="on"
+                       {% if settings.notify_insurance_uploaded %}checked{% endif %}>
+                Insurance document uploaded
+            </label>
+        </fieldset>
+
         <button type="submit">Save Changes</button>
     </form>
 </article>

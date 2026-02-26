@@ -112,6 +112,9 @@ class EventSettings(Base):
     contact_email = Column(String, nullable=False, default="")
     payment_instructions = Column(Text, nullable=False, default="")
     insurance_instructions = Column(Text, nullable=False, default="")
+    notify_new_registration = Column(Boolean, default=False, server_default="0")
+    notify_payment_received = Column(Boolean, default=False, server_default="0")
+    notify_insurance_uploaded = Column(Boolean, default=False, server_default="0")
 
     def is_registration_open(self) -> bool:
         """Check if vendor registration is currently open."""

@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Request, Form, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from sqlalchemy import func as sa_func, extract
 from sqlalchemy.orm import Session
@@ -302,6 +302,7 @@ async def registration_detail(
 async def approve_registration(
     request: Request,
     reg_id: str,
+    background_tasks: BackgroundTasks,
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -331,7 +332,8 @@ async def approve_registration(
 
     payment_url = f"{APP_URL}/vendor/registration/{reg_id}"
     settings = db.query(EventSettings).first()
-    send_approval_email(
+    background_tasks.add_task(
+        send_approval_email,
         registration.email, reg_id, payment_url,
         insurance_instructions=settings.insurance_instructions if settings else "",
     )
@@ -345,6 +347,7 @@ async def approve_registration(
 async def reject_registration(
     request: Request,
     reg_id: str,
+    background_tasks: BackgroundTasks,
     rejection_reason: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -380,7 +383,7 @@ async def reject_registration(
             "get_flashed_messages": lambda: flash,
         }, session=session)
 
-    send_rejection_email(registration.email, reg_id, rejection_reason or None)
+    background_tasks.add_task(send_rejection_email, registration.email, reg_id, rejection_reason or None)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -424,6 +427,7 @@ async def unreject_registration(
 async def cancel_registration(
     request: Request,
     reg_id: str,
+    background_tasks: BackgroundTasks,
     refund_amount: str = Form("0"),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -477,7 +481,7 @@ async def cancel_registration(
         logger.warning("Invalid transition for %s: %s", reg_id, e)
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
-    send_refund_email(registration.email, reg_id, amount_cents)
+    background_tasks.add_task(send_refund_email, registration.email, reg_id, amount_cents)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -674,6 +678,9 @@ async def update_settings(
     payment_instructions: str = Form(""),
     insurance_instructions: str = Form(""),
     vendor_agreement_text: str = Form(""),
+    notify_new_registration: str | None = Form(None),
+    notify_payment_received: str | None = Form(None),
+    notify_insurance_uploaded: str | None = Form(None),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -692,6 +699,9 @@ async def update_settings(
             settings.payment_instructions = payment_instructions.strip()
             settings.insurance_instructions = insurance_instructions.strip()
             settings.vendor_agreement_text = vendor_agreement_text.strip()
+            settings.notify_new_registration = notify_new_registration is not None
+            settings.notify_payment_received = notify_payment_received is not None
+            settings.notify_insurance_uploaded = notify_insurance_uploaded is not None
             db.commit()
             request.app.state.event_name = settings.event_name
         except ValueError:

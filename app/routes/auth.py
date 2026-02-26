@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import secrets
+from functools import partial
 from urllib.parse import urlencode
 
 import httpx
@@ -117,7 +119,8 @@ async def login_submit(
             status_code=429,
         )
 
-    success = send_otp_email(email, code)
+    loop = asyncio.get_event_loop()
+    success = await loop.run_in_executor(None, partial(send_otp_email, email, code))
     if not success:
         flash_messages.append({"category": "error", "text": "We couldn't send the verification code. Please try again."})
         return request.app.state.templates.TemplateResponse(
