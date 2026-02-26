@@ -327,12 +327,12 @@
                         {% endif %}
                     </span>
                 </div>
-                {% set filled = item.paid + item.approved + item.pending %}
+                {% set visual_pending = [item.pending, [item.total_quantity - item.approved - item.paid, 0]|max]|min %}
                 <div class="capacity-bar">
                     {% if item.total_quantity > 0 %}
                     <div class="segment segment-paid" style="width: {{ (item.paid / item.total_quantity * 100)|round(1) }}%"></div>
                     <div class="segment segment-approved" style="width: {{ (item.approved / item.total_quantity * 100)|round(1) }}%"></div>
-                    <div class="segment segment-pending" style="width: {{ (item.pending / item.total_quantity * 100)|round(1) }}%"></div>
+                    <div class="segment segment-pending" style="width: {{ (visual_pending / item.total_quantity * 100)|round(1) }}%"></div>
                     {% endif %}
                 </div>
                 <div class="capacity-bar-legend">
