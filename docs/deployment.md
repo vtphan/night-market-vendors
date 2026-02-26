@@ -12,7 +12,19 @@
 | App directory | `/home/vphan/night-market-vendors` |
 | Git repo | `https://github.com/vtphan/night-market-vendors` |
 
+## Google Credentials
+
+https://console.cloud.google.com/apis/credentials
+
+Dev:
+Authorized JavaScript origins: http://127.0.0.1:8000
+Authorized redirect URIs: http://127.0.0.1:8000/auth/google/callback
+
+VPS:
+
 ## DNS
+Authorized JavaScript origins: https://vendors.nightmarketmemphis.com
+Authorized redirect URIs: https://vendors.nightmarketmemphis.com/auth/google/callback
 
 An **A record** for `vendors` pointing to `82.25.86.134` was added in the Hostinger DNS panel for `nightmarketmemphis.com`. The main domain lives on a different server — DNS is the only link between them.
 
