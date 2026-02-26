@@ -75,9 +75,12 @@ async def admin_dashboard(
         "none": sum(1 for e in active_email_list if e not in all_docs),
     }
 
-    notes_count = db.query(Registration).filter(
-        sa_func.length(sa_func.trim(Registration.admin_notes)) > 0
-    ).count()
+    noted_registrations = (
+        db.query(Registration)
+        .filter(sa_func.length(sa_func.trim(Registration.admin_notes)) > 0)
+        .order_by(Registration.updated_at.desc())
+        .all()
+    )
 
     # Revenue: total paid amount
     revenue_total = db.query(sa_func.coalesce(sa_func.sum(Registration.amount_paid), 0)).filter(
@@ -189,7 +192,7 @@ async def admin_dashboard(
         "counts": counts,
         "inventory": inventory,
         "insurance_counts": insurance_counts,
-        "notes_count": notes_count,
+        "noted_registrations": noted_registrations,
         "revenue_total": revenue_total,
         "refund_total": refund_total,
         "revenue_by_booth": revenue_by_booth,

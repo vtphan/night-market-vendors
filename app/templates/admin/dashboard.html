@@ -197,6 +197,20 @@
 
 /* Compact cards on right */
 .compact-cards { display: flex; flex-direction: column; gap: 1.25rem; }
+
+/* Notes table */
+.notes-table { width: 100%; border-collapse: collapse; }
+.notes-table td { padding: 0.4rem 0.5rem; border: none; vertical-align: middle; font-size: 0.9rem; }
+.notes-table tr { border-bottom: 1px solid var(--pico-muted-border-color); }
+.notes-table tr:last-child { border-bottom: none; }
+.note-preview {
+    width: 100%;
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--pico-muted-color);
+}
 </style>
 {% endblock %}
 
@@ -443,18 +457,33 @@
             </table>
         </article>
 
-        <!-- Admin Notes -->
-        <article>
-            <header><strong>Admin Notes</strong></header>
-            <table class="status-table">
-                <tr>
-                    <td><a href="/admin/registrations?notes=yes">With Notes</a></td>
-                    <td><span class="badge badge-total">{{ notes_count }}</span></td>
-                </tr>
-            </table>
-        </article>
     </div>
 </div>
+
+<!-- Admin Notes (full width) -->
+{% if noted_registrations %}
+<article>
+    <header>
+        <div class="section-header">
+            <strong>Admin Notes</strong>
+            <a href="/admin/registrations?notes=yes">View all ({{ noted_registrations | length }}) &rarr;</a>
+        </div>
+    </header>
+    <table class="notes-table">
+        {% for reg in noted_registrations %}
+        <tr>
+            <td style="white-space: nowrap;">
+                <a href="/admin/registrations/{{ reg.registration_id }}">{{ reg.registration_id }}</a>
+            </td>
+            <td style="white-space: nowrap;">
+                <span class="badge badge-{{ reg.status }}">{{ reg.status | title }}</span>
+            </td>
+            <td class="note-preview">{{ reg.admin_notes.split('\n')[0] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</article>
+{% endif %}
 
 <script>
 // Relative time display
