@@ -111,6 +111,9 @@
         <dt><strong>Total</strong></dt>
         <dd><strong>${{ "%.2f" | format(total_cents / 100) }}</strong></dd>
     </dl>
+    {% if settings and settings.refund_policy %}
+    <p style="font-size: 0.85rem; color: var(--pico-muted-color);"><strong>Refund policy:</strong> {{ settings.refund_policy }}</p>
+    {% endif %}
     <form id="payment-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div id="card-element" style="padding: 12px; border: 1px solid var(--pico-form-element-border-color); border-radius: 4px; margin-bottom: 1rem;"></div>
