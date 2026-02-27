@@ -158,7 +158,7 @@ async def test_stripe_refund_failure_shows_flash_error(db):
             response = await client.post(
                 f"/admin/registrations/{reg.registration_id}/cancel",
                 cookies=admin_cookie(),
-                data={"csrf_token": csrf, "refund_amount": "150.00"},
+                data={"csrf_token": csrf, "refund_amount": "150.00", "reversal_reason": "Vendor requested cancellation"},
                 headers={"Accept": "text/html"},
             )
             # Should render the detail page with flash error (200), not redirect

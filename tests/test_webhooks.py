@@ -309,7 +309,7 @@ async def test_admin_cancel_paid_registration(mock_email, mock_refund, db):
 
         response = await client.post(
             f"/admin/registrations/{reg.registration_id}/cancel",
-            data={"csrf_token": csrf, "refund_amount": "150.00"},
+            data={"csrf_token": csrf, "refund_amount": "150.00", "reversal_reason": "Vendor requested cancellation"},
             cookies=admin_cookie(),
             follow_redirects=False,
         )

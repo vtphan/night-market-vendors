@@ -98,7 +98,7 @@ One row per registration. Combines vendor profile, booth selection, payment, and
 | `refund_amount` | Integer | Default 0 | In cents |
 | `approved_at` | DateTime | Nullable | When admin approved |
 | `rejected_at` | DateTime | Nullable | When admin rejected |
-| `rejection_reason` | String | Nullable | Optional reason from admin |
+| `reversal_reason` | String | Nullable | Reason for any reversal action (reject, revoke, cancel) |
 | `agreement_accepted_at` | DateTime | Not null | |
 | `agreement_ip_address` | String | Not null | |
 | `created_at` | DateTime | Not null, default now | |

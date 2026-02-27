@@ -12,6 +12,23 @@
 
 <!-- Format: date, what happened, any decisions or blockers. Keep it simple. -->
 
+### 2026-02-27 — Replace rejection_reason with universal reversal_reason
+
+Replaced the `rejection_reason` column with `reversal_reason` so all reversal actions (reject, revoke approval, revoke rejection, cancel & refund) store a reason. All four actions now use a `<dialog>`-based two-step confirmation with preset reason dropdowns and a custom option. Reason is required for all reversal actions. Refund emails now include the cancellation reason.
+
+**What changed:**
+- `app/models.py`: Renamed `rejection_reason` → `reversal_reason`
+- `app/services/registration.py`: Updated transition logic — sets `reversal_reason` on reject/revoke/cancel, clears on approve
+- `app/services/email.py`: Added `reason` param to `send_refund_email()`
+- `app/routes/admin.py`: Added `reversal_reason` validation to unreject/cancel routes, updated CSV export header
+- `app/templates/admin/registration_detail.html`: Replaced inline confirm() with `<dialog>` modals for all reversal actions
+- `app/templates/vendor/registration_detail.html`: Shows reason for both rejected and cancelled statuses
+- `app/templates/emails/refund_confirmation.html`: Displays reason if provided
+- Tests updated across all test files
+- Schema change requires DB reset (`data/app.db` delete)
+
+---
+
 ### 2026-02-25 — Google OAuth login + admin emails in settings
 
 Added optional "Sign in with Google" as an alternative to OTP for both vendors and admins. Also added a read-only admin emails list to the settings page.

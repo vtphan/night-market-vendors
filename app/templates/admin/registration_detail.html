@@ -50,8 +50,8 @@
             {% if registration.rejected_at %}
             <tr><th>Rejected</th><td>{{ registration.rejected_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
             {% endif %}
-            {% if registration.rejection_reason %}
-            <tr><th>Rejection Reason</th><td>{{ registration.rejection_reason }}</td></tr>
+            {% if registration.reversal_reason %}
+            <tr><th>Reversal Reason</th><td>{{ registration.reversal_reason }}</td></tr>
             {% endif %}
             <tr>
                 <th>Insurance</th>
@@ -144,73 +144,115 @@
     <hr style="margin: 1rem 0;">
 
     <!-- Row 3: Reject Registration -->
-    <form id="reject-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/reject"
-          style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0;"
-          onsubmit="return handleRejectSubmit(this, '{{ registration.email }}');">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="outline secondary" style="width: auto; margin: 0;">
-            Reject Registration
-        </button>
-        <select id="reject-reason-select" style="margin: 0; max-width: 360px;"
-                onchange="toggleCustomReason(this)">
-            <option value="" disabled selected>Select reason...</option>
-            <option value="We are currently out of booth space for your selected booth type. You have been placed on our waiting list, and an organizer will contact you if a spot becomes available.">Out of booth space (waitlist)</option>
-            <option value="We regret to inform you that the product or service described in your registration is not a suitable fit for this event.">Not suitable for event</option>
-            <option value="This registration was submitted by mistake and has been removed. If you believe this was an error, please contact the organizers.">Registered by mistake</option>
-            <option value="__other__">Other (custom reason)</option>
-        </select>
-        <input type="text" id="reject-reason-custom" name="rejection_reason_custom"
-               placeholder="Enter custom reason..." style="margin: 0; max-width: 360px; display: none;">
-        <input type="hidden" name="rejection_reason" id="reject-reason-hidden" value="">
-    </form>
-    <script>
-    function toggleCustomReason(sel) {
-        var custom = document.getElementById('reject-reason-custom');
-        custom.style.display = sel.value === '__other__' ? '' : 'none';
-        if (sel.value !== '__other__') custom.value = '';
-    }
-    function handleRejectSubmit(form, email) {
-        var sel = document.getElementById('reject-reason-select');
-        var custom = document.getElementById('reject-reason-custom');
-        var hidden = document.getElementById('reject-reason-hidden');
-        if (!sel.value) { alert('Please select a rejection reason.'); return false; }
-        if (sel.value === '__other__') {
-            if (!custom.value.trim()) { alert('Please enter a custom rejection reason.'); return false; }
-            hidden.value = custom.value.trim();
-        } else {
-            hidden.value = sel.value;
-        }
-        return confirm('Reject this registration?\n\nThe vendor (' + email + ') will be notified by email.');
-    }
-    </script>
+    <button type="button" class="outline secondary" style="width: auto; margin: 0;"
+            onclick="document.getElementById('reject-dialog').showModal();">
+        Reject Registration
+    </button>
+
+    <dialog id="reject-dialog">
+        <article style="max-width: 480px;">
+            <header><strong>Reject Registration</strong></header>
+            <form id="reject-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/reject"
+                  onsubmit="return prepareReversalSubmit('reject');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>Reason</label>
+                <select id="reject-reason-select" onchange="toggleCustomReason('reject')">
+                    <option value="" disabled selected>Select reason...</option>
+                    <option value="We are currently out of booth space for your selected booth type. You have been placed on our waiting list, and an organizer will contact you if a spot becomes available.">Out of booth space (waitlist)</option>
+                    <option value="We regret to inform you that the product or service described in your registration is not a suitable fit for this event.">Not suitable for event</option>
+                    <option value="This registration was submitted by mistake and has been removed. If you believe this was an error, please contact the organizers.">Registered by mistake</option>
+                    <option value="__other__">Other (custom reason)</option>
+                </select>
+                <input type="text" id="reject-reason-custom" placeholder="Enter custom reason..."
+                       style="display: none;">
+                <label>Your name</label>
+                <input type="text" id="reject-admin-name" placeholder="e.g. Julia" required>
+                <input type="hidden" name="reversal_reason" id="reject-reason-hidden" value="">
+                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="outline" onclick="this.closest('dialog').close();"
+                            style="width: auto;">Cancel</button>
+                    <button type="submit" style="width: auto; background-color: #c62828; border-color: #c62828;">
+                        Confirm Rejection</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
 
     {% elif registration.status == 'approved' %}
     <hr style="margin: 1rem 0;">
 
     <!-- Row 2: Revoke Approval -->
-    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/unreject"
-          style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0;"
-          onsubmit="return confirm('Revoke this approval?\n\nThe registration will return to Pending for re-review. No email will be sent to the vendor.');">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="outline" style="width: auto; margin: 0;">
-            Revoke Approval
-        </button>
-        <small style="color: var(--pico-muted-color);">Returns to Pending for re-review</small>
-    </form>
+    <button type="button" class="outline" style="width: auto; margin: 0;"
+            onclick="document.getElementById('revoke-approval-dialog').showModal();">
+        Revoke Approval
+    </button>
+    <small style="color: var(--pico-muted-color); margin-left: 0.5rem;">Returns to Pending for re-review</small>
+
+    <dialog id="revoke-approval-dialog">
+        <article style="max-width: 480px;">
+            <header><strong>Revoke Approval</strong></header>
+            <form id="revoke-approval-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/unreject"
+                  onsubmit="return prepareReversalSubmit('revoke-approval');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>Reason</label>
+                <select id="revoke-approval-reason-select" onchange="toggleCustomReason('revoke-approval')">
+                    <option value="" disabled selected>Select reason...</option>
+                    <option value="Needs additional review">Needs additional review</option>
+                    <option value="Capacity change">Capacity change</option>
+                    <option value="Approved in error">Approved in error</option>
+                    <option value="__other__">Other (custom reason)</option>
+                </select>
+                <input type="text" id="revoke-approval-reason-custom" placeholder="Enter custom reason..."
+                       style="display: none;">
+                <label>Your name</label>
+                <input type="text" id="revoke-approval-admin-name" placeholder="e.g. Julia" required>
+                <input type="hidden" name="reversal_reason" id="revoke-approval-reason-hidden" value="">
+                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="outline" onclick="this.closest('dialog').close();"
+                            style="width: auto;">Cancel</button>
+                    <button type="submit" style="width: auto;">Confirm Revoke</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
 
     {% elif registration.status == 'rejected' %}
     <hr style="margin: 1rem 0;">
 
     <!-- Row 2: Revoke Rejection -->
-    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/unreject"
-          style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0;"
-          onsubmit="return confirm('Revoke this rejection?\n\nThe registration will return to Pending for re-review. No email will be sent to the vendor.');">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="outline" style="width: auto; margin: 0;">
-            Revoke Rejection
-        </button>
-        <small style="color: var(--pico-muted-color);">Returns to Pending for re-review</small>
-    </form>
+    <button type="button" class="outline" style="width: auto; margin: 0;"
+            onclick="document.getElementById('revoke-rejection-dialog').showModal();">
+        Revoke Rejection
+    </button>
+    <small style="color: var(--pico-muted-color); margin-left: 0.5rem;">Returns to Pending for re-review</small>
+
+    <dialog id="revoke-rejection-dialog">
+        <article style="max-width: 480px;">
+            <header><strong>Revoke Rejection</strong></header>
+            <form id="revoke-rejection-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/unreject"
+                  onsubmit="return prepareReversalSubmit('revoke-rejection');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>Reason</label>
+                <select id="revoke-rejection-reason-select" onchange="toggleCustomReason('revoke-rejection')">
+                    <option value="" disabled selected>Select reason...</option>
+                    <option value="Rejected in error">Rejected in error</option>
+                    <option value="Issues resolved">Issues resolved</option>
+                    <option value="Availability changed">Availability changed</option>
+                    <option value="__other__">Other (custom reason)</option>
+                </select>
+                <input type="text" id="revoke-rejection-reason-custom" placeholder="Enter custom reason..."
+                       style="display: none;">
+                <label>Your name</label>
+                <input type="text" id="revoke-rejection-admin-name" placeholder="e.g. Julia" required>
+                <input type="hidden" name="reversal_reason" id="revoke-rejection-reason-hidden" value="">
+                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="outline" onclick="this.closest('dialog').close();"
+                            style="width: auto;">Cancel</button>
+                    <button type="submit" style="width: auto;">Confirm Revoke</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
 
     {% elif registration.status == 'paid' %}
     <hr style="margin: 1rem 0;">
@@ -219,20 +261,46 @@
     <p style="margin-bottom: 0.5rem;"><strong>Amount Paid:</strong> {{ format_price(registration.amount_paid) }}</p>
     {% endif %}
 
-    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/cancel"
-          style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0;"
-          onsubmit="return confirm('Cancel this registration and issue a refund?\n\nThe vendor ({{ registration.email }}) will be notified by email.');">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-            Refund $
-            <input type="number" name="refund_amount" step="0.01" min="0"
-                   value="{{ '%.2f' | format((registration.amount_paid or 0) / 100) }}"
-                   style="margin: 0; width: 120px;">
-        </label>
-        <button type="submit" style="width: auto; margin: 0; background-color: #c62828; border-color: #c62828;">
-            Cancel &amp; Refund
-        </button>
-    </form>
+    <button type="button" style="width: auto; margin: 0; background-color: #c62828; border-color: #c62828;"
+            onclick="document.getElementById('cancel-dialog').showModal();">
+        Cancel &amp; Refund
+    </button>
+
+    <dialog id="cancel-dialog">
+        <article style="max-width: 480px;">
+            <header><strong>Cancel &amp; Refund</strong></header>
+            <form id="cancel-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/cancel"
+                  onsubmit="return prepareReversalSubmit('cancel');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>Reason</label>
+                <select id="cancel-reason-select" onchange="toggleCustomReason('cancel')">
+                    <option value="" disabled selected>Select reason...</option>
+                    <option value="Vendor requested cancellation">Vendor requested cancellation</option>
+                    <option value="Event capacity/logistics change">Event capacity/logistics change</option>
+                    <option value="Vendor unable to participate">Vendor unable to participate</option>
+                    <option value="__other__">Other (custom reason)</option>
+                </select>
+                <input type="text" id="cancel-reason-custom" placeholder="Enter custom reason..."
+                       style="display: none;">
+                <label>Your name</label>
+                <input type="text" id="cancel-admin-name" placeholder="e.g. Julia" required>
+                <input type="hidden" name="reversal_reason" id="cancel-reason-hidden" value="">
+                <label style="margin-top: 0.5rem;">Refund Amount</label>
+                <label style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                    $
+                    <input type="number" name="refund_amount" step="0.01" min="0"
+                           value="{{ '%.2f' | format((registration.amount_paid or 0) / 100) }}"
+                           style="margin: 0; width: 120px;">
+                </label>
+                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="outline" onclick="this.closest('dialog').close();"
+                            style="width: auto;">Cancel</button>
+                    <button type="submit" style="width: auto; background-color: #c62828; border-color: #c62828;">
+                        Confirm Cancel &amp; Refund</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
 
     {% elif registration.status == 'cancelled' %}
     <hr style="margin: 1rem 0;">
@@ -242,4 +310,32 @@
     {% endif %}
 
 </article>
+
+<script>
+var ADMIN_EMAIL = "{{ session.email }}";
+function toggleCustomReason(prefix) {
+    var sel = document.getElementById(prefix + '-reason-select');
+    var custom = document.getElementById(prefix + '-reason-custom');
+    custom.style.display = sel.value === '__other__' ? '' : 'none';
+    if (sel.value !== '__other__') custom.value = '';
+}
+function prepareReversalSubmit(prefix) {
+    var sel = document.getElementById(prefix + '-reason-select');
+    var custom = document.getElementById(prefix + '-reason-custom');
+    var hidden = document.getElementById(prefix + '-reason-hidden');
+    var nameInput = document.getElementById(prefix + '-admin-name');
+    if (!sel.value) { alert('Please select a reason.'); return false; }
+    var name = nameInput.value.trim();
+    if (!name) { alert('Please enter your name.'); nameInput.focus(); return false; }
+    var reason;
+    if (sel.value === '__other__') {
+        if (!custom.value.trim()) { alert('Please enter a custom reason.'); return false; }
+        reason = custom.value.trim();
+    } else {
+        reason = sel.value;
+    }
+    hidden.value = reason + ' \u2014 ' + name + ' (' + ADMIN_EMAIL + ')';
+    return true;
+}
+</script>
 {% endblock %}

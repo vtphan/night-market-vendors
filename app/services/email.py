@@ -89,13 +89,14 @@ def send_payment_confirmation_email(to: str, registration_id: str, booth_type_na
     return send_email(to, f"Payment Confirmed - {registration_id}", html)
 
 
-def send_refund_email(to: str, registration_id: str, refund_amount_cents: int) -> bool:
+def send_refund_email(to: str, registration_id: str, refund_amount_cents: int, reason: str | None = None) -> bool:
     """Send refund notification email."""
     try:
         template = _env.get_template("refund_confirmation.html")
         html = template.render(
             registration_id=registration_id,
             refund_amount=f"${refund_amount_cents / 100:.2f}",
+            reason=reason,
         )
     except Exception:
         logger.exception("Failed to render refund confirmation template")

@@ -16,9 +16,9 @@
     <p>{{ registration.registration_id }} &middot; <span class="status-badge {{ registration.status }}">{{ registration.status | vendor_status }}</span></p>
 </hgroup>
 
-{% if registration.status == "rejected" and registration.rejection_reason %}
+{% if registration.status in ["rejected", "cancelled"] and registration.reversal_reason %}
 <article class="rejection-notice">
-    <strong>Reason:</strong> {{ registration.rejection_reason }}
+    <strong>Reason:</strong> {{ registration.reversal_reason }}
 </article>
 {% endif %}
 

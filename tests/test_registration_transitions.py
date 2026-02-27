@@ -62,10 +62,10 @@ def test_pending_to_approved(db):
 def test_pending_to_rejected(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="pending")
-    result = transition_status(db, reg, "rejected", rejection_reason="Does not meet criteria")
+    result = transition_status(db, reg, "rejected", reversal_reason="Does not meet criteria")
     assert result.status == "rejected"
     assert result.rejected_at is not None
-    assert result.rejection_reason == "Does not meet criteria"
+    assert result.reversal_reason == "Does not meet criteria"
 
 
 def test_approved_to_rejected(db):
@@ -91,6 +91,32 @@ def test_paid_to_cancelled(db):
     assert result.status == "cancelled"
 
 
+def test_cancel_stores_reversal_reason(db):
+    bt = _make_booth_type(db)
+    reg = _make_registration(db, bt.id, status="paid")
+    result = transition_status(db, reg, "cancelled", reversal_reason="Vendor requested cancellation")
+    assert result.status == "cancelled"
+    assert result.reversal_reason == "Vendor requested cancellation"
+
+
+def test_revoke_approval_stores_reversal_reason(db):
+    bt = _make_booth_type(db)
+    reg = _make_registration(db, bt.id, status="approved")
+    result = transition_status(db, reg, "pending", reversal_reason="Approved in error")
+    assert result.status == "pending"
+    assert result.reversal_reason == "Approved in error"
+
+
+def test_approve_clears_reversal_reason(db):
+    bt = _make_booth_type(db)
+    reg = _make_registration(db, bt.id, status="pending")
+    reg.reversal_reason = "Old reason"
+    db.commit()
+    result = transition_status(db, reg, "approved")
+    assert result.status == "approved"
+    assert result.reversal_reason is None
+
+
 # --- Invalid transitions ---
 
 def test_pending_to_paid_invalid(db):
@@ -111,12 +137,12 @@ def test_rejected_to_pending(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="rejected")
     reg.rejected_at = datetime.now(timezone.utc)
-    reg.rejection_reason = "Some reason"
+    reg.reversal_reason = "Some reason"
     db.commit()
-    transition_status(db, reg, "pending")
+    transition_status(db, reg, "pending", reversal_reason="Rejected in error")
     assert reg.status == "pending"
     assert reg.rejected_at is None
-    assert reg.rejection_reason is None
+    assert reg.reversal_reason == "Rejected in error"
 
 
 def test_rejected_to_other_invalid(db):
@@ -159,9 +185,9 @@ def test_reject_sets_rejected_at_and_reason(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="pending")
     assert reg.rejected_at is None
-    transition_status(db, reg, "rejected", rejection_reason="Not a good fit")
+    transition_status(db, reg, "rejected", reversal_reason="Not a good fit")
     assert reg.rejected_at is not None
-    assert reg.rejection_reason == "Not a good fit"
+    assert reg.reversal_reason == "Not a good fit"
 
 
 # --- Registration ID ---

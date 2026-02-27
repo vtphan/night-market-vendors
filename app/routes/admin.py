@@ -351,7 +351,7 @@ async def reject_registration(
     request: Request,
     reg_id: str,
     background_tasks: BackgroundTasks,
-    rejection_reason: str = Form(""),
+    reversal_reason: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -364,8 +364,8 @@ async def reject_registration(
     if not registration:
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
-    rejection_reason = rejection_reason.strip()
-    if not rejection_reason:
+    reversal_reason = reversal_reason.strip()
+    if not reversal_reason:
         booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
         flash = [{"category": "error", "text": "A rejection reason is required."}]
         return _template(request, "admin/registration_detail.html", {
@@ -375,7 +375,7 @@ async def reject_registration(
         }, session=session)
 
     try:
-        transition_status(db, registration, "rejected", rejection_reason=rejection_reason)
+        transition_status(db, registration, "rejected", reversal_reason=reversal_reason)
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
         booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
@@ -386,7 +386,7 @@ async def reject_registration(
             "get_flashed_messages": lambda: flash,
         }, session=session)
 
-    background_tasks.add_task(send_rejection_email, registration.email, reg_id, rejection_reason or None)
+    background_tasks.add_task(send_rejection_email, registration.email, reg_id, reversal_reason or None)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -397,6 +397,7 @@ async def reject_registration(
 async def unreject_registration(
     request: Request,
     reg_id: str,
+    reversal_reason: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -409,8 +410,18 @@ async def unreject_registration(
     if not registration:
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
+    reversal_reason = reversal_reason.strip()
+    if not reversal_reason:
+        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+        flash = [{"category": "error", "text": "A reason is required."}]
+        return _template(request, "admin/registration_detail.html", {
+            "registration": registration,
+            "booth_type": booth_type,
+            "get_flashed_messages": lambda: flash,
+        }, session=session)
+
     try:
-        transition_status(db, registration, "pending")
+        transition_status(db, registration, "pending", reversal_reason=reversal_reason)
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
         booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
@@ -432,6 +443,7 @@ async def cancel_registration(
     reg_id: str,
     background_tasks: BackgroundTasks,
     refund_amount: str = Form("0"),
+    reversal_reason: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -447,6 +459,16 @@ async def cancel_registration(
     if registration.status != "paid":
         logger.warning("Cannot cancel %s: status is %s", reg_id, registration.status)
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+    reversal_reason = reversal_reason.strip()
+    if not reversal_reason:
+        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+        flash = [{"category": "error", "text": "A reason is required."}]
+        return _template(request, "admin/registration_detail.html", {
+            "registration": registration,
+            "booth_type": booth_type,
+            "get_flashed_messages": lambda: flash,
+        }, session=session)
 
     # Convert dollar amount to cents
     try:
@@ -479,12 +501,12 @@ async def cancel_registration(
             }, session=session)
 
     try:
-        transition_status(db, registration, "cancelled")
+        transition_status(db, registration, "cancelled", reversal_reason=reversal_reason)
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
-    background_tasks.add_task(send_refund_email, registration.email, reg_id, amount_cents)
+    background_tasks.add_task(send_refund_email, registration.email, reg_id, amount_cents, reason=reversal_reason or None)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -736,7 +758,7 @@ async def export_csv(
         "Booth Type", "Electrical Equipment", "Electrical Other",
         "Insurance", "Amount Paid", "Refund Amount",
         "Stripe Payment Intent ID", "Created At", "Approved At",
-        "Rejected At", "Rejection Reason", "Admin Notes",
+        "Rejected At", "Reversal Reason", "Admin Notes",
     ])
 
     for reg in registrations:
@@ -767,7 +789,7 @@ async def export_csv(
             reg.created_at.strftime("%Y-%m-%d %H:%M") if reg.created_at else "",
             reg.approved_at.strftime("%Y-%m-%d %H:%M") if reg.approved_at else "",
             reg.rejected_at.strftime("%Y-%m-%d %H:%M") if reg.rejected_at else "",
-            reg.rejection_reason or "",
+            reg.reversal_reason or "",
             reg.admin_notes or "",
         ])
 

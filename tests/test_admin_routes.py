@@ -257,7 +257,7 @@ async def test_reject_registration_with_reason(db):
         with patch("app.routes.admin.send_rejection_email", return_value=True) as mock_email:
             response = await client.post("/admin/registrations/ANM-2026-0030/reject", data={
                 "csrf_token": csrf,
-                "rejection_reason": "Does not meet food safety requirements",
+                "reversal_reason": "Does not meet food safety requirements",
             }, cookies=admin_cookie())
 
         assert response.status_code == 303
@@ -269,7 +269,7 @@ async def test_reject_registration_with_reason(db):
     db.refresh(reg)
     assert reg.status == "rejected"
     assert reg.rejected_at is not None
-    assert reg.rejection_reason == "Does not meet food safety requirements"
+    assert reg.reversal_reason == "Does not meet food safety requirements"
 
 
 @pytest.mark.anyio
@@ -287,7 +287,7 @@ async def test_reject_registration_without_reason(db):
         with patch("app.routes.admin.send_rejection_email", return_value=True) as mock_email:
             response = await client.post("/admin/registrations/ANM-2026-0031/reject", data={
                 "csrf_token": csrf,
-                "rejection_reason": "",
+                "reversal_reason": "",
             }, cookies=admin_cookie())
 
         assert response.status_code == 200
@@ -315,6 +315,7 @@ async def test_revoke_approved_registration(db):
 
         response = await client.post("/admin/registrations/ANM-2026-0032/unreject", data={
             "csrf_token": csrf,
+            "reversal_reason": "Approved in error",
         }, cookies=admin_cookie())
 
         assert response.status_code == 303
@@ -323,6 +324,34 @@ async def test_revoke_approved_registration(db):
     db.refresh(reg)
     assert reg.status == "pending"
     assert reg.approved_at is None
+    assert reg.reversal_reason == "Approved in error"
+
+
+@pytest.mark.anyio
+async def test_revoke_approved_without_reason(db):
+    """Empty reason on revoke approval is blocked."""
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    reg = make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0034")
+    reg.approved_at = datetime.now(timezone.utc)
+    db.commit()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+        detail = await client.get("/admin/registrations/ANM-2026-0034", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
+
+        response = await client.post("/admin/registrations/ANM-2026-0034/unreject", data={
+            "csrf_token": csrf,
+            "reversal_reason": "",
+        }, cookies=admin_cookie())
+
+        assert response.status_code == 200
+        assert "reason is required" in response.text.lower()
+
+    reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0034").first()
+    db.refresh(reg)
+    assert reg.status == "approved"
 
 
 @pytest.mark.anyio
@@ -332,7 +361,7 @@ async def test_revoke_rejected_registration(db):
     booths = seed_booth_types(db)
     reg = make_registration(db, booths[0].id, status="rejected", reg_id="ANM-2026-0033")
     reg.rejected_at = datetime.now(timezone.utc)
-    reg.rejection_reason = "Test reason"
+    reg.reversal_reason = "Test reason"
     db.commit()
 
     transport = ASGITransport(app=app)
@@ -342,6 +371,7 @@ async def test_revoke_rejected_registration(db):
 
         response = await client.post("/admin/registrations/ANM-2026-0033/unreject", data={
             "csrf_token": csrf,
+            "reversal_reason": "Rejected in error",
         }, cookies=admin_cookie())
 
         assert response.status_code == 303
@@ -350,7 +380,38 @@ async def test_revoke_rejected_registration(db):
     db.refresh(reg)
     assert reg.status == "pending"
     assert reg.rejected_at is None
-    assert reg.rejection_reason is None
+    assert reg.reversal_reason == "Rejected in error"
+
+
+@pytest.mark.anyio
+@patch("app.routes.admin.create_refund")
+@patch("app.routes.admin.send_refund_email")
+async def test_cancel_without_reason(mock_email, mock_refund, db):
+    """Empty reason on cancel is blocked."""
+    seed_admin(db)
+    booths = seed_booth_types(db)
+    reg = make_registration(db, booths[0].id, status="paid", reg_id="ANM-2026-0035",
+                            stripe_pi_id="pi_test", amount_paid=15000)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+        detail = await client.get("/admin/registrations/ANM-2026-0035", cookies=admin_cookie())
+        csrf = extract_csrf(detail.text)
+
+        response = await client.post("/admin/registrations/ANM-2026-0035/cancel", data={
+            "csrf_token": csrf,
+            "refund_amount": "150.00",
+            "reversal_reason": "",
+        }, cookies=admin_cookie())
+
+        assert response.status_code == 200
+        assert "reason is required" in response.text.lower()
+        mock_refund.assert_not_called()
+        mock_email.assert_not_called()
+
+    reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0035").first()
+    db.refresh(reg)
+    assert reg.status == "paid"
 
 
 # ========================================

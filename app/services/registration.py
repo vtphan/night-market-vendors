@@ -53,7 +53,7 @@ def transition_status(
     db: Session,
     registration: Registration,
     new_status: str,
-    rejection_reason: str | None = None,
+    reversal_reason: str | None = None,
     _commit: bool = True,
 ) -> Registration:
     """Enforce status state machine. Raises ValueError on invalid transition.
@@ -71,15 +71,20 @@ def transition_status(
 
     if new_status == "approved":
         registration.approved_at = datetime.now(timezone.utc)
+        registration.reversal_reason = None
     elif new_status == "rejected":
         registration.rejected_at = datetime.now(timezone.utc)
-        if rejection_reason:
-            registration.rejection_reason = rejection_reason
+        if reversal_reason:
+            registration.reversal_reason = reversal_reason
     elif new_status == "pending":
-        # Returning from rejected — clear rejection fields
+        # Returning from approved/rejected — store the revoke reason
         registration.rejected_at = None
-        registration.rejection_reason = None
         registration.approved_at = None
+        if reversal_reason:
+            registration.reversal_reason = reversal_reason
+    elif new_status == "cancelled":
+        if reversal_reason:
+            registration.reversal_reason = reversal_reason
 
     if _commit:
         db.commit()
