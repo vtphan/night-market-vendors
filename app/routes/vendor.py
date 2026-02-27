@@ -97,23 +97,24 @@ async def register_gateway(request: Request, edit: str = "", new: str = "", db: 
     inventory = get_inventory(db)
     booth_availability = {item["id"]: item["available"] for item in inventory}
 
-    if step == 1 or step == 0:
-        return _template(request, "vendor/register_step1.html", {
-            "agreement_text": settings.vendor_agreement_text if settings else "",
-            "insurance_instructions": settings.insurance_instructions if settings else "",
-            "booth_types": booth_types,
-            "booth_availability": booth_availability,
-            "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
-            "draft": draft,
-            "email": email,
-            "settings": settings,
-        })
-    elif step == 2:
+    if step == 2:
         booth_type = db.query(BoothType).filter(BoothType.id == draft.get("booth_type_id")).first()
         return _template(request, "vendor/register_step2.html", {
             "draft": draft,
             "booth_type": booth_type,
         })
+
+    # Default: step 1 (also handles step 0 or any unexpected value)
+    return _template(request, "vendor/register_step1.html", {
+        "agreement_text": settings.vendor_agreement_text if settings else "",
+        "insurance_instructions": settings.insurance_instructions if settings else "",
+        "booth_types": booth_types,
+        "booth_availability": booth_availability,
+        "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
+        "draft": draft,
+        "email": email,
+        "settings": settings,
+    })
 
 
 # --- Step 1: All registration info ---
@@ -142,18 +143,30 @@ async def register_step1(
     email = session.get("email", "").lower().strip()
     errors = []
 
+    MAX_LENGTHS = {"contact_name": 200, "business_name": 200, "phone": 30, "description": 2000, "electrical_other": 500}
+
     if agreement_accepted != "yes":
         errors.append("You must accept the vendor agreement to continue.")
     if not contact_name.strip():
         errors.append("Full name is required.")
+    elif len(contact_name) > MAX_LENGTHS["contact_name"]:
+        errors.append(f"Full name must be {MAX_LENGTHS['contact_name']} characters or less.")
     if not phone.strip():
         errors.append("Phone number is required.")
+    elif len(phone) > MAX_LENGTHS["phone"]:
+        errors.append(f"Phone number must be {MAX_LENGTHS['phone']} characters or less.")
     if not business_name.strip():
         errors.append("Business name is required.")
+    elif len(business_name) > MAX_LENGTHS["business_name"]:
+        errors.append(f"Business name must be {MAX_LENGTHS['business_name']} characters or less.")
     if category not in CATEGORIES:
         errors.append("Please select a valid category.")
     if not description.strip():
         errors.append("Description is required.")
+    elif len(description) > MAX_LENGTHS["description"]:
+        errors.append(f"Description must be {MAX_LENGTHS['description']} characters or less.")
+    if len(electrical_other) > MAX_LENGTHS["electrical_other"]:
+        errors.append(f"Electrical other must be {MAX_LENGTHS['electrical_other']} characters or less.")
 
     # Validate booth type
     booth_type = None
@@ -298,11 +311,15 @@ async def register_submit(
 async def confirmation_page(
     request: Request,
     registration_id: str,
+    session: dict = Depends(require_vendor),
     db: Session = Depends(get_db),
 ):
     registration = (
         db.query(Registration)
-        .filter(Registration.registration_id == registration_id)
+        .filter(
+            Registration.registration_id == registration_id,
+            Registration.email == session["email"],
+        )
         .first()
     )
     if not registration:
@@ -599,6 +616,9 @@ async def insurance_file(
     session: dict = Depends(require_vendor),
     db: Session = Depends(get_db),
 ):
+    if ".." in stored_filename or "/" in stored_filename or "\\" in stored_filename:
+        return RedirectResponse(url="/vendor/insurance", status_code=303)
+
     doc = db.query(InsuranceDocument).filter(InsuranceDocument.stored_filename == stored_filename).first()
     if not doc or doc.email != session["email"]:
         return RedirectResponse(url="/vendor/insurance", status_code=303)

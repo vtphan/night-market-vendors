@@ -18,6 +18,14 @@ def seed_event_data(db: Session) -> None:
     with open(CONFIG_PATH) as f:
         data = json.load(f)
 
+    # Validate required keys
+    if "event" not in data or "booth_types" not in data:
+        raise ValueError(f"config/event.json must contain 'event' and 'booth_types' keys")
+    required_event_keys = ["name", "start_date", "end_date", "registration_open_date", "registration_close_date", "vendor_agreement_text"]
+    missing = [k for k in required_event_keys if k not in data["event"]]
+    if missing:
+        raise ValueError(f"config/event.json 'event' is missing required keys: {', '.join(missing)}")
+
     # Seed event_settings (single row)
     existing = db.query(EventSettings).first()
     if not existing:

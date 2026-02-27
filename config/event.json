@@ -21,21 +21,21 @@
       "name": "Premium Booth",
       "description": "Prime location near entrance, corner spots, or high foot traffic areas. The booth dimension is 22 ft wide (front facing) × 30 ft deep.",
       "total_quantity": 1,
-      "price": 150,
+      "price": 15000,
       "sort_order": 1
     },
     {
       "name": "Regular Booth",
       "description": "Standard booth space in the main vendor area. The booth dimension is 22 ft wide (front facing) × 30 ft deep.",
       "total_quantity": 2,
-      "price": 100,
+      "price": 10000,
       "sort_order": 2
     },
     {
       "name": "Compact Booth",
       "description": "Smaller footprint for vendors with minimal setup. The booth dimension is 12 ft wide (front facing) × 15 ft deep.",
       "total_quantity": 1,
-      "price": 60,
+      "price": 6000,
       "sort_order": 3
     }
   ]

@@ -273,3 +273,37 @@ def test_inventory_counts_approved_and_paid(db):
     assert inventory[0]["available"] == 7  # 10 - 3
 
 
+def test_inventory_frees_slot_on_cancellation(db):
+    """Cancelling a paid registration should free one slot."""
+    bt = _make_booth_type(db, qty=2)
+    reg1 = _make_registration(db, bt.id, status="paid", email="a@test.com", reg_id="ANM-2026-0001")
+    _make_registration(db, bt.id, status="paid", email="b@test.com", reg_id="ANM-2026-0002")
+
+    inventory = get_inventory(db)
+    assert inventory[0]["available"] == 0
+
+    transition_status(db, reg1, "cancelled", reversal_reason="Vendor requested")
+
+    inventory = get_inventory(db)
+    assert inventory[0]["available"] == 1
+    assert inventory[0]["cancelled"] == 1
+    assert inventory[0]["paid"] == 1
+
+
+def test_inventory_frees_slot_on_approval_revoke(db):
+    """Revoking an approval (approved→pending) should free one slot."""
+    bt = _make_booth_type(db, qty=2)
+    reg1 = _make_registration(db, bt.id, status="approved", email="a@test.com", reg_id="ANM-2026-0001")
+    _make_registration(db, bt.id, status="approved", email="b@test.com", reg_id="ANM-2026-0002")
+
+    inventory = get_inventory(db)
+    assert inventory[0]["available"] == 0
+
+    transition_status(db, reg1, "pending", reversal_reason="Needs review")
+
+    inventory = get_inventory(db)
+    assert inventory[0]["available"] == 1
+    assert inventory[0]["approved"] == 1
+    assert inventory[0]["pending"] == 1
+
+

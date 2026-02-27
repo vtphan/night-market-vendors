@@ -44,6 +44,8 @@ Pending → Approved        (admin approves)
 Pending → Rejected        (admin rejects)
 Approved → Paid           (vendor pays via Stripe)
 Approved → Rejected       (admin revokes before payment)
+Approved → Pending        (admin revokes approval for re-review)
+Rejected → Pending        (admin revokes rejection for re-review)
 Paid → Cancelled          (admin cancels + Stripe refund)
 ```
 

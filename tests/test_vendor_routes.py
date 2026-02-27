@@ -444,7 +444,7 @@ async def test_confirmation_page_shows_registration(db):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/vendor/confirm/ANM-2026-0050")
+        response = await client.get("/vendor/confirm/ANM-2026-0050", cookies=vendor_cookie())
         assert response.status_code == 200
         assert "ANM-2026-0050" in response.text
         assert "My Biz" in response.text
@@ -454,7 +454,7 @@ async def test_confirmation_page_shows_registration(db):
 async def test_confirmation_page_unknown_id_redirects(db):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
-        response = await client.get("/vendor/confirm/ANM-2026-9999")
+        response = await client.get("/vendor/confirm/ANM-2026-9999", cookies=vendor_cookie())
         assert response.status_code == 303
         assert "/vendor/register" in response.headers["location"]
 

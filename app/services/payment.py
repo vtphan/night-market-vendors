@@ -42,7 +42,7 @@ def create_payment_intent(
     )
 
     registration.stripe_payment_intent_id = intent.id
-    registration.processing_fee = processing_fee_cents if processing_fee_cents > 0 else None
+    registration.processing_fee = processing_fee_cents
     db.commit()
 
     logger.info(
@@ -65,7 +65,7 @@ def create_refund(db: Session, registration: Registration, amount_cents: int):
         amount=amount_cents,
     )
 
-    registration.refund_amount = amount_cents
+    registration.refund_amount = (registration.refund_amount or 0) + amount_cents
     db.commit()
 
     logger.info(

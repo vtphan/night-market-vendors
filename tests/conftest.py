@@ -1,10 +1,11 @@
 import os
 import pytest
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Override env vars BEFORE importing app modules
-os.environ["DATABASE_URL"] = "sqlite:///data/test.db"
+os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["ADMIN_EMAILS"] = "admin@test.com"
 os.environ["DEBUG"] = "true"
@@ -15,17 +16,13 @@ os.environ["APP_URL"] = "http://localhost:8000"
 from app.database import Base, get_db
 from app.main import app
 
-# Create a test engine
+# Create a test engine — StaticPool ensures all connections share the same
+# in-memory database (required for SQLite :memory: with multiple threads).
 test_engine = create_engine(
-    "sqlite:///data/test.db",
+    "sqlite://",
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
-
-@event.listens_for(test_engine, "connect")
-def set_sqlite_wal(dbapi_conn, connection_record):
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.close()
 
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 

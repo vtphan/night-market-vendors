@@ -39,6 +39,19 @@ def _template(request, name, ctx, session=None):
     return request.app.state.templates.TemplateResponse(name, ctx)
 
 
+def _detail_context(db, registration):
+    """Build full context for registration_detail.html re-renders."""
+    booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+    return {
+        "registration": registration,
+        "booth_type": booth_type,
+        "booth_availability": get_booth_availability(db, registration.booth_type_id),
+        "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
+        "insurance_doc": db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first(),
+        "settings": db.query(EventSettings).first(),
+    }
+
+
 # --- Dashboard ---
 
 @router.get("", response_class=HTMLResponse)
@@ -324,16 +337,10 @@ async def approve_registration(
         approve_with_inventory_check(db, registration)
     except ValueError as e:
         logger.warning("Cannot approve %s: %s", reg_id, e)
-        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
-        available = get_booth_availability(db, registration.booth_type_id)
         flash = [{"category": "error", "text": f"Cannot approve: {e}"}]
-        return _template(request, "admin/registration_detail.html", {
-            "registration": registration,
-            "booth_type": booth_type,
-            "booth_availability": available,
-            "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
-            "get_flashed_messages": lambda: flash,
-        }, session=session)
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     payment_url = f"{APP_URL}/vendor/registration/{reg_id}"
     settings = db.query(EventSettings).first()
@@ -368,25 +375,19 @@ async def reject_registration(
 
     reversal_reason = reversal_reason.strip()
     if not reversal_reason:
-        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
         flash = [{"category": "error", "text": "A rejection reason is required."}]
-        return _template(request, "admin/registration_detail.html", {
-            "registration": registration,
-            "booth_type": booth_type,
-            "get_flashed_messages": lambda: flash,
-        }, session=session)
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     try:
         transition_status(db, registration, "rejected", reversal_reason=reversal_reason)
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
-        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
         flash = [{"category": "error", "text": f"Cannot reject: {e}"}]
-        return _template(request, "admin/registration_detail.html", {
-            "registration": registration,
-            "booth_type": booth_type,
-            "get_flashed_messages": lambda: flash,
-        }, session=session)
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     background_tasks.add_task(send_rejection_email, registration.email, reg_id, reversal_reason or None)
 
@@ -414,25 +415,19 @@ async def unreject_registration(
 
     reversal_reason = reversal_reason.strip()
     if not reversal_reason:
-        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
         flash = [{"category": "error", "text": "A reason is required."}]
-        return _template(request, "admin/registration_detail.html", {
-            "registration": registration,
-            "booth_type": booth_type,
-            "get_flashed_messages": lambda: flash,
-        }, session=session)
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     try:
         transition_status(db, registration, "pending", reversal_reason=reversal_reason)
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
-        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
         flash = [{"category": "error", "text": f"Cannot unreject: {e}"}]
-        return _template(request, "admin/registration_detail.html", {
-            "registration": registration,
-            "booth_type": booth_type,
-            "get_flashed_messages": lambda: flash,
-        }, session=session)
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -463,48 +458,43 @@ async def cancel_registration(
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
     reversal_reason = reversal_reason.strip()
-    settings = db.query(EventSettings).first()
     if not reversal_reason:
-        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
         flash = [{"category": "error", "text": "A reason is required."}]
-        return _template(request, "admin/registration_detail.html", {
-            "registration": registration,
-            "booth_type": booth_type,
-            "settings": settings,
-            "get_flashed_messages": lambda: flash,
-        }, session=session)
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     # Convert dollar amount to cents
     try:
-        amount_cents = int(float(refund_amount) * 100)
+        amount_cents = round(float(refund_amount) * 100)
         if amount_cents < 0:
             amount_cents = 0
     except (ValueError, TypeError):
         amount_cents = 0
 
+    # Validate refund does not exceed amount paid
+    max_refundable = registration.amount_paid or 0
+    if amount_cents > max_refundable:
+        flash = [{"category": "error", "text": f"Refund amount (${amount_cents / 100:.2f}) exceeds amount paid (${max_refundable / 100:.2f})."}]
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
+
     if amount_cents > 0 and not registration.stripe_payment_intent_id:
-        booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
         flash = [{"category": "error", "text": "Cannot refund: no payment record found."}]
-        return _template(request, "admin/registration_detail.html", {
-            "registration": registration,
-            "booth_type": booth_type,
-            "settings": settings,
-            "get_flashed_messages": lambda: flash,
-        }, session=session)
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     if amount_cents > 0 and registration.stripe_payment_intent_id:
         try:
             create_refund(db, registration, amount_cents)
         except Exception:
             logger.exception("Stripe refund failed for %s", reg_id)
-            booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
             flash = [{"category": "error", "text": "Refund failed. Please check Stripe and try again."}]
-            return _template(request, "admin/registration_detail.html", {
-                "registration": registration,
-                "booth_type": booth_type,
-                "settings": settings,
-                "get_flashed_messages": lambda: flash,
-            }, session=session)
+            ctx = _detail_context(db, registration)
+            ctx["get_flashed_messages"] = lambda: flash
+            return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     try:
         transition_status(db, registration, "cancelled", reversal_reason=reversal_reason)
@@ -566,7 +556,7 @@ async def update_notes(
     if not registration:
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
-    registration.admin_notes = admin_notes.strip() or None
+    registration.admin_notes = (admin_notes.strip()[:5000]) or None
     db.commit()
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -580,6 +570,9 @@ async def admin_insurance_file(
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if ".." in stored_filename or "/" in stored_filename or "\\" in stored_filename:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
     doc = db.query(InsuranceDocument).filter(InsuranceDocument.stored_filename == stored_filename).first()
     if not doc:
         return RedirectResponse(url="/admin/registrations", status_code=303)
@@ -675,7 +668,7 @@ async def update_inventory(
         booth_type.total_quantity = total_quantity
         booth_type.description = description.strip()
         try:
-            price_cents = int(float(price) * 100)
+            price_cents = round(float(price) * 100)
             if price_cents >= 0:
                 booth_type.price = price_cents
         except (ValueError, TypeError):
