@@ -289,6 +289,7 @@ async def registration_detail(
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
     available = get_booth_availability(db, registration.booth_type_id)
     insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
+    settings = db.query(EventSettings).first()
 
     return _template(request, "admin/registration_detail.html", {
         "registration": registration,
@@ -296,6 +297,7 @@ async def registration_detail(
         "booth_availability": available,
         "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
         "insurance_doc": insurance_doc,
+        "settings": settings,
     }, session=session)
 
 
@@ -461,12 +463,14 @@ async def cancel_registration(
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
     reversal_reason = reversal_reason.strip()
+    settings = db.query(EventSettings).first()
     if not reversal_reason:
         booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
         flash = [{"category": "error", "text": "A reason is required."}]
         return _template(request, "admin/registration_detail.html", {
             "registration": registration,
             "booth_type": booth_type,
+            "settings": settings,
             "get_flashed_messages": lambda: flash,
         }, session=session)
 
@@ -484,6 +488,7 @@ async def cancel_registration(
         return _template(request, "admin/registration_detail.html", {
             "registration": registration,
             "booth_type": booth_type,
+            "settings": settings,
             "get_flashed_messages": lambda: flash,
         }, session=session)
 
@@ -497,6 +502,7 @@ async def cancel_registration(
             return _template(request, "admin/registration_detail.html", {
                 "registration": registration,
                 "booth_type": booth_type,
+                "settings": settings,
                 "get_flashed_messages": lambda: flash,
             }, session=session)
 
@@ -506,7 +512,11 @@ async def cancel_registration(
         logger.warning("Invalid transition for %s: %s", reg_id, e)
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
-    background_tasks.add_task(send_refund_email, registration.email, reg_id, amount_cents, reason=reversal_reason or None)
+    background_tasks.add_task(
+        send_refund_email, registration.email, reg_id, amount_cents,
+        reason=reversal_reason or None,
+        processing_fee_cents=registration.processing_fee or 0,
+    )
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -703,6 +713,10 @@ async def update_settings(
     payment_instructions: str = Form(""),
     insurance_instructions: str = Form(""),
     vendor_agreement_text: str = Form(""),
+    processing_fee_percent: str = Form("0"),
+    processing_fee_flat_cents: str = Form("0"),
+    refund_policy: str = Form(""),
+    refund_presets: str = Form("100,75,50,25,0"),
     notify_new_registration: str | None = Form(None),
     notify_payment_received: str | None = Form(None),
     notify_insurance_uploaded: str | None = Form(None),
@@ -724,6 +738,16 @@ async def update_settings(
             settings.payment_instructions = payment_instructions.strip()
             settings.insurance_instructions = insurance_instructions.strip()
             settings.vendor_agreement_text = vendor_agreement_text.strip()
+            try:
+                settings.processing_fee_percent = float(processing_fee_percent)
+            except (ValueError, TypeError):
+                settings.processing_fee_percent = 0
+            try:
+                settings.processing_fee_flat_cents = int(processing_fee_flat_cents)
+            except (ValueError, TypeError):
+                settings.processing_fee_flat_cents = 0
+            settings.refund_policy = refund_policy.strip()
+            settings.refund_presets = refund_presets.strip() or "100,75,50,25,0"
             settings.notify_new_registration = notify_new_registration is not None
             settings.notify_payment_received = notify_payment_received is not None
             settings.notify_insurance_uploaded = notify_insurance_uploaded is not None
@@ -756,7 +780,7 @@ async def export_csv(
         "Registration ID", "Status", "Business Name", "Contact Name",
         "Email", "Phone", "Category", "Description",
         "Booth Type", "Electrical Equipment", "Electrical Other",
-        "Insurance", "Amount Paid", "Refund Amount",
+        "Insurance", "Amount Paid", "Processing Fee", "Refund Amount",
         "Stripe Payment Intent ID", "Created At", "Approved At",
         "Rejected At", "Reversal Reason", "Admin Notes",
     ])
@@ -784,6 +808,7 @@ async def export_csv(
             reg.electrical_other or "",
             insurance_status,
             f"${reg.amount_paid / 100:.2f}" if reg.amount_paid else "",
+            f"${reg.processing_fee / 100:.2f}" if reg.processing_fee else "",
             f"${reg.refund_amount / 100:.2f}" if reg.refund_amount else "",
             reg.stripe_payment_intent_id or "",
             reg.created_at.strftime("%Y-%m-%d %H:%M") if reg.created_at else "",

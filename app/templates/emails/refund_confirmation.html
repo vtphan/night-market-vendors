@@ -12,6 +12,12 @@
             <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Refund Amount</strong></td>
             <td style="padding: 8px 0; border-bottom: 1px solid #eee;">{{ refund_amount }}</td>
         </tr>
+        {% if processing_fee %}
+        <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Processing Fee</strong></td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee;">{{ processing_fee }} (non-refundable)</td>
+        </tr>
+        {% endif %}
         {% if reason %}
         <tr>
             <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Reason</strong></td>

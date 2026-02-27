@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey,
+    Column, Integer, Float, String, Text, Boolean, DateTime, Date, ForeignKey,
 )
 from sqlalchemy.sql import func
 
@@ -25,6 +25,7 @@ class Registration(Base):
     status = Column(String(50), nullable=False, default="pending", index=True)
     stripe_payment_intent_id = Column(String, nullable=True)
     amount_paid = Column(Integer, nullable=True)
+    processing_fee = Column(Integer, nullable=True)
     refund_amount = Column(Integer, default=0)
     approved_at = Column(DateTime, nullable=True)
     rejected_at = Column(DateTime, nullable=True)
@@ -112,6 +113,10 @@ class EventSettings(Base):
     contact_email = Column(String, nullable=False, default="")
     payment_instructions = Column(Text, nullable=False, default="")
     insurance_instructions = Column(Text, nullable=False, default="")
+    processing_fee_percent = Column(Float, default=2.9)
+    processing_fee_flat_cents = Column(Integer, default=30)
+    refund_policy = Column(Text, default="")
+    refund_presets = Column(String, default="100,75,50,25,0")
     notify_new_registration = Column(Boolean, default=False, server_default="0")
     notify_payment_received = Column(Boolean, default=False, server_default="0")
     notify_insurance_uploaded = Column(Boolean, default=False, server_default="0")

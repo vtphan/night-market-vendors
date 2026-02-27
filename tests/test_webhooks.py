@@ -239,7 +239,9 @@ async def test_vendor_pay_creates_intent(mock_create_pi, db):
     assert response.status_code == 200
     data = response.json()
     assert data["client_secret"] == "pi_secret_test"
-    assert data["amount"] == 15000
+    assert data["booth_price"] == 15000
+    assert data["processing_fee"] == 479  # round((15000 * 0.029 + 30) / 0.971)
+    assert data["amount"] == 15479
     assert data["booth_type"] == "Premium"
 
 

@@ -35,6 +35,10 @@ def seed_event_data(db: Session) -> None:
             contact_email=evt.get("contact_email", ""),
             payment_instructions=evt.get("payment_instructions", ""),
             insurance_instructions=evt.get("insurance_instructions", ""),
+            processing_fee_percent=evt.get("processing_fee_percent", 2.9),
+            processing_fee_flat_cents=evt.get("processing_fee_flat_cents", 30),
+            refund_policy=evt.get("refund_policy", ""),
+            refund_presets=evt.get("refund_presets", "100,75,50,25,0"),
         )
         db.add(settings)
         db.commit()

@@ -257,8 +257,16 @@
     {% elif registration.status == 'paid' %}
     <hr style="margin: 1rem 0;">
 
+    {% set fee_cents = registration.processing_fee or 0 %}
+    {% set booth_fee_cents = (registration.amount_paid or 0) - fee_cents %}
+
     {% if registration.amount_paid %}
-    <p style="margin-bottom: 0.5rem;"><strong>Amount Paid:</strong> {{ format_price(registration.amount_paid) }}</p>
+    <p style="margin-bottom: 0.25rem;"><strong>Amount Paid:</strong> {{ format_price(registration.amount_paid) }}</p>
+    {% if fee_cents > 0 %}
+    <p style="margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--pico-muted-color);">
+        Booth fee: {{ format_price(booth_fee_cents) }} + Processing fee: {{ format_price(fee_cents) }} (non-refundable)
+    </p>
+    {% endif %}
     {% endif %}
 
     <button type="button" style="width: auto; margin: 0; background-color: #c62828; border-color: #c62828;"
@@ -272,6 +280,19 @@
             <form id="cancel-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/cancel"
                   onsubmit="return prepareReversalSubmit('cancel');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                {% if settings and settings.refund_policy %}
+                <div style="background: var(--pico-card-background-color); border: 1px solid var(--pico-muted-border-color); border-radius: 4px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                    <strong>Refund Policy:</strong> {{ settings.refund_policy }}
+                </div>
+                {% endif %}
+
+                {% if fee_cents > 0 %}
+                <p style="font-size: 0.9rem; margin-bottom: 0.5rem;">
+                    Amount Paid: {{ format_price(registration.amount_paid) }} = Booth Fee ({{ format_price(booth_fee_cents) }}) + Processing Fee ({{ format_price(fee_cents) }}, non-refundable)
+                </p>
+                {% endif %}
+
                 <label>Reason</label>
                 <select id="cancel-reason-select" onchange="toggleCustomReason('cancel')">
                     <option value="" disabled selected>Select reason...</option>
@@ -285,13 +306,17 @@
                 <label>Your name</label>
                 <input type="text" id="cancel-admin-name" placeholder="e.g. Julia" required>
                 <input type="hidden" name="reversal_reason" id="cancel-reason-hidden" value="">
-                <label style="margin-top: 0.5rem;">Refund Amount</label>
-                <label style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-                    $
-                    <input type="number" name="refund_amount" step="0.01" min="0"
-                           value="{{ '%.2f' | format((registration.amount_paid or 0) / 100) }}"
-                           style="margin: 0; width: 120px;">
-                </label>
+
+                <label style="margin-top: 0.5rem;">Refund Percentage (of booth fee)</label>
+                <select id="refund-percent-select" onchange="updateRefundAmount()">
+                    {% set presets = ((settings.refund_presets if settings else '') or '100,75,50,25,0').split(',') %}
+                    {% for p in presets %}
+                    <option value="{{ p.strip() }}" {{ 'selected' if loop.first }}>{{ p.strip() }}%</option>
+                    {% endfor %}
+                </select>
+                <p id="refund-calc-display" style="font-size: 0.9rem; margin: 0.25rem 0 0.5rem; color: var(--pico-muted-color);"></p>
+                <input type="hidden" name="refund_amount" id="refund-amount-hidden" value="">
+
                 <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
                     <button type="button" class="outline" onclick="this.closest('dialog').close();"
                             style="width: auto;">Cancel</button>
@@ -313,6 +338,21 @@
 
 <script>
 var ADMIN_EMAIL = "{{ session.email }}";
+var BOOTH_FEE_CENTS = {{ ((registration.amount_paid or 0) - (registration.processing_fee or 0)) }};
+
+function updateRefundAmount() {
+    var sel = document.getElementById('refund-percent-select');
+    if (!sel) return;
+    var pct = parseFloat(sel.value) || 0;
+    var refundCents = Math.round(BOOTH_FEE_CENTS * pct / 100);
+    var refundDollars = (refundCents / 100).toFixed(2);
+    document.getElementById('refund-amount-hidden').value = refundDollars;
+    var boothDollars = (BOOTH_FEE_CENTS / 100).toFixed(2);
+    document.getElementById('refund-calc-display').textContent =
+        pct + '% of $' + boothDollars + ' = $' + refundDollars;
+}
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', updateRefundAmount);
 function toggleCustomReason(prefix) {
     var sel = document.getElementById(prefix + '-reason-select');
     var custom = document.getElementById(prefix + '-reason-custom');

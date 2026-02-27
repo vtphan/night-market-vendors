@@ -21,7 +21,7 @@ from app.services.registration import (
     CATEGORIES,
 )
 from app.services.email import send_submission_confirmation_email, send_admin_notification_email
-from app.services.payment import create_payment_intent
+from app.services.payment import create_payment_intent, calculate_processing_fee
 from app.config import STRIPE_PUBLISHABLE_KEY, APP_URL
 
 logger = logging.getLogger(__name__)
@@ -106,6 +106,7 @@ async def register_gateway(request: Request, edit: str = "", new: str = "", db: 
             "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
             "draft": draft,
             "email": email,
+            "settings": settings,
         })
     elif step == 2:
         booth_type = db.query(BoothType).filter(BoothType.id == draft.get("booth_type_id")).first()
@@ -188,6 +189,7 @@ async def register_step1(
             "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
             "draft": form_draft,
             "email": email,
+            "settings": settings,
             "get_flashed_messages": lambda: flash,
         })
 
@@ -379,8 +381,13 @@ async def create_payment(
     if not booth_type:
         return JSONResponse(status_code=400, content={"error": "Booth type not found"})
 
+    settings = db.query(EventSettings).first()
+    fee_percent = settings.processing_fee_percent if settings else 0
+    fee_flat = settings.processing_fee_flat_cents if settings else 0
+    processing_fee_cents = calculate_processing_fee(booth_type.price, fee_percent, fee_flat)
+
     try:
-        client_secret = create_payment_intent(db, registration, booth_type)
+        client_secret = create_payment_intent(db, registration, booth_type, processing_fee_cents)
     except Exception:
         logger.exception("Stripe PaymentIntent creation failed for %s", registration_id)
         return JSONResponse(
@@ -390,7 +397,9 @@ async def create_payment(
 
     return JSONResponse(content={
         "client_secret": client_secret,
-        "amount": booth_type.price,
+        "amount": booth_type.price + processing_fee_cents,
+        "booth_price": booth_type.price,
+        "processing_fee": processing_fee_cents,
         "booth_type": booth_type.name,
     })
 

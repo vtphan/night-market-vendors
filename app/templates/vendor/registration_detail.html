@@ -92,17 +92,30 @@
 {% endif %}
 
 {% if registration.status == "approved" and stripe_publishable_key %}
+{% set fee_pct = settings.processing_fee_percent if settings else 0 %}
+{% set fee_flat = settings.processing_fee_flat_cents if settings else 0 %}
+{% set fee_cents = ((booth_type.price * fee_pct / 100) | round(0, 'common') | int) + fee_flat %}
+{% set total_cents = booth_type.price + fee_cents %}
 <article>
     <header>Complete Payment</header>
     {% if settings and settings.payment_instructions %}
     <p>{{ settings.payment_instructions }}</p>
     {% endif %}
-    <p><strong>Amount due:</strong> ${{ "%.2f" | format(booth_type.price / 100) }}</p>
+    <dl class="detail-list">
+        <dt>Booth fee</dt>
+        <dd>${{ "%.2f" | format(booth_type.price / 100) }}</dd>
+        {% if fee_cents > 0 %}
+        <dt>Processing fee <small>(non-refundable)</small></dt>
+        <dd>${{ "%.2f" | format(fee_cents / 100) }}</dd>
+        {% endif %}
+        <dt><strong>Total</strong></dt>
+        <dd><strong>${{ "%.2f" | format(total_cents / 100) }}</strong></dd>
+    </dl>
     <form id="payment-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div id="card-element" style="padding: 12px; border: 1px solid var(--pico-form-element-border-color); border-radius: 4px; margin-bottom: 1rem;"></div>
         <div id="card-errors" role="alert" style="color: #c62828; margin-bottom: 1rem;"></div>
-        <button type="submit" id="pay-button">Pay ${{ "%.2f" | format(booth_type.price / 100) }}</button>
+        <button type="submit" id="pay-button">Pay ${{ "%.2f" | format(total_cents / 100) }}</button>
     </form>
 </article>
 <script>
@@ -122,6 +135,10 @@
         {% if registration.amount_paid %}
         <dt>Amount Paid</dt>
         <dd>${{ "%.2f" | format(registration.amount_paid / 100) }}</dd>
+        {% endif %}
+        {% if registration.processing_fee %}
+        <dt>Processing Fee <small>(non-refundable)</small></dt>
+        <dd>${{ "%.2f" | format(registration.processing_fee / 100) }}</dd>
         {% endif %}
         {% if registration.refund_amount %}
         <dt>Refund</dt>

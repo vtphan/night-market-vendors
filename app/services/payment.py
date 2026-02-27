@@ -11,25 +11,46 @@ logger = logging.getLogger(__name__)
 stripe.api_key = STRIPE_SECRET_KEY
 
 
-def create_payment_intent(db: Session, registration: Registration, booth_type: BoothType) -> str:
+def calculate_processing_fee(price_cents: int, fee_percent: float, fee_flat_cents: int) -> int:
+    """Returns processing fee in cents using pass-through formula.
+
+    Accounts for Stripe charging its fee on the total (including the fee
+    itself), so the organizer nets exactly the booth price after Stripe's cut.
+    Formula: (rate * price + flat) / (1 - rate)
+    """
+    rate = fee_percent / 100
+    if rate >= 1:
+        return fee_flat_cents
+    return round((price_cents * rate + fee_flat_cents) / (1 - rate))
+
+
+def create_payment_intent(
+    db: Session,
+    registration: Registration,
+    booth_type: BoothType,
+    processing_fee_cents: int = 0,
+) -> str:
     """Create a Stripe PaymentIntent for an approved registration.
 
     Returns the client_secret for Stripe.js.
     """
+    total_amount = booth_type.price + processing_fee_cents
     intent = stripe.PaymentIntent.create(
-        amount=booth_type.price,
+        amount=total_amount,
         currency="usd",
         metadata={"registration_id": registration.registration_id},
     )
 
     registration.stripe_payment_intent_id = intent.id
+    registration.processing_fee = processing_fee_cents if processing_fee_cents > 0 else None
     db.commit()
 
     logger.info(
-        "Created PaymentIntent %s for registration %s ($%.2f)",
+        "Created PaymentIntent %s for registration %s ($%.2f, fee $%.2f)",
         intent.id,
         registration.registration_id,
-        booth_type.price / 100,
+        total_amount / 100,
+        processing_fee_cents / 100,
     )
     return intent.client_secret
 

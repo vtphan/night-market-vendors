@@ -85,6 +85,34 @@
 
     <article>
         <details>
+            <summary><strong>Payment & Fees</strong></summary>
+
+            <div class="grid">
+                <div>
+                    <label for="processing_fee_percent">Processing Fee Percentage</label>
+                    <input type="number" id="processing_fee_percent" name="processing_fee_percent"
+                           step="0.1" min="0" value="{{ settings.processing_fee_percent or 0 }}">
+                </div>
+                <div>
+                    <label for="processing_fee_flat_cents">Processing Fee Flat Amount (cents)</label>
+                    <input type="number" id="processing_fee_flat_cents" name="processing_fee_flat_cents"
+                           step="1" min="0" value="{{ settings.processing_fee_flat_cents or 0 }}">
+                </div>
+            </div>
+
+            <label for="refund_policy">Refund Policy</label>
+            <small>Shown to admins during cancellation as a reference</small>
+            <textarea id="refund_policy" name="refund_policy" rows="3">{{ settings.refund_policy or '' }}</textarea>
+
+            <label for="refund_presets">Refund Presets</label>
+            <small>Comma-separated percentages shown as dropdown options during cancellation (e.g. 100,75,50,25,0)</small>
+            <input type="text" id="refund_presets" name="refund_presets"
+                   value="{{ settings.refund_presets or '100,75,50,25,0' }}">
+        </details>
+    </article>
+
+    <article>
+        <details>
             <summary><strong>Email Notifications</strong></summary>
             <p>Send email notifications to all admin addresses when these events occur:</p>
 
