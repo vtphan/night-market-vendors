@@ -65,6 +65,15 @@
                     {% endif %}
                 </td>
             </tr>
+            {% if registration.amount_paid %}
+            <tr><th>Amount Paid</th><td>{{ format_price(registration.amount_paid) }}</td></tr>
+            {% endif %}
+            {% if registration.processing_fee %}
+            <tr><th>Processing Fee</th><td>{{ format_price(registration.processing_fee) }} (non-refundable)</td></tr>
+            {% endif %}
+            {% if registration.refund_amount %}
+            <tr><th>Refund Amount</th><td>{{ format_price(registration.refund_amount) }}</td></tr>
+            {% endif %}
             <tr><th>Agreement IP</th><td>{{ registration.agreement_ip_address }}</td></tr>
             <tr><th>Agreement Date</th><td>{{ registration.agreement_accepted_at.strftime('%b %d, %Y %I:%M %p') if registration.agreement_accepted_at else '' }}</td></tr>
         </table>
