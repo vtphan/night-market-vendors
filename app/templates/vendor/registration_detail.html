@@ -101,16 +101,22 @@
     {% if settings and settings.payment_instructions %}
     <p>{{ settings.payment_instructions }}</p>
     {% endif %}
-    <dl class="detail-list">
-        <dt>Booth fee</dt>
-        <dd>${{ "%.2f" | format(booth_type.price / 100) }}</dd>
+    <table style="width: auto; margin-bottom: 1rem;">
+        <tr>
+            <td>Booth fee</td>
+            <td style="text-align: right; padding-left: 2rem;">${{ "%.2f" | format(booth_type.price / 100) }}</td>
+        </tr>
         {% if fee_cents > 0 %}
-        <dt>Processing fee <small>(non-refundable)</small></dt>
-        <dd>${{ "%.2f" | format(fee_cents / 100) }}</dd>
+        <tr>
+            <td>Processing fee <small>(non-refundable)</small></td>
+            <td style="text-align: right; padding-left: 2rem;">${{ "%.2f" | format(fee_cents / 100) }}</td>
+        </tr>
         {% endif %}
-        <dt><strong>Total</strong></dt>
-        <dd><strong>${{ "%.2f" | format(total_cents / 100) }}</strong></dd>
-    </dl>
+        <tr style="border-top: 2px solid var(--pico-muted-border-color);">
+            <td><strong>Total</strong></td>
+            <td style="text-align: right; padding-left: 2rem;"><strong>${{ "%.2f" | format(total_cents / 100) }}</strong></td>
+        </tr>
+    </table>
     {% if settings and settings.refund_policy %}
     <p style="font-size: 0.85rem; color: var(--pico-muted-color);"><strong>Refund policy:</strong> {{ settings.refund_policy }}</p>
     {% endif %}
