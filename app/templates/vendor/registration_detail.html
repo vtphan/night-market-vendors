@@ -97,7 +97,6 @@
     {% if settings and settings.payment_instructions %}
     <p>{{ settings.payment_instructions }}</p>
     {% endif %}
-    <p>Your registration has been approved! Please complete payment to confirm your booth.</p>
     <p><strong>Amount due:</strong> ${{ "%.2f" | format(booth_type.price / 100) }}</p>
     <form id="payment-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

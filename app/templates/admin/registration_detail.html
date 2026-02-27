@@ -76,7 +76,8 @@
     <header><strong>Admin Notes</strong></header>
     <form method="post" action="/admin/registrations/{{ registration.registration_id }}/notes">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <textarea name="admin_notes" rows="3" placeholder="Add internal notes about this registration...">{{ registration.admin_notes or '' }}</textarea>
+        <small><strong>Format:</strong> Name MM/DD: note — one entry per line, newest first</small>
+        <textarea name="admin_notes" rows="3" placeholder="Julia 02/27: contacted vendor about menu options">{{ registration.admin_notes or '' }}</textarea>
         <button type="submit" style="width: auto;">Save Notes</button>
     </form>
 </article>
