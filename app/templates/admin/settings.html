@@ -5,27 +5,13 @@
 {% block content %}
 <h2>Event Settings</h2>
 
-{% if admin_emails %}
-<article>
-    <fieldset>
-        <legend><strong>Admin Access</strong></legend>
-        <p>The following emails have admin access (configured via <code>ADMIN_EMAILS</code> environment variable):</p>
-        <ul>
-            {% for email in admin_emails %}
-            <li>{{ email }}</li>
-            {% endfor %}
-        </ul>
-    </fieldset>
-</article>
-{% endif %}
-
 {% if settings %}
-<article>
-    <form method="post" action="/admin/settings">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<form method="post" action="/admin/settings">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-        <fieldset>
-            <legend><strong>Event Details</strong></legend>
+    <article>
+        <details open>
+            <summary><strong>Event Setup</strong></summary>
 
             <label for="event_name">Event Name</label>
             <input type="text" id="event_name" name="event_name"
@@ -49,47 +35,57 @@
             <input type="email" id="contact_email" name="contact_email"
                    value="{{ settings.contact_email or '' }}"
                    placeholder="Shown at the bottom of vendor-facing pages">
-        </fieldset>
 
-        <fieldset>
-            <legend><strong>Registration Window</strong></legend>
+            <div class="grid">
+                <div>
+                    <label for="registration_open_date">Registration Opens</label>
+                    <input type="datetime-local" id="registration_open_date" name="registration_open_date"
+                           value="{{ settings.registration_open_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+                </div>
+                <div>
+                    <label for="registration_close_date">Registration Closes</label>
+                    <input type="datetime-local" id="registration_close_date" name="registration_close_date"
+                           value="{{ settings.registration_close_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+                </div>
+            </div>
+        </details>
+    </article>
 
-            <label for="registration_open_date">Registration Opens</label>
-            <input type="datetime-local" id="registration_open_date" name="registration_open_date"
-                   value="{{ settings.registration_open_date.strftime('%Y-%m-%dT%H:%M') }}" required>
-
-            <label for="registration_close_date">Registration Closes</label>
-            <input type="datetime-local" id="registration_close_date" name="registration_close_date"
-                   value="{{ settings.registration_close_date.strftime('%Y-%m-%dT%H:%M') }}" required>
-        </fieldset>
-
-        <fieldset>
-            <legend><strong>Site Content</strong></legend>
+    <article>
+        <details open>
+            <summary><strong>Homepage & Announcements</strong></summary>
 
             <label for="banner_text">Banner Text</label>
+            <small>One line, shown on homepage and vendor dashboard</small>
             <input type="text" id="banner_text" name="banner_text"
-                   value="{{ settings.banner_text or '' }}"
-                   placeholder="Shown as a highlighted banner on the homepage and vendor dashboard">
+                   value="{{ settings.banner_text or '' }}">
 
             <label for="front_page_content">Front Page Content <small>(HTML supported)</small></label>
             <textarea id="front_page_content" name="front_page_content" rows="6" placeholder="Displayed on the homepage. You can use HTML tags like &lt;p&gt;, &lt;strong&gt;, &lt;ul&gt;, etc.">{{ settings.front_page_content or '' }}</textarea>
-        </fieldset>
+        </details>
+    </article>
 
-        <fieldset>
-            <legend><strong>Vendor Instructions</strong></legend>
+    <article>
+        <details>
+            <summary><strong>Vendor-Facing Instructions</strong></summary>
 
             <label for="insurance_instructions">Insurance Instructions <small>(HTML supported)</small></label>
-            <textarea id="insurance_instructions" name="insurance_instructions" rows="8" placeholder="Shown on the registration form, vendor status page, and approval email. Include certificate holder info and insurance purchase links.">{{ settings.insurance_instructions or '' }}</textarea>
+            <small>Shown on the registration form, vendor status page, and approval email</small>
+            <textarea id="insurance_instructions" name="insurance_instructions" rows="8" placeholder="Include certificate holder info and insurance purchase links.">{{ settings.insurance_instructions or '' }}</textarea>
 
             <label for="payment_instructions">Payment Instructions</label>
-            <textarea id="payment_instructions" name="payment_instructions" rows="4" placeholder="Shown to vendors on the payment page when their registration is approved">{{ settings.payment_instructions or '' }}</textarea>
+            <small>Shown on the payment page when a registration is approved</small>
+            <textarea id="payment_instructions" name="payment_instructions" rows="4">{{ settings.payment_instructions or '' }}</textarea>
 
             <label for="vendor_agreement_text">Vendor Agreement Text</label>
-            <textarea id="vendor_agreement_text" name="vendor_agreement_text" rows="8" placeholder="The agreement vendors must accept during registration">{{ settings.vendor_agreement_text or '' }}</textarea>
-        </fieldset>
+            <small>The terms vendors must accept during registration</small>
+            <textarea id="vendor_agreement_text" name="vendor_agreement_text" rows="8">{{ settings.vendor_agreement_text or '' }}</textarea>
+        </details>
+    </article>
 
-        <fieldset>
-            <legend><strong>Email Notifications</strong></legend>
+    <article>
+        <details open>
+            <summary><strong>Email Notifications</strong></summary>
             <p>Send email notifications to all admin addresses when these events occur:</p>
 
             <label>
@@ -109,13 +105,27 @@
                        {% if settings.notify_insurance_uploaded %}checked{% endif %}>
                 Insurance document uploaded
             </label>
-        </fieldset>
+        </details>
+    </article>
 
-        <button type="submit">Save Changes</button>
-    </form>
-</article>
+    <button type="submit">Save Changes</button>
+</form>
 {% else %}
 <p>No event settings found. Please seed the database.</p>
+{% endif %}
+
+{% if admin_emails %}
+<article>
+    <details>
+        <summary><strong>Admin Access</strong></summary>
+        <p>The following emails have admin access (configured via <code>ADMIN_EMAILS</code> environment variable):</p>
+        <ul>
+            {% for email in admin_emails %}
+            <li>{{ email }}</li>
+            {% endfor %}
+        </ul>
+    </details>
+</article>
 {% endif %}
 
 <p><a href="/admin">&larr; Back to Dashboard</a></p>
