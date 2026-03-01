@@ -645,6 +645,7 @@ async def vendor_faq(request: Request, db: Session = Depends(get_db)):
     settings = db.query(EventSettings).first()
     return _template(request, "vendor/faq.html", {
         "settings": settings,
+        "registration_open": settings.is_registration_open() if settings else False,
     })
 
 
