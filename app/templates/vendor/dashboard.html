@@ -2,6 +2,10 @@
 
 {% block title %}My Registrations - Asian Night Market{% endblock %}
 
+{% block extra_head %}
+<script src="/static/clickable-rows.js" defer></script>
+{% endblock %}
+
 {% block content %}
 {% if settings and settings.banner_text %}
 <div class="site-banner">{{ settings.banner_text }}</div>
@@ -49,7 +53,7 @@
         </thead>
         <tbody>
             {% for item in registrations %}
-            <tr onclick="window.location='/vendor/registration/{{ item.registration.registration_id }}'" style="cursor: pointer;">
+            <tr data-href="/vendor/registration/{{ item.registration.registration_id }}" style="cursor: pointer;">
                 <td>{{ CATEGORIES.get(item.registration.category, item.registration.category) }}</td>
                 <td>{{ item.booth_type.name if item.booth_type else 'N/A' }}</td>
                 <td>
