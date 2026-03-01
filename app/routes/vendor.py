@@ -454,7 +454,9 @@ async def create_payment(
 
     try:
         client_secret = create_payment_intent(db, registration, booth_type, processing_fee_cents)
+        db.commit()
     except Exception:
+        db.rollback()
         logger.exception("Stripe PaymentIntent creation failed for %s", registration_id)
         return JSONResponse(
             status_code=502,

@@ -49,16 +49,44 @@ EQUIP_LABELS = {
 }
 
 
-def _cancel_stale_payment_intent(payment_intent_id: str) -> None:
-    """Best-effort cancel of a Stripe PaymentIntent that is no longer needed."""
+def try_cancel_active_payment_intent(registration: Registration) -> tuple[bool, str | None]:
+    """Try to cancel an active PaymentIntent before revoking approval.
+
+    Returns (True, None) if safe to proceed, or (False, error_message) if
+    the PI cannot be cancelled and the revocation should be blocked.
+    """
+    if not registration.stripe_payment_intent_id:
+        return (True, None)
+
     try:
-        stripe.PaymentIntent.cancel(payment_intent_id)
-        logger.info("Cancelled stale PaymentIntent %s", payment_intent_id)
+        pi = stripe.PaymentIntent.retrieve(registration.stripe_payment_intent_id)
     except stripe.StripeError:
         logger.warning(
-            "Could not cancel PaymentIntent %s (may already be terminal)",
-            payment_intent_id,
+            "Could not retrieve PaymentIntent %s",
+            registration.stripe_payment_intent_id,
         )
+        return (False, "Unable to verify payment status. Please try again or check Stripe Dashboard.")
+
+    if pi.status == "canceled":
+        return (True, None)
+
+    if pi.status == "succeeded":
+        return (False, "Cannot revoke: payment has already completed. Use Cancel & Refund instead.")
+
+    if pi.status == "processing":
+        return (False, "Cannot revoke: payment is being processed. Please wait and try again.")
+
+    # Cancellable states: requires_payment_method, requires_confirmation, requires_action
+    try:
+        stripe.PaymentIntent.cancel(registration.stripe_payment_intent_id)
+        logger.info("Cancelled PaymentIntent %s before revoking approval", registration.stripe_payment_intent_id)
+        return (True, None)
+    except stripe.StripeError:
+        logger.warning(
+            "Failed to cancel PaymentIntent %s",
+            registration.stripe_payment_intent_id,
+        )
+        return (False, "Failed to cancel payment. Please try again or check Stripe Dashboard.")
 
 
 def transition_status(
@@ -80,8 +108,6 @@ def transition_status(
         )
 
     old_status = registration.status
-    # Track PI to cancel AFTER the DB commit succeeds
-    stale_pi_id = None
 
     registration.status = new_status
 
@@ -92,10 +118,6 @@ def transition_status(
         # approved_price is set by approve_with_inventory_check() before
         # calling this function — don't overwrite it here.
     elif new_status == "rejected":
-        # Keep stripe_payment_intent_id so the webhook auto-refund path can
-        # still find this registration if the PI already succeeded.
-        if old_status == "approved" and registration.stripe_payment_intent_id:
-            stale_pi_id = registration.stripe_payment_intent_id
         if old_status == "approved":
             registration.approved_price = None
         registration.rejected_at = datetime.now(timezone.utc)
@@ -104,8 +126,6 @@ def transition_status(
             registration.reversal_reason = reversal_reason
     elif new_status == "pending":
         # Returning from approved/rejected — store the revoke reason
-        if old_status == "approved" and registration.stripe_payment_intent_id:
-            stale_pi_id = registration.stripe_payment_intent_id
         if old_status == "approved":
             registration.approved_price = None
         registration.rejected_at = None
@@ -121,13 +141,6 @@ def transition_status(
     if _commit:
         db.commit()
         db.refresh(registration)
-        # Cancel stale PI only after DB commit succeeds
-        if stale_pi_id:
-            _cancel_stale_payment_intent(stale_pi_id)
-    else:
-        # Caller is responsible for committing and cancelling the stale PI.
-        # Store it on the registration object for the caller to handle.
-        registration._stale_pi_to_cancel = stale_pi_id
 
     logger.info(
         "Registration %s transitioned to %s",

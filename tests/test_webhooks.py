@@ -93,6 +93,41 @@ async def test_webhook_idempotent(mock_construct, mock_email, db):
 
 
 @pytest.mark.anyio
+@patch("app.routes.webhooks.send_admin_alert_email")
+@patch("app.routes.webhooks.send_payment_confirmation_email")
+@patch("app.routes.webhooks.stripe.Webhook.construct_event")
+async def test_webhook_payment_succeeded_non_approved_accepts_payment(
+    mock_construct, mock_payment_email, mock_alert_email, db
+):
+    """Payment for a non-approved registration should be accepted (not refunded)."""
+    booths = seed_booth_types(db)
+    reg = make_registration(db, booths[0].id, status="rejected",
+                            stripe_pi_id="pi_race_test")
+
+    event_data = _build_webhook_event(
+        "evt_test_race", "payment_intent.succeeded",
+        {"id": "pi_race_test", "amount": 15000}
+    )
+    mock_construct.return_value = event_data
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/webhooks/stripe",
+            content=json.dumps(event_data),
+            headers={"stripe-signature": "test_sig"},
+        )
+
+    assert response.status_code == 200
+    db.refresh(reg)
+    assert reg.status == "paid"
+    assert reg.amount_paid == 15000
+    assert "Payment completed while status was 'rejected'" in (reg.admin_notes or "")
+    mock_payment_email.assert_called_once()
+    mock_alert_email.assert_called_once()
+
+
+@pytest.mark.anyio
 @patch("app.routes.webhooks.stripe.Webhook.construct_event")
 async def test_webhook_invalid_signature(mock_construct, db):
     import stripe
@@ -177,6 +212,7 @@ async def test_create_payment_intent_for_approved_reg(mock_pi_create, db):
     )
 
     secret = create_payment_intent(db, reg, booths[0])
+    db.commit()
 
     assert secret == "pi_test_new_secret_abc"
     db.refresh(reg)

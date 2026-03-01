@@ -76,44 +76,48 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
         return
 
     if registration.status != "approved":
-        logger.warning(
-            "Registration %s is %s, not approved — issuing automatic refund for PI %s",
-            registration.registration_id,
-            registration.status,
-            pi_id,
-        )
-        # Record both amount_paid and refund_amount for complete financial
-        # accounting.  Revenue queries filter by status='paid', so this won't
-        # inflate revenue — but it keeps CSV exports and audit trails accurate.
+        # Payment succeeded for a non-approved registration (e.g. vendor's
+        # payment was in-flight when admin revoked approval).  Accept the
+        # payment instead of auto-refunding — admin can cancel & refund manually.
+        old_status = registration.status
         amount = payment_intent["amount"]
-        try:
-            stripe.Refund.create(payment_intent=pi_id)
-            registration.amount_paid = (registration.amount_paid or 0) + amount
-            registration.refund_amount = (registration.refund_amount or 0) + amount
-            logger.info("Auto-refunded PaymentIntent %s (registration %s was %s)",
-                        pi_id, registration.registration_id, registration.status)
-        except stripe.StripeError as e:
-            # Could be a genuine failure OR a retry after a previous successful
-            # refund (DB commit failed, Stripe retried the webhook).  Check if
-            # the charge was already refunded before alerting.
-            already_refunded = "already been refunded" in str(e).lower()
-            if already_refunded:
-                registration.amount_paid = (registration.amount_paid or 0) + amount
-                registration.refund_amount = (registration.refund_amount or 0) + amount
-                logger.info(
-                    "PaymentIntent %s already refunded (likely webhook retry) — recording refund",
-                    pi_id,
-                )
-            else:
-                logger.exception("Failed to auto-refund PaymentIntent %s — requires manual reconciliation", pi_id)
-                background_tasks.add_task(
-                    send_admin_alert_email,
-                    f"URGENT: Failed to auto-refund PaymentIntent {pi_id}",
-                    f"Registration {registration.registration_id} was {registration.status} when payment "
-                    f"succeeded, but the automatic refund failed. Manual reconciliation is required "
-                    f"in the Stripe Dashboard.\n\nPaymentIntent: {pi_id}\n"
-                    f"Amount: ${amount / 100:.2f}",
-                )
+        logger.warning(
+            "Registration %s is '%s', not approved — accepting payment and setting to paid (PI %s)",
+            registration.registration_id, old_status, pi_id,
+        )
+        registration.status = "paid"
+        registration.amount_paid = amount
+        from datetime import datetime, timezone
+        note_date = datetime.now(timezone.utc).strftime("%m/%d")
+        system_note = (
+            f"[System {note_date}] Payment completed while status was '{old_status}'. "
+            f"Vendor payment was already in progress when approval was revoked. "
+            f"Review and cancel if needed."
+        )
+        existing_notes = registration.admin_notes or ""
+        registration.admin_notes = f"{system_note}\n{existing_notes}".strip()
+
+        background_tasks.add_task(
+            send_admin_alert_email,
+            f"Payment received for non-approved registration — {registration.registration_id}",
+            f"Registration {registration.registration_id} was '{old_status}' when payment "
+            f"succeeded. The payment has been accepted and status set to 'paid'.\n\n"
+            f"PaymentIntent: {pi_id}\n"
+            f"Amount: ${amount / 100:.2f}\n\n"
+            f"Review the registration and cancel with refund if needed:\n"
+            f"{APP_URL}/admin/registrations/{registration.registration_id}",
+        )
+
+        booth_type = db.query(BoothType).filter(
+            BoothType.id == registration.booth_type_id
+        ).first()
+        background_tasks.add_task(
+            send_payment_confirmation_email,
+            registration.email,
+            registration.registration_id,
+            booth_type.name if booth_type else "Unknown",
+            amount,
+        )
         return
 
     try:

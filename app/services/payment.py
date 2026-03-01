@@ -98,7 +98,7 @@ def create_payment_intent(
 
     registration.stripe_payment_intent_id = intent.id
     registration.processing_fee = processing_fee_cents
-    db.commit()
+    # Caller is responsible for committing (matches create_refund pattern).
 
     logger.info(
         "Created PaymentIntent %s for registration %s ($%.2f, fee $%.2f)",

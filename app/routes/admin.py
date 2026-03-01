@@ -20,7 +20,7 @@ from app.services.registration import (
     approve_with_inventory_check,
     get_inventory,
     get_booth_availability,
-    _cancel_stale_payment_intent,
+    try_cancel_active_payment_intent,
     LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
@@ -394,6 +394,15 @@ async def reject_registration(
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
 
+    # Cancel active PI before revoking approval
+    if registration.status == "approved" and registration.stripe_payment_intent_id:
+        ok, msg = try_cancel_active_payment_intent(registration)
+        if not ok:
+            flash = [{"category": "error", "text": msg}]
+            ctx = _detail_context(db, registration)
+            ctx["get_flashed_messages"] = lambda: flash
+            return _template(request, "admin/registration_detail.html", ctx, session=session)
+
     try:
         transition_status(db, registration, "rejected", reversal_reason=reversal_reason)
     except ValueError as e:
@@ -437,6 +446,15 @@ async def unreject_registration(
         return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     was_approved = registration.status == "approved"
+
+    # Cancel active PI before revoking approval
+    if was_approved and registration.stripe_payment_intent_id:
+        ok, msg = try_cancel_active_payment_intent(registration)
+        if not ok:
+            flash = [{"category": "error", "text": msg}]
+            ctx = _detail_context(db, registration)
+            ctx["get_flashed_messages"] = lambda: flash
+            return _template(request, "admin/registration_detail.html", ctx, session=session)
 
     try:
         transition_status(db, registration, "pending", reversal_reason=reversal_reason)
@@ -536,9 +554,6 @@ async def cancel_registration(
             ctx["get_flashed_messages"] = lambda: flash
             return _template(request, "admin/registration_detail.html", ctx, session=session)
 
-    # Grab stale PI ID before commit (set by transition_status when _commit=False)
-    stale_pi_id = getattr(registration, "_stale_pi_to_cancel", None)
-
     try:
         db.commit()
     except Exception:
@@ -561,10 +576,6 @@ async def cancel_registration(
         ctx = _detail_context(db, registration)
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
-
-    # Best-effort cancel stale PI after DB commit succeeds
-    if stale_pi_id:
-        _cancel_stale_payment_intent(stale_pi_id)
 
     background_tasks.add_task(
         send_refund_email, registration.email, reg_id, amount_cents,
