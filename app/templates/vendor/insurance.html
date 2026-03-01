@@ -44,6 +44,7 @@
             <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
             <button type="submit">Replace Document</button>
         </form>
+        <p><small>Accepted formats: PDF, PNG, JPG. Maximum size: 10 MB.</small></p>
     {% else %}
         <p>No document uploaded yet. Please upload your insurance certificate below.</p>
         <form method="post" action="/vendor/insurance/upload" enctype="multipart/form-data">
