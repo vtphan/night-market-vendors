@@ -89,11 +89,15 @@ def transition_status(
         registration.approved_at = datetime.now(timezone.utc)
         registration.rejected_at = None
         registration.reversal_reason = None
+        # approved_price is set by approve_with_inventory_check() before
+        # calling this function — don't overwrite it here.
     elif new_status == "rejected":
         # Keep stripe_payment_intent_id so the webhook auto-refund path can
         # still find this registration if the PI already succeeded.
         if old_status == "approved" and registration.stripe_payment_intent_id:
             stale_pi_id = registration.stripe_payment_intent_id
+        if old_status == "approved":
+            registration.approved_price = None
         registration.rejected_at = datetime.now(timezone.utc)
         registration.approved_at = None
         if reversal_reason:
@@ -102,6 +106,8 @@ def transition_status(
         # Returning from approved/rejected — store the revoke reason
         if old_status == "approved" and registration.stripe_payment_intent_id:
             stale_pi_id = registration.stripe_payment_intent_id
+        if old_status == "approved":
+            registration.approved_price = None
         registration.rejected_at = None
         registration.approved_at = None
         if reversal_reason:
@@ -161,6 +167,10 @@ def approve_with_inventory_check(db: Session, registration: Registration) -> Reg
         raise ValueError(
             f"No {booth_type.name} booths available (0 remaining)"
         )
+
+    # Lock in the booth price at approval time so later price changes
+    # don't retroactively affect this vendor's payment amount.
+    registration.approved_price = booth_type.price
 
     # Transition commits the transaction, releasing the lock
     return transition_status(db, registration, "approved")

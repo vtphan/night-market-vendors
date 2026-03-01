@@ -49,7 +49,10 @@ def create_payment_intent(
 
     Returns the client_secret for Stripe.js.
     """
-    total_amount = booth_type.price + processing_fee_cents
+    # Use the price locked at approval time when available, falling back
+    # to the current booth_type price for backward compatibility.
+    price = registration.approved_price if registration.approved_price is not None else booth_type.price
+    total_amount = price + processing_fee_cents
 
     if total_amount < STRIPE_MINIMUM_AMOUNT_CENTS:
         raise ValueError(

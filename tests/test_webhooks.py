@@ -248,6 +248,47 @@ async def test_vendor_pay_creates_intent(mock_create_pi, db):
 
 
 @pytest.mark.anyio
+@patch("app.routes.vendor.create_payment_intent")
+async def test_vendor_pay_uses_approved_price_not_current(mock_create_pi, db):
+    """Price change after approval should not affect the vendor's payment amount."""
+    from app.models import BoothType
+
+    seed_event(db)
+    booths = seed_booth_types(db)
+    # Approve at $150 (15000 cents)
+    reg = make_registration(db, booths[0].id, status="approved")
+    reg.approved_price = 15000
+    db.commit()
+
+    # Admin changes booth price to $200 after approval
+    bt = db.query(BoothType).filter(BoothType.id == booths[0].id).first()
+    bt.price = 20000
+    db.commit()
+
+    mock_create_pi.return_value = "pi_secret_test"
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        detail_resp = await client.get(
+            f"/vendor/registration/{reg.registration_id}",
+            cookies=vendor_cookie(),
+        )
+        csrf = extract_csrf(detail_resp.text)
+
+        response = await client.post(
+            f"/vendor/registration/{reg.registration_id}/pay",
+            data={"csrf_token": csrf},
+            cookies=vendor_cookie(),
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Should use the approved price ($150), not the current booth price ($200)
+    assert data["booth_price"] == 15000
+    assert data["amount"] == 15479  # 15000 + processing fee
+
+
+@pytest.mark.anyio
 async def test_vendor_pay_rejects_non_approved(db):
     """Payment endpoint should reject non-approved registrations."""
     from app.csrf import generate_csrf_token

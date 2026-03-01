@@ -175,6 +175,7 @@ async def test_approve_registration(db):
     db.refresh(reg)
     assert reg.status == "approved"
     assert reg.approved_at is not None
+    assert reg.approved_price == booths[0].price  # Price locked at approval time
 
 
 @pytest.mark.anyio
@@ -301,11 +302,12 @@ async def test_reject_registration_without_reason(db):
 
 @pytest.mark.anyio
 async def test_revoke_approved_registration(db):
-    """Admin can revoke an approval, returning to pending."""
+    """Admin can revoke an approval, returning to pending. Vendor is notified."""
     seed_admin(db)
     booths = seed_booth_types(db)
     reg = make_registration(db, booths[0].id, status="approved", reg_id="ANM-2026-0032")
     reg.approved_at = datetime.now(timezone.utc)
+    reg.approved_price = booths[0].price
     db.commit()
 
     transport = ASGITransport(app=app)
@@ -313,17 +315,20 @@ async def test_revoke_approved_registration(db):
         detail = await client.get("/admin/registrations/ANM-2026-0032", cookies=admin_cookie())
         csrf = extract_csrf(detail.text)
 
-        response = await client.post("/admin/registrations/ANM-2026-0032/unreject", data={
-            "csrf_token": csrf,
-            "reversal_reason": "Approved in error",
-        }, cookies=admin_cookie())
+        with patch("app.routes.admin.send_approval_revoked_email", return_value=True) as mock_email:
+            response = await client.post("/admin/registrations/ANM-2026-0032/unreject", data={
+                "csrf_token": csrf,
+                "reversal_reason": "Approved in error",
+            }, cookies=admin_cookie())
 
         assert response.status_code == 303
+        mock_email.assert_called_once_with(reg.email, "ANM-2026-0032", "Approved in error")
 
     reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0032").first()
     db.refresh(reg)
     assert reg.status == "pending"
     assert reg.approved_at is None
+    assert reg.approved_price is None  # Cleared on revocation
     assert reg.reversal_reason == "Approved in error"
 
 
@@ -356,7 +361,7 @@ async def test_revoke_approved_without_reason(db):
 
 @pytest.mark.anyio
 async def test_revoke_rejected_registration(db):
-    """Admin can revoke a rejection, returning to pending."""
+    """Admin can revoke a rejection, returning to pending. No revoked-approval email sent."""
     seed_admin(db)
     booths = seed_booth_types(db)
     reg = make_registration(db, booths[0].id, status="rejected", reg_id="ANM-2026-0033")
@@ -369,12 +374,14 @@ async def test_revoke_rejected_registration(db):
         detail = await client.get("/admin/registrations/ANM-2026-0033", cookies=admin_cookie())
         csrf = extract_csrf(detail.text)
 
-        response = await client.post("/admin/registrations/ANM-2026-0033/unreject", data={
-            "csrf_token": csrf,
-            "reversal_reason": "Rejected in error",
-        }, cookies=admin_cookie())
+        with patch("app.routes.admin.send_approval_revoked_email") as mock_email:
+            response = await client.post("/admin/registrations/ANM-2026-0033/unreject", data={
+                "csrf_token": csrf,
+                "reversal_reason": "Rejected in error",
+            }, cookies=admin_cookie())
 
         assert response.status_code == 303
+        mock_email.assert_not_called()  # Was rejected, not approved — no revoked email
 
     reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0033").first()
     db.refresh(reg)

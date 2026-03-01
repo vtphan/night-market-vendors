@@ -61,7 +61,7 @@
         <dt>Booth Type</dt>
         <dd>{{ booth_type.name if booth_type else 'N/A' }}</dd>
         <dt>Price</dt>
-        <dd>${{ "%.2f" | format(booth_type.price / 100) if booth_type else 'N/A' }}</dd>
+        <dd>${{ "%.2f" | format(booth_price / 100) if booth_price else 'N/A' }}</dd>
         <dt>Electrical Equipment</dt>
         <dd>
             {% set parts = [] %}
@@ -93,7 +93,7 @@
 
 {% if registration.status == "approved" and stripe_publishable_key %}
 {% set fee_cents = processing_fee_cents | default(0) %}
-{% set total_cents = booth_type.price + fee_cents %}
+{% set total_cents = booth_price + fee_cents %}
 <article>
     <header>Complete Payment</header>
     {% if settings and settings.payment_instructions %}
@@ -102,7 +102,7 @@
     <table style="width: auto; margin-bottom: 1rem;">
         <tr>
             <td>Booth fee</td>
-            <td style="text-align: right; padding-left: 2rem;">${{ "%.2f" | format(booth_type.price / 100) }}</td>
+            <td style="text-align: right; padding-left: 2rem;">${{ "%.2f" | format(booth_price / 100) }}</td>
         </tr>
         {% if fee_cents > 0 %}
         <tr>

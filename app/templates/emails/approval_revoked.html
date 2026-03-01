@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+    <h2 style="color: #1a1a2e;">Registration Update</h2>
+    <p>Your registration <strong>{{ registration_id }}</strong> for the Asian Night Market has been placed back under review.</p>
+    {% if reason %}
+    <p><strong>Reason:</strong> {{ reason }}</p>
+    {% endif %}
+    <p>No action is required from you at this time. If your registration is re-approved, you will receive a new email with payment instructions.</p>
+    <p>If you have questions, please contact the event organizers.</p>
+    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+    <p style="font-size: 12px; color: #888;">Asian Night Market - Vendor Registration System</p>
+</body>
+</html>

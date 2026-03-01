@@ -33,6 +33,7 @@ class Registration(Base):
     booth_type_id = Column(Integer, ForeignKey("booth_types.id"), nullable=False)
     status = Column(String(50), nullable=False, default="pending", index=True)
     stripe_payment_intent_id = Column(String, nullable=True)
+    approved_price = Column(Integer, nullable=True)
     amount_paid = Column(Integer, nullable=True)
     processing_fee = Column(Integer, nullable=True)
     refund_amount = Column(Integer, nullable=False, default=0)

@@ -24,7 +24,10 @@ from app.services.registration import (
     LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
-from app.services.email import send_approval_email, send_rejection_email, send_refund_email, send_admin_alert_email
+from app.services.email import (
+    send_approval_email, send_approval_revoked_email, send_rejection_email,
+    send_refund_email, send_admin_alert_email,
+)
 from app.services.payment import create_refund
 from app.config import APP_URL, ADMIN_EMAILS
 
@@ -407,6 +410,7 @@ async def reject_registration(
 async def unreject_registration(
     request: Request,
     reg_id: str,
+    background_tasks: BackgroundTasks,
     reversal_reason: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -428,6 +432,8 @@ async def unreject_registration(
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
 
+    was_approved = registration.status == "approved"
+
     try:
         transition_status(db, registration, "pending", reversal_reason=reversal_reason)
     except ValueError as e:
@@ -436,6 +442,13 @@ async def unreject_registration(
         ctx = _detail_context(db, registration)
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+    # Notify the vendor when a previously approved registration is revoked
+    if was_approved:
+        background_tasks.add_task(
+            send_approval_revoked_email,
+            registration.email, reg_id, reversal_reason or None,
+        )
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 

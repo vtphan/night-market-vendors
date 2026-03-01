@@ -394,19 +394,23 @@ async def registration_detail(
     settings = db.query(EventSettings).first()
     insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
 
+    # Use the price locked at approval time when available so admin price
+    # changes don't retroactively affect this vendor's displayed/charged amount.
+    booth_price = registration.approved_price if registration.approved_price is not None else (booth_type.price if booth_type else 0)
+
     ctx = {
         "registration": registration,
         "booth_type": booth_type,
+        "booth_price": booth_price,
         "settings": settings,
         "waitlist_position": get_waitlist_position(db, registration),
         "insurance_doc": insurance_doc,
     }
     if registration.status == "approved":
         ctx["stripe_publishable_key"] = STRIPE_PUBLISHABLE_KEY
-        # Pre-compute processing fee server-side using the same formula as payment.py
         fee_percent = settings.processing_fee_percent if settings else 0
         fee_flat = settings.processing_fee_flat_cents if settings else 0
-        ctx["processing_fee_cents"] = calculate_processing_fee(booth_type.price, fee_percent, fee_flat)
+        ctx["processing_fee_cents"] = calculate_processing_fee(booth_price, fee_percent, fee_flat)
 
     return _template(request, "vendor/registration_detail.html", ctx)
 
@@ -440,10 +444,13 @@ async def create_payment(
     if not booth_type:
         return JSONResponse(status_code=400, content={"error": "Booth type not found"})
 
+    # Use the price locked at approval time so admin price changes don't
+    # retroactively affect this vendor's payment amount.
+    price = registration.approved_price if registration.approved_price is not None else booth_type.price
     settings = db.query(EventSettings).first()
     fee_percent = settings.processing_fee_percent if settings else 0
     fee_flat = settings.processing_fee_flat_cents if settings else 0
-    processing_fee_cents = calculate_processing_fee(booth_type.price, fee_percent, fee_flat)
+    processing_fee_cents = calculate_processing_fee(price, fee_percent, fee_flat)
 
     try:
         client_secret = create_payment_intent(db, registration, booth_type, processing_fee_cents)
@@ -456,8 +463,8 @@ async def create_payment(
 
     return JSONResponse(content={
         "client_secret": client_secret,
-        "amount": booth_type.price + processing_fee_cents,
-        "booth_price": booth_type.price,
+        "amount": price + processing_fee_cents,
+        "booth_price": price,
         "processing_fee": processing_fee_cents,
         "booth_type": booth_type.name,
     })

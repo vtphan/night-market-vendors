@@ -112,6 +112,20 @@ def send_refund_email(
     return send_email(to, f"Refund Issued - {registration_id}", html)
 
 
+def send_approval_revoked_email(to: str, registration_id: str, reason: str | None = None) -> bool:
+    """Send notification that a previously approved registration is back under review."""
+    try:
+        template = _env.get_template("approval_revoked.html")
+        html = template.render(
+            registration_id=registration_id,
+            reason=reason,
+        )
+    except Exception:
+        logger.exception("Failed to render approval revoked email template")
+        return False
+    return send_email(to, f"Registration {registration_id} Update", html)
+
+
 def send_rejection_email(to: str, registration_id: str, reason: str | None = None) -> bool:
     """Send registration rejection notification."""
     try:

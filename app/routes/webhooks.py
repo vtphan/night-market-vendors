@@ -124,17 +124,19 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
 
     registration.amount_paid = payment_intent["amount"]
 
-    # Sanity check: verify amount matches expected booth price + fee
+    # Sanity check: verify amount matches expected booth price + fee.
+    # Use approved_price (locked at approval time) when available.
     booth_type = db.query(BoothType).filter(
         BoothType.id == registration.booth_type_id
     ).first()
     if booth_type:
-        expected = booth_type.price + (registration.processing_fee or 0)
+        price = registration.approved_price if registration.approved_price is not None else booth_type.price
+        expected = price + (registration.processing_fee or 0)
         if payment_intent["amount"] != expected:
             logger.warning(
                 "Amount mismatch for %s: Stripe charged %d but expected %d (booth %d + fee %d)",
                 registration.registration_id, payment_intent["amount"], expected,
-                booth_type.price, registration.processing_fee or 0,
+                price, registration.processing_fee or 0,
             )
 
     # No commit here — the caller (stripe_webhook) commits the entire
