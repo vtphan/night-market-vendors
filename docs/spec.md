@@ -12,7 +12,7 @@
 
 ## 1. Background
 
-Previous approaches (Google Forms, EventHub) lacked payment integration and status tracking or were overpriced for ~150 vendors. This is a purpose-built, single-event registration system handling signup, payment, and approval. Developed with AI-assisted coding tools and deployed on Railway.
+Previous approaches (Google Forms, EventHub) lacked payment integration and status tracking or were overpriced for ~150 vendors. This is a purpose-built, single-event registration system handling signup, payment, and approval. Developed with AI-assisted coding tools and deployed on a VPS.
 
 ---
 
@@ -264,7 +264,7 @@ Adding/removing admins: update `ADMIN_EMAILS` and restart. Removed emails are de
 ## 9. Non-Functional Requirements
 
 - **Mobile-friendly:** Vendor-facing flow must work on phones.
-- **Low cost:** SQLite database, single Railway service — a few dollars/month.
+- **Low cost:** SQLite database, single VPS — a few dollars/month.
 - **Simplicity:** As easy as a Google Form, but with payment integration and status tracking.
 - **Reliability:** Admin controls approvals based on dashboard inventory counts. No automated inventory enforcement needed.
 - **Data privacy:** Vendor data stored securely, access restricted to admins.
@@ -292,7 +292,7 @@ The agreement text is maintained in the app's configuration (requires redeploy t
 
 ## 11. Open Questions
 
-- [ ] Custom domain or Railway's default URL?
+- [ ] Custom domain configuration?
 
 **Resolved — to be set before launch:**
 

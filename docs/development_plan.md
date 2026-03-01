@@ -217,7 +217,7 @@ A phase is complete when:
 - Final responsive design pass
 - Accessibility basics: form labels, focus states, color contrast
 - Code pushed to GitHub
-- Railway configured (persistent volume, env vars)
+- VPS configured (reverse proxy, env vars, process manager)
 - Live Stripe keys and webhook endpoint
 - Resend with production sender domain
 - Admin accounts bootstrapped in production

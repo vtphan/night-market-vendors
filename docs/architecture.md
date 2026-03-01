@@ -16,7 +16,7 @@
 | **Database** | SQLite (WAL mode) + SQLAlchemy ORM |
 | **Payments** | Stripe (PaymentIntents API + Stripe.js) |
 | **Email** | Resend |
-| **Hosting** | Railway |
+| **Hosting** | VPS |
 | **Authentication** | Custom OTP + Google OAuth (optional) |
 
 Everything runs on one server: SQLite database file, FastAPI serves pages. Python is the developer's primary language. Server-rendered HTML keeps the frontend minimal — no React, no HTMX.
@@ -334,7 +334,7 @@ All emails sent via Resend's Python SDK. A single `send_email()` function render
 ### 7.4 Session Security
 
 - Signed cookies with `SECRET_KEY`, `HttpOnly`, `Secure`, `SameSite=Lax`.
-- HTTPS enforced (Railway provides TLS).
+- HTTPS enforced (TLS via reverse proxy).
 
 ---
 
@@ -367,7 +367,7 @@ Admin controls inventory by reviewing dashboard counts before approving registra
 
 ### 8.5 Logging
 
-- Structured stdout logging (Railway captures automatically).
+- Structured stdout logging.
 - Payment events always logged.
 - Status transitions logged with before/after values and actor.
 - Errors logged with timestamp, request context, stack trace (server-side only).
@@ -376,12 +376,11 @@ Admin controls inventory by reviewing dashboard counts before approving registra
 
 ## 9. Deployment
 
-### 9.1 Railway Setup
+### 9.1 VPS Setup
 
 1. Push code to GitHub (excluding `.env`, `data/app.db`)
-2. Connect repo to Railway
-3. Add persistent volume mounted at `/data`
-4. Set environment variables:
+2. Clone repo on VPS
+3. Set environment variables (`.env` file):
    - `STRIPE_PUBLISHABLE_KEY`
    - `STRIPE_SECRET_KEY`
    - `STRIPE_WEBHOOK_SECRET`
@@ -390,8 +389,9 @@ Admin controls inventory by reviewing dashboard counts before approving registra
    - `ADMIN_EMAILS` (comma-separated)
    - `APP_URL`
    - `SECRET_KEY` (for session signing)
-   - `DATABASE_URL` (path to SQLite file on persistent volume)
-5. Auto-deploys on push to main
+   - `DATABASE_URL` (path to SQLite file)
+4. Configure reverse proxy (e.g., Nginx/Caddy) for TLS
+5. Run with a process manager (e.g., systemd/supervisord)
 
 ### 9.2 Backup
 

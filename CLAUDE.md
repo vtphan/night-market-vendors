@@ -14,7 +14,7 @@ Single-event vendor registration app for the Asian Night Market (~150 vendors). 
 - **Database:** SQLite (WAL mode, local dev) / Supabase PostgreSQL (production) via SQLAlchemy ORM
 - **Payments:** Stripe (PaymentIntents API + Stripe.js / Elements)
 - **Email:** Resend
-- **Hosting:** Railway
+- **Hosting:** VPS
 
 ## Commands
 

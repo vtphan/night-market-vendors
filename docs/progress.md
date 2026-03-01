@@ -173,7 +173,7 @@ Five simplifications applied to reduce scope and cut cross-entity complexity. De
 2. **Removed document upload workflow.** Food vendors submit documents externally (email/Google Drive). Admin marks "documents approved" via a dashboard checkbox, transitioning Paid → Confirmed. Removed `documents` table; replaced with `documents_approved` boolean on registrations.
 3. **Category set once, admin-changeable only.** Category is set at registration. Vendor-initiated category switching and its cascading side effects removed.
 4. **Removed vendor self-service profile editing.** Vendors contact admin for profile changes.
-5. **Removed audit_log table.** Status transitions and admin actions logged to stdout (Railway captures automatically).
+5. **Removed audit_log table.** Status transitions and admin actions logged to stdout.
 
 ### 2026-02-20 — MVP review refinements (spec v12)
 
