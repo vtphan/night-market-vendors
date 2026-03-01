@@ -102,21 +102,6 @@ def require_admin(
     return session
 
 
-def update_session_data(response: Response, session_data: dict, key: str, value) -> dict:
-    """Update a key in the session dict, re-sign cookie, return updated data."""
-    session_data[key] = value
-    signed = _serializer.dumps(session_data)
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=signed,
-        httponly=True,
-        secure=not DEBUG,
-        samesite="lax",
-        path="/",
-    )
-    return session_data
-
-
 def require_vendor(request: Request) -> dict:
     """FastAPI dependency: requires vendor session. Redirects to login if missing."""
     session = read_session(request)

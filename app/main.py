@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Depends
@@ -11,7 +12,7 @@ from app.config import DEBUG
 from app.database import Base, engine, SessionLocal, get_db
 from app.seed import seed_event_data, bootstrap_admins
 from app.session import read_session, refresh_session
-from app.models import EventSettings, BoothType
+from app.models import EventSettings, BoothType, RegistrationDraft
 
 # Configure logging
 logging.basicConfig(
@@ -38,6 +39,13 @@ async def lifespan(app: FastAPI):
         app.state.event_name = settings.event_name if settings else "Vendor Registration"
     finally:
         db.close()
+
+    # Clean up abandoned drafts older than 24 hours
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    deleted = db.query(RegistrationDraft).filter(RegistrationDraft.updated_at < cutoff).delete()
+    db.commit()
+    if deleted:
+        logger.info("Cleaned up %d abandoned registration draft(s)", deleted)
 
     uploads_dir = Path(__file__).resolve().parent.parent / "uploads" / "insurance"
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -105,8 +113,8 @@ async def session_refresh_middleware(request: Request, call_next):
                                "An unexpected error occurred. Please try again later.")
 
     # Skip refresh if the route already set/deleted the session cookie
-    # (e.g. login, logout, registration steps that update the draft).
-    # Refreshing would overwrite the new cookie with stale data.
+    # (e.g. login, logout). Refreshing would overwrite the new cookie
+    # with stale data.
     already_set = any(
         b"session=" in header_value
         for header_name, header_value in response.raw_headers

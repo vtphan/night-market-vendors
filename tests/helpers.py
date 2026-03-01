@@ -1,10 +1,11 @@
 """Shared test helpers for session cookies, seeding, and registration creation."""
 
+import json
 import re
 import time
 from datetime import datetime, timezone
 
-from app.models import AdminUser, BoothType, EventSettings, InsuranceDocument, Registration
+from app.models import AdminUser, BoothType, EventSettings, InsuranceDocument, Registration, RegistrationDraft
 from app.session import _serializer
 
 
@@ -19,7 +20,7 @@ def admin_cookie(email="admin@test.com"):
     return {"session": _serializer.dumps(data)}
 
 
-def vendor_cookie(email="vendor@test.com", draft=None):
+def vendor_cookie(email="vendor@test.com"):
     """Create a signed vendor session cookie."""
     data = {
         "user_type": "vendor",
@@ -27,9 +28,20 @@ def vendor_cookie(email="vendor@test.com", draft=None):
         "created_at": time.time(),
         "last_activity": time.time(),
     }
-    if draft is not None:
-        data["registration_draft"] = draft
     return {"session": _serializer.dumps(data)}
+
+
+def seed_draft(db, email="vendor@test.com", draft=None):
+    """Seed a registration draft in the database."""
+    if draft is None:
+        return
+    existing = db.query(RegistrationDraft).filter(RegistrationDraft.email == email).first()
+    if existing:
+        existing.draft_json = json.dumps(draft)
+        existing.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(RegistrationDraft(email=email, draft_json=json.dumps(draft)))
+    db.commit()
 
 
 def extract_csrf(html: str) -> str:

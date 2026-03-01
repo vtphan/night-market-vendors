@@ -144,7 +144,7 @@ async def admin_dashboard(
     # Fill in missing days with 0
     daily_counts = []
     if daily_counts_raw:
-        day_map = {row[0]: row[1] for row in daily_counts_raw}
+        day_map = {str(row[0]): row[1] for row in daily_counts_raw}
         start_date = thirty_days_ago.date()
         end_date = datetime.now(timezone.utc).date()
         current = start_date

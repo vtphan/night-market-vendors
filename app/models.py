@@ -98,6 +98,19 @@ class InsuranceDocument(Base):
     uploaded_at = Column(DateTime, nullable=False, server_default=func.now())
 
 
+class RegistrationDraft(Base):
+    __tablename__ = "registration_drafts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    draft_json = Column(Text, nullable=False)
+    updated_at = Column(
+        DateTime, nullable=False,
+        server_default=func.now(),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
 class EventSettings(Base):
     __tablename__ = "event_settings"
 

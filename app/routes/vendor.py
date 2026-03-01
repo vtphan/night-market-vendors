@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -10,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.csrf import generate_csrf_token, require_csrf
-from app.session import read_session, update_session_data, require_vendor
-from app.models import Registration, BoothType, EventSettings, InsuranceDocument
+from app.session import read_session, require_vendor
+from app.models import Registration, BoothType, EventSettings, InsuranceDocument, RegistrationDraft
 from app.services.registration import (
     create_registration,
     check_submission_rate_limit,
@@ -43,12 +44,30 @@ def _template(request, name, ctx):
     return request.app.state.templates.TemplateResponse(name, ctx)
 
 
-def _get_draft(request):
-    """Get registration draft from session cookie."""
-    session = read_session(request)
-    if session:
-        return session.get("registration_draft") or {}
+def _get_draft(db: Session, email: str) -> dict:
+    """Get registration draft from database."""
+    row = db.query(RegistrationDraft).filter(RegistrationDraft.email == email).first()
+    if row:
+        return json.loads(row.draft_json)
     return {}
+
+
+def _upsert_draft(db: Session, email: str, draft: dict) -> None:
+    """Insert or update a registration draft in the database."""
+    row = db.query(RegistrationDraft).filter(RegistrationDraft.email == email).first()
+    if row:
+        row.draft_json = json.dumps(draft)
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        row = RegistrationDraft(email=email, draft_json=json.dumps(draft))
+        db.add(row)
+    db.commit()
+
+
+def _delete_draft(db: Session, email: str) -> None:
+    """Delete a registration draft from the database."""
+    db.query(RegistrationDraft).filter(RegistrationDraft.email == email).delete()
+    db.commit()
 
 
 # --- Registration gateway ---
@@ -76,12 +95,11 @@ async def register_gateway(request: Request, edit: str = "", new: str = "", db: 
 
     # If new=1, clear old draft and start fresh
     if new == "1":
-        response = RedirectResponse(url="/vendor/register", status_code=303)
-        update_session_data(response, session, "registration_draft", None)
-        return response
+        _delete_draft(db, email)
+        return RedirectResponse(url="/vendor/register", status_code=303)
 
     # Determine which step to show based on draft
-    draft = _get_draft(request)
+    draft = _get_draft(db, email)
     step = draft.get("current_step", 1)
 
     # If edit=1 query param, go back to step 1 form with draft data
@@ -223,9 +241,8 @@ async def register_step1(
         "agreement_accepted_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    response = RedirectResponse(url="/vendor/register", status_code=303)
-    update_session_data(response, session, "registration_draft", draft)
-    return response
+    _upsert_draft(db, email, draft)
+    return RedirectResponse(url="/vendor/register", status_code=303)
 
 
 # --- Final submit ---
@@ -241,7 +258,8 @@ async def register_submit(
     if not session:
         return RedirectResponse(url="/vendor/register", status_code=303)
 
-    draft = session.get("registration_draft", {})
+    email = session.get("email", "").lower().strip()
+    draft = _get_draft(db, email)
 
     # Validate all required fields are present
     required = ["email", "contact_name", "business_name", "phone", "category", "description", "booth_type_id"]
@@ -250,7 +268,7 @@ async def register_submit(
 
     # Rate limit check
     ip = request.client.host if request.client else "unknown"
-    if not check_submission_rate_limit(ip):
+    if not check_submission_rate_limit(db, ip):
         flash = [{"category": "error", "text": "Too many submissions. Please try again later."}]
         booth_type = db.query(BoothType).filter(BoothType.id == draft.get("booth_type_id")).first()
         return _template(request, "vendor/register_step2.html", {
@@ -296,13 +314,12 @@ async def register_submit(
             f"{APP_URL}/admin/registrations/{registration.registration_id}",
         )
 
-    # Clear draft from session
-    response = RedirectResponse(
+    # Clear draft from database
+    _delete_draft(db, email)
+    return RedirectResponse(
         url=f"/vendor/confirm/{registration.registration_id}",
         status_code=303,
     )
-    update_session_data(response, session, "registration_draft", None)
-    return response
 
 
 # --- Confirmation page ---
@@ -561,10 +578,9 @@ async def insurance_upload(
 
     # Check for existing document — replace it
     existing = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
+    old_stored_filename = None
     if existing:
-        old_path = uploads_dir / existing.stored_filename
-        if old_path.exists():
-            old_path.unlink()
+        old_stored_filename = existing.stored_filename
         existing.original_filename = file.filename or "unknown"
         existing.stored_filename = stored_filename
         existing.content_type = file.content_type
@@ -583,11 +599,23 @@ async def insurance_upload(
         )
         db.add(doc)
 
-    # Write file to disk
+    # Write new file to disk, then commit. If commit fails, clean up new file.
     with open(file_path, "wb") as f:
         f.write(contents)
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        # Remove the newly written file since the DB commit failed
+        if file_path.exists():
+            file_path.unlink()
+        raise
+
+    # Delete old file only after successful commit
+    if old_stored_filename:
+        old_path = uploads_dir / old_stored_filename
+        if old_path.exists():
+            old_path.unlink()
 
     # Admin notification for insurance upload
     settings = db.query(EventSettings).first()

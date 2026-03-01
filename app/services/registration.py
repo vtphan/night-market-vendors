@@ -1,6 +1,5 @@
 import logging
-import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, or_, and_
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -199,32 +198,25 @@ def create_registration(db: Session, data: dict) -> Registration:
 
 # --- Rate limiting ---
 
-_rate_limit_store: dict[str, list[float]] = {}
 RATE_LIMIT_MAX = 10
-RATE_LIMIT_WINDOW = 3600  # 1 hour
 LOW_INVENTORY_THRESHOLD = 3
 
 
-def check_submission_rate_limit(ip_address: str) -> bool:
-    """Check if IP is within rate limit. Returns True if allowed, False if blocked."""
-    now = time.time()
-    timestamps = _rate_limit_store.get(ip_address, [])
+def check_submission_rate_limit(db: Session, ip_address: str) -> bool:
+    """Check if IP is within rate limit by counting recent registrations.
 
-    # Remove expired entries
-    timestamps = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
-    _rate_limit_store[ip_address] = timestamps
-
-    if len(timestamps) >= RATE_LIMIT_MAX:
-        return False
-
-    timestamps.append(now)
-    _rate_limit_store[ip_address] = timestamps
-    return True
-
-
-def reset_rate_limits():
-    """Clear rate limit store. Used in tests."""
-    _rate_limit_store.clear()
+    Returns True if allowed, False if blocked.
+    """
+    one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+    count = (
+        db.query(func.count(Registration.id))
+        .filter(
+            Registration.agreement_ip_address == ip_address,
+            Registration.created_at >= one_hour_ago,
+        )
+        .scalar()
+    )
+    return count < RATE_LIMIT_MAX
 
 
 # --- Inventory ---

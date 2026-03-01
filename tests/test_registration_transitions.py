@@ -1,6 +1,5 @@
 """Tests for registration service: status transitions, ID generation, rate limiting, inventory."""
 
-import time
 from datetime import datetime, timezone
 
 import pytest
@@ -12,7 +11,6 @@ from app.services.registration import (
     generate_registration_id,
     create_registration,
     check_submission_rate_limit,
-    reset_rate_limits,
     get_inventory,
 )
 
@@ -227,25 +225,39 @@ def test_create_registration_generates_id(db):
 
 # --- Rate limiting ---
 
-def test_rate_limit_allows_10(db):
-    reset_rate_limits()
-    for i in range(10):
-        assert check_submission_rate_limit("192.168.1.1") is True
+def test_rate_limit_allows_under_max(db):
+    bt = _make_booth_type(db)
+    # Create 9 registrations from the same IP — should still be allowed
+    for i in range(9):
+        _make_registration(db, bt.id, email=f"v{i}@test.com",
+                           reg_id=f"ANM-2026-{9900+i:04d}")
+    # Update all to have the same IP
+    db.query(Registration).update({"agreement_ip_address": "192.168.1.1"})
+    db.commit()
+    assert check_submission_rate_limit(db, "192.168.1.1") is True
 
 
-def test_rate_limit_blocks_11th(db):
-    reset_rate_limits()
+def test_rate_limit_blocks_at_max(db):
+    bt = _make_booth_type(db)
+    # Create 10 registrations from the same IP
     for i in range(10):
-        check_submission_rate_limit("192.168.1.2")
-    assert check_submission_rate_limit("192.168.1.2") is False
+        _make_registration(db, bt.id, email=f"v{i}@test.com",
+                           reg_id=f"ANM-2026-{9900+i:04d}")
+    db.query(Registration).update({"agreement_ip_address": "192.168.1.2"})
+    db.commit()
+    assert check_submission_rate_limit(db, "192.168.1.2") is False
 
 
 def test_rate_limit_different_ips_independent(db):
-    reset_rate_limits()
+    bt = _make_booth_type(db)
+    # Create 10 registrations from one IP
     for i in range(10):
-        check_submission_rate_limit("10.0.0.1")
-    assert check_submission_rate_limit("10.0.0.1") is False
-    assert check_submission_rate_limit("10.0.0.2") is True
+        _make_registration(db, bt.id, email=f"v{i}@test.com",
+                           reg_id=f"ANM-2026-{9900+i:04d}")
+    db.query(Registration).update({"agreement_ip_address": "10.0.0.1"})
+    db.commit()
+    assert check_submission_rate_limit(db, "10.0.0.1") is False
+    assert check_submission_rate_limit(db, "10.0.0.2") is True
 
 
 # --- Inventory ---

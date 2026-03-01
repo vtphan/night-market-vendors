@@ -8,10 +8,10 @@ from httpx import AsyncClient, ASGITransport
 
 from app.main import app
 from app.models import Registration
-from app.services.registration import reset_rate_limits, check_submission_rate_limit
 from tests.helpers import (
     vendor_cookie, extract_csrf, seed_booth_types,
     seed_event_open, seed_event_future, seed_event_closed,
+    seed_draft, make_registration,
 )
 
 
@@ -137,7 +137,7 @@ async def test_register_allows_additional_registrations(db):
 
 @pytest.mark.anyio
 async def test_step1_valid_saves_draft_and_redirects(db):
-    """Valid step1 submission saves draft and redirects to review (step2)."""
+    """Valid step1 submission saves draft to DB and redirects to review (step2)."""
     seed_event_open(db)
     booths = seed_booth_types(db)
     cookies = vendor_cookie()
@@ -154,8 +154,11 @@ async def test_step1_valid_saves_draft_and_redirects(db):
         )
         assert response.status_code == 303
         assert "/vendor/register" in response.headers["location"]
-        # Session cookie should be updated with draft
-        assert "session" in response.cookies
+
+    # Draft should be saved in the database
+    from app.models import RegistrationDraft
+    draft_row = db.query(RegistrationDraft).filter(RegistrationDraft.email == "vendor@test.com").first()
+    assert draft_row is not None
 
 
 @pytest.mark.anyio
@@ -298,8 +301,13 @@ async def test_step1_email_forced_from_session(db):
             cookies=cookies,
         )
         assert response.status_code == 303
-        # The session cookie should contain the real email, not the fake one
-        assert "session" in response.cookies
+
+    # The draft should be keyed by the real session email, not the fake one
+    from app.models import RegistrationDraft
+    draft_row = db.query(RegistrationDraft).filter(RegistrationDraft.email == "real@vendor.com").first()
+    assert draft_row is not None
+    fake_row = db.query(RegistrationDraft).filter(RegistrationDraft.email == "fake@hacker.com").first()
+    assert fake_row is None
 
 
 # ========================================
@@ -308,11 +316,12 @@ async def test_step1_email_forced_from_session(db):
 
 @pytest.mark.anyio
 async def test_review_page_shows_draft_data(db):
-    """Step 2 review page shows the draft data from session."""
+    """Step 2 review page shows the draft data from DB."""
     seed_event_open(db)
     booths = seed_booth_types(db)
     draft = _make_complete_draft(booths[1].id)
-    cookies = vendor_cookie(draft=draft)
+    seed_draft(db, draft=draft)
+    cookies = vendor_cookie()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -329,7 +338,8 @@ async def test_edit_link_returns_to_step1(db):
     seed_event_open(db)
     booths = seed_booth_types(db)
     draft = _make_complete_draft(booths[1].id)
-    cookies = vendor_cookie(draft=draft)
+    seed_draft(db, draft=draft)
+    cookies = vendor_cookie()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -346,11 +356,11 @@ async def test_edit_link_returns_to_step1(db):
 
 @pytest.mark.anyio
 async def test_submit_creates_registration_and_redirects(db):
-    reset_rate_limits()
     seed_event_open(db)
     booths = seed_booth_types(db)
     draft = _make_complete_draft(booths[1].id)
-    cookies = vendor_cookie(draft=draft)
+    seed_draft(db, draft=draft)
+    cookies = vendor_cookie()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
@@ -378,7 +388,8 @@ async def test_submit_incomplete_draft_redirects(db):
     seed_event_open(db)
     # Draft missing required fields
     draft = {"current_step": 2, "email": "vendor@test.com"}
-    cookies = vendor_cookie(draft=draft)
+    seed_draft(db, draft=draft)
+    cookies = vendor_cookie()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
@@ -397,12 +408,16 @@ async def test_submit_rate_limited(db):
     seed_event_open(db)
     booths = seed_booth_types(db)
     draft = _make_complete_draft(booths[1].id)
-    cookies = vendor_cookie(draft=draft)
+    seed_draft(db, draft=draft)
+    cookies = vendor_cookie()
 
-    # Exhaust rate limit
-    reset_rate_limits()
-    for _ in range(10):
-        check_submission_rate_limit("127.0.0.1")
+    # Exhaust rate limit by creating 10 registrations from 127.0.0.1
+    for i in range(10):
+        make_registration(db, booths[1].id, reg_id=f"ANM-2026-{9900+i:04d}",
+                          email=f"other{i}@test.com")
+    # Update all to have the test IP
+    db.query(Registration).update({"agreement_ip_address": "127.0.0.1"})
+    db.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -414,8 +429,6 @@ async def test_submit_rate_limited(db):
         }, cookies=cookies)
         assert response.status_code == 200
         assert "too many" in response.text.lower()
-
-    reset_rate_limits()
 
 
 # ========================================
