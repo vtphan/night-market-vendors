@@ -80,6 +80,9 @@ def transition_status(
         )
 
     old_status = registration.status
+    # Track PI to cancel AFTER the DB commit succeeds
+    stale_pi_id = None
+
     registration.status = new_status
 
     if new_status == "approved":
@@ -87,32 +90,39 @@ def transition_status(
         registration.rejected_at = None
         registration.reversal_reason = None
     elif new_status == "rejected":
-        # If revoking approval, best-effort cancel any in-progress PaymentIntent.
         # Keep stripe_payment_intent_id so the webhook auto-refund path can
         # still find this registration if the PI already succeeded.
         if old_status == "approved" and registration.stripe_payment_intent_id:
-            _cancel_stale_payment_intent(registration.stripe_payment_intent_id)
+            stale_pi_id = registration.stripe_payment_intent_id
         registration.rejected_at = datetime.now(timezone.utc)
         registration.approved_at = None
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "pending":
         # Returning from approved/rejected — store the revoke reason
-        # Best-effort cancel; keep the ID for webhook auto-refund safety net.
         if old_status == "approved" and registration.stripe_payment_intent_id:
-            _cancel_stale_payment_intent(registration.stripe_payment_intent_id)
+            stale_pi_id = registration.stripe_payment_intent_id
         registration.rejected_at = None
         registration.approved_at = None
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "cancelled":
-        # Retain approved_at for audit trail; only store cancellation reason
+        # Retain approved_at for audit trail; record when cancelled
+        registration.cancelled_at = datetime.now(timezone.utc)
         if reversal_reason:
             registration.reversal_reason = reversal_reason
 
     if _commit:
         db.commit()
         db.refresh(registration)
+        # Cancel stale PI only after DB commit succeeds
+        if stale_pi_id:
+            _cancel_stale_payment_intent(stale_pi_id)
+    else:
+        # Caller is responsible for committing and cancelling the stale PI.
+        # Store it on the registration object for the caller to handle.
+        registration._stale_pi_to_cancel = stale_pi_id
+
     logger.info(
         "Registration %s transitioned to %s",
         registration.registration_id,

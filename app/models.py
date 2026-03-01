@@ -38,6 +38,7 @@ class Registration(Base):
     refund_amount = Column(Integer, nullable=False, default=0)
     approved_at = Column(DateTime, nullable=True)
     rejected_at = Column(DateTime, nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)
     reversal_reason = Column(String, nullable=True)
     agreement_accepted_at = Column(DateTime, nullable=False)
     agreement_ip_address = Column(String, nullable=False)

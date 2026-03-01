@@ -26,8 +26,10 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 COOKIE_NAME = "session"
-VENDOR_TIMEOUT = 24 * 60 * 60  # 24 hours
-ADMIN_TIMEOUT = 8 * 60 * 60    # 8 hours
+VENDOR_TIMEOUT = 24 * 60 * 60          # 24 hours absolute
+ADMIN_TIMEOUT = 8 * 60 * 60            # 8 hours absolute
+VENDOR_INACTIVITY = 4 * 60 * 60        # 4 hours inactivity
+ADMIN_INACTIVITY = 1 * 60 * 60         # 1 hour inactivity
 
 _serializer = URLSafeTimedSerializer(SECRET_KEY, salt="session-cookie")
 
@@ -64,14 +66,16 @@ def read_session(request: Request) -> Optional[dict]:
     except BadSignature:
         return None
 
-    # Check role-specific max age
-    timeout = ADMIN_TIMEOUT if data.get("user_type") == "admin" else VENDOR_TIMEOUT
+    # Check absolute session lifetime
+    is_admin = data.get("user_type") == "admin"
+    abs_timeout = ADMIN_TIMEOUT if is_admin else VENDOR_TIMEOUT
     created_at = data.get("created_at", 0)
-    if time.time() - created_at > timeout:
+    if time.time() - created_at > abs_timeout:
         return None
 
     # Check inactivity timeout
-    if time.time() - data.get("last_activity", 0) > timeout:
+    inactivity_timeout = ADMIN_INACTIVITY if is_admin else VENDOR_INACTIVITY
+    if time.time() - data.get("last_activity", 0) > inactivity_timeout:
         return None
 
     return data

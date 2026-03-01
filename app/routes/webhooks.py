@@ -82,26 +82,36 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
             registration.status,
             pi_id,
         )
-        # Record the payment amount so financial records stay consistent
-        # even though the registration was not in the right state.
+        # Do NOT set amount_paid — the registration never legitimately reached
+        # "paid" status, so amount_paid should stay null to avoid confusing
+        # revenue reports and CSV exports.  The refund_amount records the outflow.
         amount = payment_intent["amount"]
-        registration.amount_paid = amount
         try:
             stripe.Refund.create(payment_intent=pi_id)
             registration.refund_amount = (registration.refund_amount or 0) + amount
             logger.info("Auto-refunded PaymentIntent %s (registration %s was %s)",
                         pi_id, registration.registration_id, registration.status)
-        except stripe.StripeError:
-            logger.exception("Failed to auto-refund PaymentIntent %s — requires manual reconciliation", pi_id)
-            # Alert admins so they can manually reconcile in Stripe Dashboard
-            background_tasks.add_task(
-                send_admin_alert_email,
-                f"URGENT: Failed to auto-refund PaymentIntent {pi_id}",
-                f"Registration {registration.registration_id} was {registration.status} when payment "
-                f"succeeded, but the automatic refund failed. Manual reconciliation is required "
-                f"in the Stripe Dashboard.\n\nPaymentIntent: {pi_id}\n"
-                f"Amount: ${amount / 100:.2f}",
-            )
+        except stripe.StripeError as e:
+            # Could be a genuine failure OR a retry after a previous successful
+            # refund (DB commit failed, Stripe retried the webhook).  Check if
+            # the charge was already refunded before alerting.
+            already_refunded = "already been refunded" in str(e).lower()
+            if already_refunded:
+                registration.refund_amount = (registration.refund_amount or 0) + amount
+                logger.info(
+                    "PaymentIntent %s already refunded (likely webhook retry) — recording refund",
+                    pi_id,
+                )
+            else:
+                logger.exception("Failed to auto-refund PaymentIntent %s — requires manual reconciliation", pi_id)
+                background_tasks.add_task(
+                    send_admin_alert_email,
+                    f"URGENT: Failed to auto-refund PaymentIntent {pi_id}",
+                    f"Registration {registration.registration_id} was {registration.status} when payment "
+                    f"succeeded, but the automatic refund failed. Manual reconciliation is required "
+                    f"in the Stripe Dashboard.\n\nPaymentIntent: {pi_id}\n"
+                    f"Amount: ${amount / 100:.2f}",
+                )
         return
 
     try:
@@ -127,10 +137,6 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
 
     # No commit here — the caller (stripe_webhook) commits the entire
     # transaction including the StripeEvent record.
-
-    booth_type = db.query(BoothType).filter(
-        BoothType.id == registration.booth_type_id
-    ).first()
 
     background_tasks.add_task(
         send_payment_confirmation_email,
@@ -162,7 +168,7 @@ def _handle_charge_refunded(db: Session, charge: dict):
 
     registration = db.query(Registration).filter(
         Registration.stripe_payment_intent_id == pi_id
-    ).first()
+    ).with_for_update().first()
 
     if not registration:
         logger.warning("No registration found for refund charge PI %s", pi_id)

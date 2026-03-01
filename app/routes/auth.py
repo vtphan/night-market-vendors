@@ -106,7 +106,10 @@ async def login_submit(
     _otp_ip_counts.setdefault(ip_key, [])
     cutoff = time.time() - 3600
     _otp_ip_counts[ip_key] = [t for t in _otp_ip_counts[ip_key] if t > cutoff]
-    if len(_otp_ip_counts[ip_key]) >= 20:
+    # Prune empty keys to prevent unbounded memory growth
+    if not _otp_ip_counts[ip_key]:
+        del _otp_ip_counts[ip_key]
+    if len(_otp_ip_counts.get(ip_key, [])) >= 20:
         flash_messages.append({"category": "error", "text": "Too many attempts from this network. Please wait before trying again."})
         return request.app.state.templates.TemplateResponse(
             "auth/login.html",
@@ -120,7 +123,7 @@ async def login_submit(
             },
             status_code=429,
         )
-    _otp_ip_counts[ip_key].append(time.time())
+    _otp_ip_counts.setdefault(ip_key, []).append(time.time())
 
     # Block non-admin emails early — don't waste an OTP
     if role == "admin":

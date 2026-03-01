@@ -20,10 +20,11 @@ from app.services.registration import (
     approve_with_inventory_check,
     get_inventory,
     get_booth_availability,
+    _cancel_stale_payment_intent,
     LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
-from app.services.email import send_approval_email, send_rejection_email, send_refund_email
+from app.services.email import send_approval_email, send_rejection_email, send_refund_email, send_admin_alert_email
 from app.services.payment import create_refund
 from app.config import APP_URL, ADMIN_EMAILS
 
@@ -505,9 +506,11 @@ async def cancel_registration(
         db.rollback()
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
+    stripe_refund_succeeded = False
     if amount_cents > 0 and registration.stripe_payment_intent_id:
         try:
             create_refund(db, registration, amount_cents)
+            stripe_refund_succeeded = True
         except Exception:
             logger.exception("Stripe refund failed for %s", reg_id)
             db.rollback()
@@ -516,7 +519,35 @@ async def cancel_registration(
             ctx["get_flashed_messages"] = lambda: flash
             return _template(request, "admin/registration_detail.html", ctx, session=session)
 
-    db.commit()
+    # Grab stale PI ID before commit (set by transition_status when _commit=False)
+    stale_pi_id = getattr(registration, "_stale_pi_to_cancel", None)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        if stripe_refund_succeeded:
+            logger.critical(
+                "DB commit failed AFTER Stripe refund succeeded for %s "
+                "(refund of %d cents). Manual reconciliation required in Stripe Dashboard.",
+                reg_id, amount_cents,
+            )
+            background_tasks.add_task(
+                send_admin_alert_email,
+                f"URGENT: DB commit failed after Stripe refund — {reg_id}",
+                f"A Stripe refund of ${amount_cents / 100:.2f} was processed for "
+                f"registration {reg_id}, but the database commit failed. "
+                f"The registration may still show as 'paid' in the app.\n\n"
+                f"Manual reconciliation is required in the Stripe Dashboard.",
+            )
+        flash = [{"category": "error", "text": "Failed to save changes. Please check Stripe Dashboard for refund status."}]
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+    # Best-effort cancel stale PI after DB commit succeeds
+    if stale_pi_id:
+        _cancel_stale_payment_intent(stale_pi_id)
 
     background_tasks.add_task(
         send_refund_email, registration.email, reg_id, amount_cents,
@@ -810,6 +841,12 @@ async def export_csv(
     booth_types = {bt.id: bt.name for bt in db.query(BoothType).all()}
     insurance_docs = {doc.email: doc for doc in db.query(InsuranceDocument).all()}
 
+    def _sanitize_csv(value: str) -> str:
+        """Prevent CSV formula injection by prefixing dangerous characters."""
+        if value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
+            return "'" + value
+        return value
+
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -818,7 +855,7 @@ async def export_csv(
         "Booth Type", "Electrical Equipment", "Electrical Other",
         "Insurance", "Amount Paid", "Processing Fee", "Refund Amount",
         "Stripe Payment Intent ID", "Created At", "Approved At",
-        "Rejected At", "Reversal Reason", "Admin Notes",
+        "Rejected At", "Cancelled At", "Reversal Reason", "Admin Notes",
     ])
 
     for reg in registrations:
@@ -833,15 +870,15 @@ async def export_csv(
         writer.writerow([
             reg.registration_id,
             reg.status,
-            reg.business_name,
-            reg.contact_name,
+            _sanitize_csv(reg.business_name),
+            _sanitize_csv(reg.contact_name),
             reg.email,
             reg.phone,
             CATEGORIES.get(reg.category, reg.category),
-            reg.description,
+            _sanitize_csv(reg.description),
             booth_types.get(reg.booth_type_id, "Unknown"),
-            reg.electrical_equipment or "",
-            reg.electrical_other or "",
+            _sanitize_csv(reg.electrical_equipment or ""),
+            _sanitize_csv(reg.electrical_other or ""),
             insurance_status,
             f"${reg.amount_paid / 100:.2f}" if reg.amount_paid else "",
             f"${reg.processing_fee / 100:.2f}" if reg.processing_fee else "",
@@ -850,8 +887,9 @@ async def export_csv(
             reg.created_at.strftime("%Y-%m-%d %H:%M") if reg.created_at else "",
             reg.approved_at.strftime("%Y-%m-%d %H:%M") if reg.approved_at else "",
             reg.rejected_at.strftime("%Y-%m-%d %H:%M") if reg.rejected_at else "",
-            reg.reversal_reason or "",
-            reg.admin_notes or "",
+            reg.cancelled_at.strftime("%Y-%m-%d %H:%M") if reg.cancelled_at else "",
+            _sanitize_csv(reg.reversal_reason or ""),
+            _sanitize_csv(reg.admin_notes or ""),
         ])
 
     output.seek(0)

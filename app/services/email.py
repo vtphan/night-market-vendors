@@ -1,3 +1,4 @@
+import html
 import logging
 from pathlib import Path
 
@@ -161,6 +162,7 @@ def send_admin_alert_email(subject: str, body_text: str) -> None:
     """Send an urgent alert email to all admins (plain text, no template)."""
     if not ADMIN_EMAILS:
         return
-    html = f"<pre>{body_text}</pre>"
+    escaped = html.escape(body_text)
+    html_body = f"<pre>{escaped}</pre>"
     for admin_email in ADMIN_EMAILS:
-        send_email(admin_email, subject, html)
+        send_email(admin_email, subject, html_body)
