@@ -135,6 +135,7 @@ class EventSettings(Base):
     front_page_content = Column(Text, nullable=False, default="")
     banner_text = Column(Text, nullable=False, default="")
     contact_email = Column(String, nullable=False, default="")
+    developer_contact = Column(String, nullable=False, default="")
     payment_instructions = Column(Text, nullable=False, default="")
     insurance_instructions = Column(Text, nullable=False, default="")
     processing_fee_percent = Column(Float, default=2.9)

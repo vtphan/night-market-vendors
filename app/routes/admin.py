@@ -800,6 +800,7 @@ async def update_settings(
     registration_close_date: str = Form(...),
     banner_text: str = Form(""),
     contact_email: str = Form(""),
+    developer_contact: str = Form(""),
     front_page_content: str = Form(""),
     payment_instructions: str = Form(""),
     insurance_instructions: str = Form(""),
@@ -825,6 +826,7 @@ async def update_settings(
             settings.registration_close_date = datetime.fromisoformat(registration_close_date)
             settings.banner_text = banner_text.strip()
             settings.contact_email = contact_email.strip()
+            settings.developer_contact = developer_contact.strip()
             settings.front_page_content = front_page_content.strip()
             settings.payment_instructions = payment_instructions.strip()
             settings.insurance_instructions = insurance_instructions.strip()

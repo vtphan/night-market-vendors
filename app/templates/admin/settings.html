@@ -36,6 +36,11 @@
                    value="{{ settings.contact_email or '' }}"
                    placeholder="Shown at the bottom of vendor-facing pages">
 
+            <label for="developer_contact">Developer Contact</label>
+            <input type="email" id="developer_contact" name="developer_contact"
+                   value="{{ settings.developer_contact or '' }}"
+                   placeholder="Developer/technical contact email">
+
             <div class="grid">
                 <div>
                     <label for="registration_open_date">Registration Opens</label>

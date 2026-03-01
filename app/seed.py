@@ -41,6 +41,7 @@ def seed_event_data(db: Session) -> None:
             front_page_content=evt.get("front_page_content", "Welcome! Check back for updates about vendor registration."),
             banner_text=evt.get("banner_text", ""),
             contact_email=evt.get("contact_email", ""),
+            developer_contact=evt.get("developer_contact", ""),
             payment_instructions=evt.get("payment_instructions", ""),
             insurance_instructions=evt.get("insurance_instructions", ""),
             processing_fee_percent=evt.get("processing_fee_percent", 2.9),
