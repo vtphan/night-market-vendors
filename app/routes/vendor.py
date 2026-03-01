@@ -455,6 +455,13 @@ async def create_payment(
     try:
         client_secret = create_payment_intent(db, registration, booth_type, processing_fee_cents)
         db.commit()
+    except ValueError as e:
+        db.rollback()
+        logger.info("Payment blocked for %s: %s", registration_id, e)
+        return JSONResponse(
+            status_code=409,
+            content={"error": str(e)},
+        )
     except Exception:
         db.rollback()
         logger.exception("Stripe PaymentIntent creation failed for %s", registration_id)

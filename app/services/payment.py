@@ -78,7 +78,16 @@ def create_payment_intent(
                     existing.id, existing.amount, total_amount,
                 )
                 stripe.PaymentIntent.cancel(existing.id)
+            elif existing.status == "succeeded":
+                raise ValueError(
+                    "Payment has already been completed. Please refresh the page."
+                )
+            elif existing.status == "processing":
+                raise ValueError(
+                    "Payment is being processed. Please wait a moment and refresh the page."
+                )
             else:
+                # canceled or other terminal state — safe to create a new PI
                 logger.info(
                     "Existing PaymentIntent %s is %s — creating new one",
                     existing.id,
