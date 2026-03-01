@@ -374,7 +374,12 @@
     <div class="compact-cards">
         <!-- Registration counts -->
         <article>
-            <header><strong>All Registrations</strong></header>
+            <header>
+                <div class="section-header">
+                    <strong>All Registrations</strong>
+                    <a href="/admin/export">Export CSV &darr;</a>
+                </div>
+            </header>
             <table class="status-table">
                 <tr>
                     <td><a href="/admin/registrations?status=pending">Pending</a></td>
@@ -401,9 +406,6 @@
                     <td><span class="badge badge-total">{{ counts.total }}</span></td>
                 </tr>
             </table>
-            <footer>
-                <a href="/admin/export" role="button" class="secondary outline" style="width:100%;">Export CSV</a>
-            </footer>
         </article>
 
         <!-- Insurance -->
