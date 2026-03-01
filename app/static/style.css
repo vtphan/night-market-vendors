@@ -173,6 +173,12 @@ tr[data-href]:hover td {
     font-size: 0.95rem;
 }
 
+.faq-sections > article > details > details[open] {
+    background-color: rgba(0, 102, 204, 0.06);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+}
+
 /* Banner */
 .site-banner {
     background-color: #e8f4fd;

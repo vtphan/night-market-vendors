@@ -8,13 +8,13 @@ Go to the login page and enter your email. You'll receive a one-time passcode (O
 
 ### What do the registration statuses mean?
 
-| Status | Meaning | What to know |
+| Status | Meaning | Admin Action |
 |--------|---------|--------------|
-| **Pending** | Vendor submitted a registration. Waiting for admin review. | Does not reserve a booth slot. No action needed from vendor. |
-| **Approved** | Admin approved the registration. Vendor can now pay. | Immediately reserves a booth slot — even before the vendor pays. No auto-expiration. Monitor unpaid approvals. |
-| **Rejected** | Admin rejected the registration. | No booth slot held. Can be reverted to Pending for re-review. |
-| **Paid** | Vendor completed payment. Booth is confirmed. | Can only move to Cancelled (with optional refund). Cannot be reverted to Approved or Pending. |
-| **Cancelled** | Admin cancelled a paid registration. | Booth slot freed. Refund issued through Stripe (if any). This is a terminal state. |
+| **Pending** | Vendor submitted a registration. Waiting for admin review. | Review and approve or reject promptly — especially as the event deadline approaches. Does not reserve a booth slot. |
+| **Approved** | Admin approved the registration. Vendor can now pay. | Booth slot reserved immediately. Follow up with vendor if payment is not received — there is no auto-expiration. |
+| **Rejected** | Admin rejected the registration. | No action needed. Can revert to Pending for re-review if circumstances change. |
+| **Paid** | Vendor completed payment. Booth is confirmed. | Booth confirmed. No action needed unless cancellation is required (triggers refund). |
+| **Cancelled** | Admin cancelled a paid registration. | Terminal state. Verify refund in Stripe Dashboard if needed. Booth slot has been freed. |
 
 ### How does the approval workflow work?
 

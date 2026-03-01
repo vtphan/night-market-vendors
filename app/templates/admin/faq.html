@@ -19,14 +19,14 @@
         <summary>What do the registration statuses mean?</summary>
         <table>
             <thead>
-                <tr><th>Status</th><th>Meaning</th><th>What to know</th></tr>
+                <tr><th>Status</th><th>Meaning</th><th>Admin Action</th></tr>
             </thead>
             <tbody>
-                <tr><td><strong>Pending</strong></td><td>Vendor submitted a registration. Waiting for admin review.</td><td>Does not reserve a booth slot. No action needed from vendor.</td></tr>
-                <tr><td><strong>Approved</strong></td><td>Admin approved the registration. Vendor can now pay.</td><td>Immediately reserves a booth slot — even before the vendor pays. No auto-expiration. Monitor unpaid approvals.</td></tr>
-                <tr><td><strong>Rejected</strong></td><td>Admin rejected the registration.</td><td>No booth slot held. Can be reverted to Pending for re-review.</td></tr>
-                <tr><td><strong>Paid</strong></td><td>Vendor completed payment. Booth is confirmed.</td><td>Can only move to Cancelled (with optional refund). Cannot be reverted to Approved or Pending.</td></tr>
-                <tr><td><strong>Cancelled</strong></td><td>Admin cancelled a paid registration.</td><td>Booth slot freed. Refund issued through Stripe (if any). This is a terminal state.</td></tr>
+                <tr><td><strong>Pending</strong></td><td>Vendor submitted a registration. Waiting for admin review.</td><td>Review and approve or reject promptly — especially as the event deadline approaches. Does not reserve a booth slot.</td></tr>
+                <tr><td><strong>Approved</strong></td><td>Admin approved the registration. Vendor can now pay.</td><td>Booth slot reserved immediately. Follow up with vendor if payment is not received — there is no auto-expiration.</td></tr>
+                <tr><td><strong>Rejected</strong></td><td>Admin rejected the registration.</td><td>No action needed. Can revert to Pending for re-review if circumstances change.</td></tr>
+                <tr><td><strong>Paid</strong></td><td>Vendor completed payment. Booth is confirmed.</td><td>Booth confirmed. No action needed unless cancellation is required (triggers refund).</td></tr>
+                <tr><td><strong>Cancelled</strong></td><td>Admin cancelled a paid registration.</td><td>Terminal state. Verify refund in Stripe Dashboard if needed. Booth slot has been freed.</td></tr>
             </tbody>
         </table>
     </details>
