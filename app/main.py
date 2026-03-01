@@ -1,4 +1,5 @@
 import logging
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -7,6 +8,7 @@ from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 
 from app.config import DEBUG
 from app.database import Base, engine, SessionLocal, get_db
@@ -86,6 +88,30 @@ def format_datetime(dt) -> str:
 
 from app.services.registration import CATEGORIES, ELECTRICAL_EQUIPMENT_OPTIONS, EQUIP_LABELS
 
+# Allowlisted HTML tags and attributes for admin-supplied content.
+# Strips <script>, <iframe>, event handlers, etc. while allowing formatting.
+_SAFE_TAGS = re.compile(
+    r"<(?!/?(?:p|br|b|strong|i|em|u|a|ul|ol|li|h[1-6]|hr|small|span|div|article|header|table|thead|tbody|tr|th|td)\b)[^>]*>",
+    re.IGNORECASE,
+)
+_SAFE_ATTRS = re.compile(r"""\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)""", re.IGNORECASE)
+_DANGEROUS_ATTRS = re.compile(
+    r"""\s+(?:style|srcdoc|formaction)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)""",
+    re.IGNORECASE,
+)
+_JS_HREF = re.compile(r"""(href\s*=\s*(?:"|'))javascript:""", re.IGNORECASE)
+
+
+def sanitize_html(value: str) -> Markup:
+    """Strip dangerous HTML tags/attributes, keep safe formatting tags."""
+    if not value:
+        return Markup("")
+    result = _SAFE_TAGS.sub("", value)
+    result = _SAFE_ATTRS.sub("", result)
+    result = _DANGEROUS_ATTRS.sub("", result)
+    result = _JS_HREF.sub(r"\1#", result)
+    return Markup(result)
+
 def get_event_name():
     return getattr(app.state, "event_name", "Vendor Registration")
 
@@ -98,6 +124,7 @@ def vendor_status(status: str) -> str:
     return VENDOR_STATUS_LABELS.get(status, status.title() if status else "")
 
 app.state.templates.env.filters["vendor_status"] = vendor_status
+app.state.templates.env.filters["sanitize_html"] = sanitize_html
 app.state.templates.env.globals["get_event_name"] = get_event_name
 app.state.templates.env.globals["format_price"] = format_price
 app.state.templates.env.globals["format_datetime"] = format_datetime
@@ -117,6 +144,13 @@ async def session_refresh_middleware(request: Request, call_next):
         logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
         return _error_response(request, 500, "Something Went Wrong",
                                "An unexpected error occurred. Please try again later.")
+
+    # Security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if not DEBUG:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
 
     # Skip refresh if the route already set/deleted the session cookie
     # (e.g. login, logout). Refreshing would overwrite the new cookie

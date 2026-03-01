@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.csrf import generate_csrf_token, require_csrf
-from app.session import read_session, require_vendor
+from app.session import read_session, require_vendor, get_client_ip
 from app.models import Registration, BoothType, EventSettings, InsuranceDocument, RegistrationDraft
 from app.services.registration import (
     create_registration,
@@ -242,7 +242,7 @@ async def register_step1(
         "booth_type_id": booth_type.id,
         "booth_type_name": booth_type.name,
         "booth_type_price": booth_type.price,
-        "agreement_ip": request.client.host if request.client else "unknown",
+        "agreement_ip": get_client_ip(request),
         "agreement_accepted_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -277,7 +277,7 @@ async def register_submit(
         return RedirectResponse(url="/vendor/register", status_code=303)
 
     # Rate limit check
-    ip = request.client.host if request.client else "unknown"
+    ip = get_client_ip(request)
     if not check_submission_rate_limit(db, ip):
         flash = [{"category": "error", "text": "Too many submissions. Please try again later."}]
         booth_type = db.query(BoothType).filter(BoothType.id == draft.get("booth_type_id")).first()

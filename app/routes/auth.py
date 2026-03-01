@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import secrets
+import time
 from functools import partial
 from urllib.parse import urlencode
 
@@ -17,8 +18,8 @@ from app.config import (
 )
 from app.database import get_db
 from app.csrf import generate_csrf_token, require_csrf
-from app.session import create_session, clear_session, read_session
-from app.services.otp import create_otp, validate_otp
+from app.session import create_session, clear_session, read_session, get_client_ip
+from app.services.otp import create_otp, validate_otp, is_valid_email
 from app.services.email import send_otp_email
 from app.models import AdminUser, EventSettings
 
@@ -31,6 +32,9 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# In-memory per-IP rate limiting for OTP requests (list of timestamps per IP)
+_otp_ip_counts: dict[str, list[float]] = {}
 
 
 def _is_registration_open(db: Session) -> bool:
@@ -79,6 +83,44 @@ async def login_submit(
     role = role if role == "admin" else "vendor"
     registration_open = _is_registration_open(db)
     flash_messages = []
+
+    # Validate email format server-side
+    if not is_valid_email(email):
+        flash_messages.append({"category": "error", "text": "Please enter a valid email address."})
+        return request.app.state.templates.TemplateResponse(
+            "auth/login.html",
+            {
+                "request": request,
+                "csrf_token": generate_csrf_token(),
+                "session": None,
+                "role": role,
+                "registration_open": registration_open,
+                "get_flashed_messages": lambda: flash_messages,
+            },
+            status_code=400,
+        )
+
+    # Per-IP rate limit: max 20 OTP requests per hour from any single IP
+    client_ip = get_client_ip(request)
+    ip_key = f"otp_ip:{client_ip}"
+    _otp_ip_counts.setdefault(ip_key, [])
+    cutoff = time.time() - 3600
+    _otp_ip_counts[ip_key] = [t for t in _otp_ip_counts[ip_key] if t > cutoff]
+    if len(_otp_ip_counts[ip_key]) >= 20:
+        flash_messages.append({"category": "error", "text": "Too many attempts from this network. Please wait before trying again."})
+        return request.app.state.templates.TemplateResponse(
+            "auth/login.html",
+            {
+                "request": request,
+                "csrf_token": generate_csrf_token(),
+                "session": None,
+                "role": role,
+                "registration_open": registration_open,
+                "get_flashed_messages": lambda: flash_messages,
+            },
+            status_code=429,
+        )
+    _otp_ip_counts[ip_key].append(time.time())
 
     # Block non-admin emails early — don't waste an OTP
     if role == "admin":

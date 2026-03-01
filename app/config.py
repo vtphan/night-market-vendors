@@ -26,6 +26,8 @@ if not SECRET_KEY and not DEBUG:
     raise RuntimeError("SECRET_KEY environment variable is required in production")
 if not SECRET_KEY:
     SECRET_KEY = "dev-only-insecure-key"
+elif not DEBUG and len(SECRET_KEY) < 32:
+    raise RuntimeError("SECRET_KEY must be at least 32 characters in production")
 
 if not DEBUG:
     if not STRIPE_SECRET_KEY:

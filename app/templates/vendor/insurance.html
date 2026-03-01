@@ -9,7 +9,7 @@
 
 {% if settings and settings.insurance_instructions %}
 <article>
-    {{ settings.insurance_instructions | safe }}
+    {{ settings.insurance_instructions | sanitize_html }}
 </article>
 {% endif %}
 

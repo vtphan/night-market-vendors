@@ -257,12 +257,14 @@ async def registration_list(
     if notes == "yes":
         query = query.filter(sa_func.length(sa_func.trim(Registration.admin_notes)) > 0)
     if search:
-        term = f"%{search}%"
+        # Escape SQL LIKE wildcards in user input to prevent unintended matching
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        term = f"%{escaped}%"
         query = query.filter(
-            (Registration.business_name.ilike(term))
-            | (Registration.contact_name.ilike(term))
-            | (Registration.email.ilike(term))
-            | (Registration.registration_id.ilike(term))
+            (Registration.business_name.ilike(term, escape="\\"))
+            | (Registration.contact_name.ilike(term, escape="\\"))
+            | (Registration.email.ilike(term, escape="\\"))
+            | (Registration.registration_id.ilike(term, escape="\\"))
         )
 
     registrations = query.order_by(Registration.created_at.desc()).all()
@@ -330,6 +332,7 @@ async def approve_registration(
     registration = (
         db.query(Registration)
         .filter(Registration.registration_id == reg_id)
+        .with_for_update()
         .first()
     )
     if not registration:
@@ -538,6 +541,7 @@ async def update_registration(
     registration = (
         db.query(Registration)
         .filter(Registration.registration_id == reg_id)
+        .with_for_update()
         .first()
     )
     if not registration:
@@ -773,7 +777,8 @@ async def update_settings(
             except (ValueError, TypeError):
                 settings.processing_fee_percent = 0
             try:
-                settings.processing_fee_flat_cents = int(processing_fee_flat_cents)
+                flat_cents = int(processing_fee_flat_cents)
+                settings.processing_fee_flat_cents = max(0, min(flat_cents, 10000))  # cap at $100
             except (ValueError, TypeError):
                 settings.processing_fee_flat_cents = 0
             settings.refund_policy = refund_policy.strip()

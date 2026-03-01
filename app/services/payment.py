@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 
 import stripe
 from sqlalchemy.orm import Session
@@ -10,18 +11,25 @@ logger = logging.getLogger(__name__)
 
 stripe.api_key = STRIPE_SECRET_KEY
 
+STRIPE_MINIMUM_AMOUNT_CENTS = 50  # Stripe USD minimum ($0.50)
+
 
 def calculate_processing_fee(price_cents: int, fee_percent: float, fee_flat_cents: int) -> int:
     """Returns processing fee in cents using pass-through formula.
 
+    Uses Decimal arithmetic to avoid floating-point precision issues.
     Accounts for Stripe charging its fee on the total (including the fee
     itself), so the organizer nets exactly the booth price after Stripe's cut.
     Formula: (rate * price + flat) / (1 - rate)
     """
-    rate = fee_percent / 100
+    rate = Decimal(str(fee_percent)) / 100
     if rate >= 1:
+        logger.warning("Processing fee rate >= 100%% (%s), returning flat fee only", fee_percent)
         return fee_flat_cents
-    return round((price_cents * rate + fee_flat_cents) / (1 - rate))
+    price = Decimal(price_cents)
+    flat = Decimal(fee_flat_cents)
+    result = (price * rate + flat) / (1 - rate)
+    return int(result.to_integral_value())
 
 
 _REUSABLE_PI_STATES = {"requires_payment_method", "requires_confirmation", "requires_action"}
@@ -42,6 +50,11 @@ def create_payment_intent(
     Returns the client_secret for Stripe.js.
     """
     total_amount = booth_type.price + processing_fee_cents
+
+    if total_amount < STRIPE_MINIMUM_AMOUNT_CENTS:
+        raise ValueError(
+            f"Total amount ${total_amount / 100:.2f} is below Stripe's minimum of $0.50"
+        )
 
     # Try to reuse an existing PaymentIntent
     if registration.stripe_payment_intent_id:

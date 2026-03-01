@@ -10,6 +10,15 @@ from app.config import SECRET_KEY, DEBUG
 from app.database import get_db
 from app.models import AdminUser
 
+
+def get_client_ip(request: Request) -> str:
+    """Extract real client IP, respecting X-Forwarded-For behind a reverse proxy."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        # X-Forwarded-For: client, proxy1, proxy2 — take the first (leftmost)
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
 COOKIE_NAME = "session"
 VENDOR_TIMEOUT = 24 * 60 * 60  # 24 hours
 ADMIN_TIMEOUT = 8 * 60 * 60    # 8 hours
@@ -19,6 +28,7 @@ _serializer = URLSafeTimedSerializer(SECRET_KEY, salt="session-cookie")
 
 def create_session(response: Response, user_type: str, email: str) -> None:
     """Create a signed session cookie."""
+    timeout = ADMIN_TIMEOUT if user_type == "admin" else VENDOR_TIMEOUT
     data = {
         "user_type": user_type,
         "email": email,
@@ -33,6 +43,7 @@ def create_session(response: Response, user_type: str, email: str) -> None:
         secure=not DEBUG,
         samesite="lax",
         path="/",
+        max_age=timeout,
     )
 
 
@@ -62,6 +73,7 @@ def read_session(request: Request) -> Optional[dict]:
 
 def refresh_session(response: Response, session_data: dict) -> None:
     """Refresh last_activity timestamp in session cookie."""
+    timeout = ADMIN_TIMEOUT if session_data.get("user_type") == "admin" else VENDOR_TIMEOUT
     session_data["last_activity"] = time.time()
     signed = _serializer.dumps(session_data)
     response.set_cookie(
@@ -71,6 +83,7 @@ def refresh_session(response: Response, session_data: dict) -> None:
         secure=not DEBUG,
         samesite="lax",
         path="/",
+        max_age=timeout,
     )
 
 

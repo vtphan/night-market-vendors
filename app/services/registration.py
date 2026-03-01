@@ -108,6 +108,7 @@ def transition_status(
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "cancelled":
+        # Retain approved_at for audit trail; only store cancellation reason
         if reversal_reason:
             registration.reversal_reason = reversal_reason
 

@@ -17,7 +17,7 @@
 
 {% if settings.front_page_content %}
 <article>
-    {{ settings.front_page_content | safe }}
+    {{ settings.front_page_content | sanitize_html }}
 </article>
 {% endif %}
 

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, Integer, Float, String, Text, Boolean, DateTime, Date, ForeignKey,
+    CheckConstraint, Column, Integer, Float, String, Text, Boolean, DateTime, Date, ForeignKey,
 )
 from sqlalchemy.sql import func
 
@@ -10,6 +10,15 @@ from app.database import Base
 
 class Registration(Base):
     __tablename__ = "registrations"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected', 'paid', 'cancelled')",
+            name="ck_registration_status",
+        ),
+        CheckConstraint("amount_paid IS NULL OR amount_paid >= 0", name="ck_amount_paid_non_negative"),
+        CheckConstraint("processing_fee IS NULL OR processing_fee >= 0", name="ck_processing_fee_non_negative"),
+        CheckConstraint("refund_amount >= 0", name="ck_refund_amount_non_negative"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     registration_id = Column(String(20), unique=True, nullable=False, index=True)
@@ -26,7 +35,7 @@ class Registration(Base):
     stripe_payment_intent_id = Column(String, nullable=True)
     amount_paid = Column(Integer, nullable=True)
     processing_fee = Column(Integer, nullable=True)
-    refund_amount = Column(Integer, default=0)
+    refund_amount = Column(Integer, nullable=False, default=0)
     approved_at = Column(DateTime, nullable=True)
     rejected_at = Column(DateTime, nullable=True)
     reversal_reason = Column(String, nullable=True)

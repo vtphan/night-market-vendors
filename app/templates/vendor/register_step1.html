@@ -90,7 +90,7 @@
 
         {% if insurance_instructions %}
         <article>
-            {{ insurance_instructions | safe }}
+            {{ insurance_instructions | sanitize_html }}
         </article>
         {% endif %}
 

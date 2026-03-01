@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.config import SECRET_KEY
 from app.models import OTPCode
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def generate_otp() -> str:
@@ -25,6 +28,11 @@ def verify_otp(code: str, code_hash: str) -> bool:
     """Verify OTP code against hash using constant-time comparison."""
     computed = hash_otp(code)
     return hmac.compare_digest(computed, code_hash)
+
+
+def is_valid_email(email: str) -> bool:
+    """Basic server-side email format check."""
+    return bool(_EMAIL_RE.match(email)) and len(email) <= 254
 
 
 def create_otp(db: Session, email: str) -> str | None:
