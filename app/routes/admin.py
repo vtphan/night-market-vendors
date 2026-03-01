@@ -860,6 +860,20 @@ async def update_settings(
     return RedirectResponse(url="/admin/settings", status_code=303)
 
 
+# --- FAQ ---
+
+@router.get("/faq", response_class=HTMLResponse)
+async def faq_page(
+    request: Request,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    settings = db.query(EventSettings).first()
+    return _template(request, "admin/faq.html", {
+        "developer_contact": settings.developer_contact if settings else "",
+    }, session=session)
+
+
 # --- CSV Export ---
 
 @router.get("/export")

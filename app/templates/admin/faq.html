@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Admin FAQ{% endblock %}
+{% block content %}
+<h1>Admin FAQ</h1>
+
+<h2>Getting Started</h2>
+
+<h3>How do I log in as an admin?</h3>
+<p>Go to the login page and enter your email. You'll receive a one-time passcode (OTP) — enter it to log in. There are no passwords. Your email must be listed in the admin users table to access the admin dashboard. The first set of admin emails is configured by the site developer via the <code>ADMIN_EMAILS</code> environment variable.</p>
+
+<h3>What do the registration statuses mean?</h3>
+<table>
+    <thead>
+        <tr><th>Status</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><strong>Pending</strong></td><td>Vendor submitted a registration. Waiting for admin review.</td></tr>
+        <tr><td><strong>Approved</strong></td><td>Admin approved the registration. Vendor can now pay.</td></tr>
+        <tr><td><strong>Rejected</strong></td><td>Admin rejected the registration.</td></tr>
+        <tr><td><strong>Paid</strong></td><td>Vendor completed payment. Booth is confirmed.</td></tr>
+        <tr><td><strong>Cancelled</strong></td><td>Admin cancelled a paid registration. Refund issued via Stripe.</td></tr>
+    </tbody>
+</table>
+
+<h3>How does the approval workflow work?</h3>
+<p>The system follows a strict sequence: <strong>Register → Admin Approval → Payment</strong>.</p>
+<ol>
+    <li>A vendor submits a registration (status: Pending).</li>
+    <li>An admin reviews and approves or rejects it.</li>
+    <li>If approved, the vendor receives an email with a payment link.</li>
+    <li>The vendor pays online via Stripe (status becomes Paid).</li>
+</ol>
+<p>Vendors cannot pay until an admin approves their registration. This gives you full control over who gets a booth.</p>
+
+<h3>How do I approve or reject a vendor?</h3>
+<p>Open the registration from the admin dashboard and use the Approve or Reject button. The vendor is emailed automatically when you take action.</p>
+
+<h3>How do I know how many booth spots are left?</h3>
+<p>The admin dashboard shows availability counts for each booth type. Available = total quantity minus registrations in Approved or Paid status.</p>
+
+<hr>
+
+<h2>Inventory and Booth Management</h2>
+
+<h3>Do Pending registrations take up booth inventory?</h3>
+<p><strong>No.</strong> Only Approved and Paid registrations count toward inventory. This means a booth type can appear to have open spots even if many vendors are waiting in Pending. Review and act on Pending registrations promptly to avoid over-committing.</p>
+
+<h3>What happens when I approve a vendor?</h3>
+<p>Approving a vendor <strong>immediately reserves a booth slot</strong> for them — even before they pay. The available count for that booth type decreases by one. If this is the last available slot, no further approvals for that booth type are possible until a slot is freed (via rejection or cancellation).</p>
+
+<h3>Can an approved vendor hold a spot without paying?</h3>
+<p><strong>Yes, and this is the biggest operational risk.</strong> There is no automatic expiration on the Approved status. A vendor could sit in Approved indefinitely, taking up a booth slot without paying. Monitor approved-but-unpaid registrations and follow up or revoke approval if needed.</p>
+
+<h3>What if a booth type is full and I need to approve another vendor?</h3>
+<p>You cannot approve a vendor for a booth type that has no available slots. To free a slot, you must reject or cancel an existing Approved or Paid registration for that booth type.</p>
+
+<h3>How do I change booth types, prices, or quantities?</h3>
+<p>Go to <strong>Admin Settings</strong>. Each booth type can be edited for name, description, price, and total quantity.</p>
+
+<hr>
+
+<h2>Approvals, Rejections, and Status Changes</h2>
+
+<h3>Can I undo an approval?</h3>
+<p>Yes. You can revert an Approved registration back to <strong>Pending</strong> for re-review. This immediately frees up the booth slot that was reserved. You can also move it directly to Rejected.</p>
+
+<h3>Can I undo a rejection?</h3>
+<p>Yes. You can revert a Rejected registration back to <strong>Pending</strong> for re-review.</p>
+
+<h3>Can I undo a payment?</h3>
+<p>No — you cannot directly reverse the Paid status. The only path from Paid is <strong>Cancelled</strong>, which triggers a refund through Stripe. See the Refunds section below.</p>
+
+<h3>What status transitions are allowed?</h3>
+<pre>Pending  → Approved
+Pending  → Rejected
+Approved → Paid        (vendor pays)
+Approved → Rejected
+Approved → Pending     (revoke for re-review)
+Rejected → Pending     (revoke for re-review)
+Paid     → Cancelled   (admin cancels + refund)</pre>
+<p>Any transition not listed above is blocked by the system.</p>
+
+<hr>
+
+<h2>Payments and Refunds</h2>
+
+<h3>Do I need to collect payments manually?</h3>
+<p>No. Payments are handled entirely through Stripe. When you approve a vendor, they receive an email with a link to pay online. Card information is entered directly on Stripe's secure form and never touches our server.</p>
+
+<h3>What happens when a vendor pays?</h3>
+<p>Stripe sends a webhook notification to the system, which automatically transitions the registration from Approved to Paid. The vendor receives a payment confirmation email.</p>
+
+<h3>How do I issue a refund?</h3>
+<p>Open the Paid registration and use the Cancel button. You will be prompted to select a refund percentage (e.g., 100%, 75%, 50%, 25%, or 0%). The refund is processed through Stripe automatically.</p>
+
+<h3>Is there a way to cancel without issuing a refund?</h3>
+<p>Yes — select 0% when prompted for the refund percentage. The registration will be cancelled but no money is returned.</p>
+
+<h3>Does a "100% refund" mean the vendor gets all their money back?</h3>
+<p>The vendor receives 100% of the booth fee back. However, the Stripe processing fee (2.9% + 30 cents) is non-recoverable on your end — that cost is absorbed by the organization.</p>
+
+<hr>
+
+<h2>Notifications and Email</h2>
+
+<h3>Which actions trigger an email to the vendor?</h3>
+<table>
+    <thead>
+        <tr><th>Action</th><th>Email sent</th></tr>
+    </thead>
+    <tbody>
+        <tr><td>Vendor submits registration</td><td>Submission confirmation</td></tr>
+        <tr><td>Admin approves</td><td>Approval notification with payment link</td></tr>
+        <tr><td>Admin rejects</td><td>Rejection notification</td></tr>
+        <tr><td>Vendor pays</td><td>Payment confirmation</td></tr>
+        <tr><td>Admin cancels (with refund)</td><td>Refund confirmation</td></tr>
+    </tbody>
+</table>
+
+<h3>Can I prevent an email from being sent?</h3>
+<p>No. Emails are sent automatically on the actions listed above.</p>
+
+<h3>A vendor says they didn't receive an email. What happened?</h3>
+<p>Email delivery failures are logged on the server but not surfaced in the admin dashboard. The email may have failed to send, landed in spam, or been delayed. Verify the vendor's email address on their registration and ask them to check their spam folder.</p>
+
+<hr>
+
+<h2>Insurance</h2>
+
+<h3>How does insurance work in this system?</h3>
+<p>All vendors are required to have liability insurance. Vendors upload their insurance certificate through their registration page. Admins review and approve or revoke the document.</p>
+
+<h3>Is insurance tied to a specific registration?</h3>
+<p><strong>No.</strong> Insurance is tied to the vendor's <strong>email address</strong>. If a vendor has multiple registrations, a single insurance upload covers all of them. Similarly, revoking insurance affects all of that vendor's registrations.</p>
+
+<h3>Is insurance approval separate from registration approval?</h3>
+<p><strong>Yes.</strong> Approving a registration does not verify or approve the vendor's insurance. These are independent workflows. A vendor can be Paid with no insurance on file — it is the admin's responsibility to follow up on insurance compliance separately.</p>
+
+<hr>
+
+<h2>Event Settings</h2>
+
+<h3>How do I update event dates, registration window, or page content?</h3>
+<p>Go to <strong>Admin Settings</strong>. You can edit the event name, dates, registration open/close dates, banner text, contact email, front-page content, vendor agreement, payment instructions, and insurance instructions.</p>
+
+<h3>Do settings changes take effect immediately?</h3>
+<p>Yes. Changes are saved and reflected on vendor-facing pages immediately.</p>
+
+<hr>
+
+<h2>Support</h2>
+
+<h3>How do I report a bug, request a feature, or give feedback?</h3>
+{% if developer_contact %}
+<p>Contact the app developer at <a href="mailto:{{ developer_contact }}">{{ developer_contact }}</a>. Include a description of the issue or suggestion, along with any relevant screenshots or registration IDs to help with troubleshooting.</p>
+{% else %}
+<p>Contact the app developer directly. The developer contact email can be configured in <a href="/admin/settings">Admin Settings</a>.</p>
+{% endif %}
+{% endblock %}

@@ -162,3 +162,11 @@ Go to **Admin Settings**. You can edit the event name, dates, registration open/
 ### Do settings changes take effect immediately?
 
 Yes. Changes are saved and reflected on vendor-facing pages immediately.
+
+---
+
+## Support
+
+### How do I report a bug, request a feature, or give feedback?
+
+Contact the app developer at the email listed in **Admin Settings** (Developer Contact field). Include a description of the issue or suggestion, along with any relevant screenshots or registration IDs to help with troubleshooting.
