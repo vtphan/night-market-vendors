@@ -16,6 +16,18 @@ The app has two actors (vendor and admin), a state machine with seven transition
 
 Every time code changes, we need confidence that the core user workflows still work end-to-end. Manual testing takes 30–45 minutes per round and can't easily cover Stripe webhooks or session expiry. Automated user story tests catch integration bugs — where individual steps pass but the handoff between them breaks.
 
+## Scope and Limitations
+
+These tests operate at the **HTTP layer** — they exercise FastAPI route handlers, SQLAlchemy DB writes, and registration state transitions by sending requests through `httpx.AsyncClient`. All external services are mocked:
+
+- **Stripe API** (PaymentIntent create/retrieve/cancel, Refund create, Webhook signature verification) — mocked via `unittest.mock.patch`. Tests prove the app constructs correct API calls and handles responses properly, but do **not** prove that Stripe actually processes the payment or refund.
+- **Resend email API** — mocked at the route-level import site. Tests prove the app calls the correct email function with the right arguments, but do **not** prove that emails are delivered or rendered correctly.
+- **Google OAuth** — token exchange and ID token verification are mocked. Tests prove the OAuth flow logic, but do **not** prove compatibility with Google's actual endpoints.
+
+**What "mocking" means in practice:** When a test calls `pay_registration`, it verifies that the app creates a PaymentIntent with the correct amount, processes the webhook, updates the DB to `"paid"`, and returns the right HTTP response. It does **not** verify that a real credit card is charged, that Stripe Elements renders correctly in a browser, or that the webhook signature verification works with real Stripe secrets.
+
+**Bottom line:** The two most critical user-facing flows — payment and email — are fully mocked. Their integration correctness must be verified manually against real services before go-live. See the "Manual Testing Checklist" section at the end of this document.
+
 ## Status Terminology
 
 The code uses lowercase status strings throughout. The spec and UI sometimes use different labels for the same status. This document uses the **code values** exclusively to avoid confusion:
@@ -522,12 +534,26 @@ Verify: response contains error message (not a 500 traceback). Registration stat
 
 ---
 
+## Implementation Notes
+
+All 55 stories are implemented and passing (381 tests total across all test files). During evaluation, the following quality issues were identified — these stories have weaker coverage than their descriptions suggest:
+
+| Story | Issue |
+|-------|-------|
+| 18 | Asserts registration ID appears on dashboard but doesn't verify the status label changes at each stage (pending → approved → paid). Only confirms the registration is listed. |
+| 25 | Only tests GET (verifies "closed" message). Missing POST rejection test — doesn't confirm that submitting the form is also blocked when registration is closed. |
+| 27 | Only tests GET to `/vendor/register` with admin cookie. Doesn't POST to the submit endpoint, so it doesn't prove admin sessions are blocked from creating registrations. |
+| 28 | Tests 2 of 3 specified routes (`/vendor/dashboard` and `/admin/registrations`). Missing unauthenticated GET to `/vendor/registration/{id}`. |
+| 32 | **Not implemented.** Registration submission rate limiting (Story 32) has no test. The rate-limit mechanism exists in code but is untested at the story level. |
+| 44 | Admin alert email mock is patched but not asserted. The test confirms the webhook returns 200 and status is unchanged, but doesn't verify `send_admin_alert_email` was called with the dispute details. |
+| 54 | **False positive.** The `register_vendor` and `approve_registration` helpers internally mock email functions, which fire before the outer `patch("app.services.email.send_email")` takes effect. The test passes because helpers suppress emails, not because the app gracefully handles email failures. Does not actually test email failure resilience. |
+
 ## Additional Test Gaps to Close
 
 While building the above, also address these smaller gaps in existing tests. These can be additions to existing test files rather than new tests:
 
-- **Email content verification**: In existing tests that mock email functions, add assertions that the email was called with the correct recipient and registration ID. Enhance tests in `test_webhooks.py` and `test_admin_routes.py`.
-- **Agreement metadata**: In the submit test, verify that `agreement_accepted_at` and `agreement_ip_address` are populated. Enhance in `test_vendor_routes.py`.
+- **Email content verification**: In existing tests that mock email functions, add assertions that the email was called with the correct recipient and registration ID. Enhance tests in `test_webhooks.py` and `test_admin_routes.py`. **Status: not yet implemented** — email mocks are patched but call arguments are not asserted in most tests.
+- **Agreement metadata**: In the submit test, verify that `agreement_accepted_at` and `agreement_ip_address` are populated. Enhance in `test_vendor_routes.py`. **Status: not yet implemented** — submission tests verify the registration is created but don't check agreement timestamp or IP fields.
 
 ---
 
@@ -554,15 +580,58 @@ All remaining stories use inline patterns (Pattern A for admin actions, Pattern 
 - **Read the actual route handlers first**: Before writing any helper or inline pattern, read the corresponding route in `app/routes/` to understand the exact mock targets, URL paths, and response patterns. Don't guess.
 - **Use code status values everywhere**: Always assert against `"paid"`, `"cancelled"`, etc. — never the UI labels like "Confirmed" or "Cancelled."
 
-## Known Gaps Not Covered Here
+## Known Gaps and Manual Testing Checklist
 
-These are acknowledged limitations of the test strategy that would require additional infrastructure:
+### Infrastructure-Level Gaps
+
+These are acknowledged limitations of the automated test strategy that would require additional infrastructure to test:
 
 - **Concurrent approval race condition (E-A3)**: Two admins approving the last available booth simultaneously. The code uses `SELECT ... FOR UPDATE` to prevent this, but testing it requires concurrent database sessions with interleaved transactions. Consider a focused integration test using threading or `asyncio.gather` with separate DB sessions outside the action-helper framework.
 - **End-to-end browser testing**: The action helpers test at the HTTP level. They don't exercise client-side JavaScript (Stripe Elements card input, form validation, payment.js error display). A future Playwright or Selenium suite could cover this.
 - **SQLite lock contention under load (E-E2)**: WAL mode and `busy_timeout=5000` mitigate this, but reproducing `database is locked` errors requires sustained concurrent writes. SQLite is the production database (~150 vendors); lock contention is unlikely at this scale. If it occurs, PostgreSQL is the fallback.
 - **Server restart mid-request (E-E5)**: Cookie sessions and DB drafts survive restarts, but in-memory OTP rate-limit counters reset. Testing process restart behavior requires spawning/killing actual server processes, which is outside the scope of pytest-based testing.
 - **Session theft / cookie exfiltration (E-C4)**: The mitigations (HttpOnly, Secure, SameSite, signed cookies) are configuration-level. Verifiable by inspecting response headers (partially covered by Story 30) but not by simulating an actual attack.
+
+### Manual Testing Checklist
+
+The automated tests mock all external services. The following must be verified manually against real services before go-live.
+
+**Priority 1 — Payment flow (must verify before go-live)**
+
+- [ ] Register → Approve → visit payment page → verify displayed amount = booth price + processing fee
+- [ ] Complete a real Stripe test-mode payment → verify webhook fires and status transitions to `paid`
+- [ ] Cancel a paid registration → verify refund appears in Stripe Dashboard
+- [ ] Verify refund amount validation rejects amounts > `amount_paid`
+
+**Priority 2 — Email delivery (must verify before go-live)**
+
+Trigger each email type and verify delivery + content in Resend dashboard:
+
+- [ ] Submission confirmation — correct vendor email, includes registration ID
+- [ ] Approval notification — contains payment link
+- [ ] Rejection notification — contains reason
+- [ ] Payment confirmation — contains amount
+- [ ] Refund notification — contains refund amount and reason
+- [ ] Admin notification — reaches all `ADMIN_EMAILS`
+- [ ] Admin alert (urgent format) — correct context and formatting
+
+**Priority 3 — Data integrity**
+
+- [ ] Cross-vendor isolation: log in as Vendor A, confirm Vendor B's data is absent from dashboard
+- [ ] Inventory restoration: approve → revoke approval → verify available count is restored
+- [ ] Agreement metadata: submit registration → check DB for `agreement_accepted_at` and `agreement_ip_address` populated
+- [ ] Insurance download: upload → download → verify file contents match and access control enforced (other vendors can't download)
+
+**Priority 4 — Input validation**
+
+- [ ] Submit form with missing required fields → verify error messages displayed
+- [ ] Submit with invalid email format, oversized fields, XSS payloads → verify rejection
+- [ ] Submit with non-existent `booth_type_id` → verify rejection
+
+**Priority 5 — Admin UI at scale**
+
+- [ ] Seed 20+ registrations → verify admin dashboard is usable (pagination, filtering, search if implemented)
+- [ ] Verify payment page shows correct Stripe publishable key and amount in the browser
 
 ---
 
