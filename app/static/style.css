@@ -151,6 +151,34 @@ tr[data-href]:hover td {
     align-items: end;
 }
 
+/* FAQ accordion */
+.faq-sections > details {
+    margin-bottom: 0.75rem;
+}
+
+.faq-sections > details[open] {
+    border-left: 3px solid #0066cc;
+    padding-left: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.faq-sections > details > details {
+    margin-left: 1.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.faq-sections > details > details > :not(summary) {
+    margin-left: 1.25rem;
+}
+
+.faq-sections > details > summary {
+    font-size: 1.1rem;
+}
+
+.faq-sections > details > details > summary {
+    font-size: 0.95rem;
+}
+
 /* Banner */
 .site-banner {
     background-color: #e8f4fd;
