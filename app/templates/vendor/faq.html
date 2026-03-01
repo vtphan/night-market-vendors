@@ -45,6 +45,14 @@
         <summary>How urgently should I pay after being approved?</summary>
         <p>You should pay as soon as possible. Your booth slot is reserved when you're approved, but the organizers may revoke your approval if payment is not received in a reasonable time frame. Your registration is only fully confirmed once payment is complete.</p>
     </details>
+
+    {% if settings and settings.refund_policy %}
+    <details name="q-approval">
+        <summary>What is the refund policy?</summary>
+        <p>{{ settings.refund_policy | sanitize_html }}</p>
+        <p>Refunds can only be issued by the event organizers after a paid registration is cancelled. If you haven't paid yet, you can <a href="/vendor/faq#withdrawal">withdraw your registration</a> instead.</p>
+    </details>
+    {% endif %}
 </details>
 </article>
 
