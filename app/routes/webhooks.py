@@ -46,7 +46,7 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, db
         if event["type"] == "payment_intent.succeeded":
             _handle_payment_succeeded(db, event["data"]["object"], background_tasks)
         elif event["type"] == "charge.refunded":
-            _handle_charge_refunded(db, event["data"]["object"])
+            _handle_charge_refunded(db, event["data"]["object"], background_tasks)
         elif event["type"] == "charge.dispute.created":
             _handle_dispute_created(db, event["data"]["object"], background_tasks)
         else:
@@ -168,7 +168,7 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
     logger.info("Registration %s confirmed via webhook", registration.registration_id)
 
 
-def _handle_charge_refunded(db: Session, charge: dict):
+def _handle_charge_refunded(db: Session, charge: dict, background_tasks: BackgroundTasks):
     pi_id = charge.get("payment_intent")
     if not pi_id:
         logger.info("charge.refunded event has no payment_intent, skipping")
@@ -206,15 +206,56 @@ def _handle_charge_refunded(db: Session, charge: dict):
                 reversal_reason="Fully refunded via Stripe Dashboard",
                 _commit=False,
             )
+            from datetime import datetime, timezone
+            note_date = datetime.now(timezone.utc).strftime("%m/%d")
+            system_note = (
+                f"[System {note_date}] Full refund (${stripe_refunded / 100:.2f}) "
+                f"detected via Stripe Dashboard. Registration auto-cancelled."
+            )
+            existing_notes = registration.admin_notes or ""
+            registration.admin_notes = f"{system_note}\n{existing_notes}".strip()
             logger.info(
                 "Registration %s auto-cancelled after full refund via Stripe Dashboard",
                 registration.registration_id,
             )
+            background_tasks.add_task(
+                send_admin_alert_email,
+                f"Registration auto-cancelled after Stripe Dashboard refund — {registration.registration_id}",
+                f"Registration {registration.registration_id} ({registration.business_name}) "
+                f"was fully refunded via Stripe Dashboard (${stripe_refunded / 100:.2f}) "
+                f"and has been auto-cancelled.\n\n"
+                f"PaymentIntent: {pi_id}\n"
+                f"Review: {APP_URL}/admin/registrations/{registration.registration_id}",
+            )
         except ValueError:
             logger.exception("Failed to auto-cancel registration %s after full refund", registration.registration_id)
-    else:
+    elif stripe_refunded > local_refunded:
+        # Partial refund via Stripe Dashboard — note it for admin visibility
+        from datetime import datetime, timezone
+        note_date = datetime.now(timezone.utc).strftime("%m/%d")
+        system_note = (
+            f"[System {note_date}] Partial refund (${stripe_refunded / 100:.2f} total) "
+            f"detected via Stripe Dashboard."
+        )
+        existing_notes = registration.admin_notes or ""
+        registration.admin_notes = f"{system_note}\n{existing_notes}".strip()
+        background_tasks.add_task(
+            send_admin_alert_email,
+            f"Partial refund detected via Stripe Dashboard — {registration.registration_id}",
+            f"Registration {registration.registration_id} ({registration.business_name}) "
+            f"received a partial refund via Stripe Dashboard "
+            f"(${stripe_refunded / 100:.2f} of ${amount_paid / 100:.2f}).\n\n"
+            f"PaymentIntent: {pi_id}\n"
+            f"Review: {APP_URL}/admin/registrations/{registration.registration_id}",
+        )
         logger.info(
             "Received charge.refunded for registration %s (status: %s) — logged for reconciliation",
+            registration.registration_id,
+            registration.status,
+        )
+    else:
+        logger.info(
+            "Received charge.refunded for registration %s (status: %s) — no new refund amount",
             registration.registration_id,
             registration.status,
         )
