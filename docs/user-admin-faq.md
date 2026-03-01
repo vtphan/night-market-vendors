@@ -57,7 +57,7 @@ You cannot approve a vendor for a booth type that has no available slots. To fre
 
 ### How do I change booth types, prices, or quantities?
 
-Go to **Admin Settings**. Each booth type can be edited for name, description, price, and total quantity.
+Go to **Admin Settings**. Each booth type can be edited for name, description, price, and total quantity. **Price changes only affect future approvals.** Already approved and paid registrations keep the price that was locked in at approval time. If you revoke an approval and re-approve, the new price will apply.
 
 ---
 
