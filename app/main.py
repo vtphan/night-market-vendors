@@ -148,7 +148,7 @@ async def session_refresh_middleware(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' https://js.stripe.com 'unsafe-inline'; "
+        "script-src 'self' https://js.stripe.com; "
         "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
         "frame-src https://js.stripe.com; "
         "connect-src 'self' https://api.stripe.com; "

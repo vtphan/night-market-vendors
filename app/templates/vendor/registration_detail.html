@@ -125,13 +125,11 @@
         <button type="submit" id="pay-button">Pay ${{ "%.2f" | format(total_cents / 100) }}</button>
     </form>
 </article>
-<script>
-    window.PAYMENT_CONFIG = {
-        publishableKey: {{ stripe_publishable_key | tojson }},
-        registrationId: {{ registration.registration_id | tojson }},
-        csrfToken: {{ csrf_token | tojson }}
-    };
-</script>
+<script id="payment-config" type="application/json">{
+    "publishableKey": {{ stripe_publishable_key | tojson }},
+    "registrationId": {{ registration.registration_id | tojson }},
+    "csrfToken": {{ csrf_token | tojson }}
+}</script>
 <script src="/static/payment.js"></script>
 {% endif %}
 

@@ -362,8 +362,8 @@
         <article>
             <header><strong>Registration Activity</strong></header>
             <div class="chart-tabs">
-                <button class="chart-tab active" onclick="showChart('daily')">Last 30 Days</button>
-                <button class="chart-tab" onclick="showChart('hourly')">By Hour</button>
+                <button class="chart-tab active" data-chart-tab="daily">Last 30 Days</button>
+                <button class="chart-tab" data-chart-tab="hourly">By Hour</button>
             </div>
             <div class="chart-container" id="chart-daily">
                 <canvas id="daily-chart" height="180"></canvas>
@@ -485,135 +485,9 @@
 </article>
 {% endif %}
 
-<script>
-// Relative time display
-function timeAgo(dateStr) {
-    const now = new Date();
-    const then = new Date(dateStr);
-    const seconds = Math.floor((now - then) / 1000);
-    if (seconds < 60) return 'just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return minutes + 'm ago';
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return hours + 'h ago';
-    const days = Math.floor(hours / 24);
-    if (days < 30) return days + 'd ago';
-    return then.toLocaleDateString();
-}
-
-document.querySelectorAll('[data-ts]').forEach(el => {
-    const ts = el.getAttribute('data-ts');
-    el.textContent = timeAgo(ts);
-    // Color-code last registration freshness
-    if (el.id === 'last-reg-time') {
-        const hours = (Date.now() - new Date(ts).getTime()) / 3600000;
-        el.className = hours < 24 ? 'fresh' : 'stale';
-    }
-});
-
-// Chart rendering (lightweight canvas)
-const dailyData = {{ daily_counts | tojson }};
-const hourlyData = {{ hourly_counts | tojson }};
-
-function drawBarChart(canvasId, labels, values, barColor) {
-    const canvas = document.getElementById(canvasId);
-    const ctx = canvas.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
-
-    // Size canvas for retina
-    const rect = canvas.parentElement.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = 180 * dpr;
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = '180px';
-    ctx.scale(dpr, dpr);
-
-    const w = rect.width;
-    const h = 180;
-    const pad = { top: 20, right: 10, bottom: 35, left: 40 };
-    const chartW = w - pad.left - pad.right;
-    const chartH = h - pad.top - pad.bottom;
-
-    const maxVal = Math.max(...values, 1);
-    const barW = Math.max(2, (chartW / values.length) - 2);
-    const gap = (chartW - barW * values.length) / values.length;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Grid lines
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 0.5;
-    const gridLines = 4;
-    for (let i = 0; i <= gridLines; i++) {
-        const y = pad.top + (chartH / gridLines) * i;
-        ctx.beginPath();
-        ctx.moveTo(pad.left, y);
-        ctx.lineTo(w - pad.right, y);
-        ctx.stroke();
-        // Y label
-        ctx.fillStyle = '#9ca3af';
-        ctx.font = '10px system-ui';
-        ctx.textAlign = 'right';
-        ctx.fillText(Math.round(maxVal - (maxVal / gridLines) * i), pad.left - 5, y + 3);
-    }
-
-    // Bars
-    values.forEach((val, i) => {
-        const x = pad.left + i * (barW + gap) + gap / 2;
-        const barH = (val / maxVal) * chartH;
-        const y = pad.top + chartH - barH;
-
-        ctx.fillStyle = barColor;
-        ctx.beginPath();
-        const r = Math.min(3, barW / 2);
-        ctx.moveTo(x, y + r);
-        ctx.arcTo(x, y, x + r, y, r);
-        ctx.arcTo(x + barW, y, x + barW, y + r, r);
-        ctx.lineTo(x + barW, pad.top + chartH);
-        ctx.lineTo(x, pad.top + chartH);
-        ctx.closePath();
-        ctx.fill();
-
-        // X labels (show every Nth)
-        const labelEvery = Math.ceil(labels.length / 10);
-        if (i % labelEvery === 0) {
-            ctx.fillStyle = '#9ca3af';
-            ctx.font = '9px system-ui';
-            ctx.textAlign = 'center';
-            ctx.save();
-            ctx.translate(x + barW / 2, h - 5);
-            ctx.rotate(-0.5);
-            ctx.fillText(labels[i], 0, 0);
-            ctx.restore();
-        }
-    });
-}
-
-function showChart(type) {
-    document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('chart-daily').style.display = type === 'daily' ? '' : 'none';
-    document.getElementById('chart-hourly').style.display = type === 'hourly' ? '' : 'none';
-    event.target.classList.add('active');
-    if (type === 'daily') renderDaily();
-    else renderHourly();
-}
-
-function renderDaily() {
-    if (!dailyData.length) return;
-    const labels = dailyData.map(d => d.date);
-    const values = dailyData.map(d => d.count);
-    drawBarChart('daily-chart', labels, values, '#6366f1');
-}
-
-function renderHourly() {
-    const labels = hourlyData.map((_, i) => {
-        const h = i % 12 || 12;
-        return h + (i < 12 ? 'a' : 'p');
-    });
-    drawBarChart('hourly-chart', labels, hourlyData, '#8b5cf6');
-}
-
-// Initial render
-setTimeout(renderDaily, 50);
-</script>
+<script id="dashboard-chart-data" type="application/json">{
+    "dailyCounts": {{ daily_counts | tojson }},
+    "hourlyCounts": {{ hourly_counts | tojson }}
+}</script>
+<script src="/static/admin-dashboard.js"></script>
 {% endblock %}

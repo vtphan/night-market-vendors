@@ -1,5 +1,7 @@
 (function () {
-  var config = window.PAYMENT_CONFIG;
+  var configEl = document.getElementById("payment-config");
+  if (!configEl) return;
+  var config = JSON.parse(configEl.textContent);
   if (!config || !config.publishableKey) return;
 
   var stripe = Stripe(config.publishableKey);
