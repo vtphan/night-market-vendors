@@ -11,7 +11,7 @@ Single-event vendor registration app for the Asian Night Market (~150 vendors). 
 - **Backend:** Python / FastAPI
 - **Frontend:** Jinja2 server-rendered templates + vanilla JS
 - **CSS:** PicoCSS (classless — use semantic HTML, no utility classes)
-- **Database:** SQLite (WAL mode, local dev) / Supabase PostgreSQL (production) via SQLAlchemy ORM
+- **Database:** SQLite (WAL mode) via SQLAlchemy ORM — used in both dev and production. PostgreSQL is a fallback only if SQLite proves unsatisfactory (e.g., lock contention under load).
 - **Payments:** Stripe (PaymentIntents API + Stripe.js / Elements)
 - **Email:** Resend
 - **Hosting:** VPS
@@ -71,7 +71,7 @@ One registration = one vendor + one booth. No separate vendors/orders tables. In
 app/
   main.py           — FastAPI entry, startup events
   config.py         — env var loading
-  database.py       — SQLAlchemy engine/session (SQLite or Postgres based on DATABASE_URL)
+  database.py       — SQLAlchemy engine/session (SQLite by default; supports Postgres via DATABASE_URL if needed)
   models.py         — all ORM models
   seed.py           — seed booth_types and event_settings from config/event.json
   routes/            — vendor.py, admin.py, auth.py, webhooks.py

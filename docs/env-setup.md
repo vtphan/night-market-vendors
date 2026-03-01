@@ -42,16 +42,16 @@ No trailing slash.
 
 ### `DATABASE_URL`
 
-SQLAlchemy connection string. For local development this defaults to SQLite. For production with Supabase PostgreSQL:
-
-```
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-```
-
-If you are running SQLite on the VPS:
+SQLAlchemy connection string. SQLite is the default for both development and production:
 
 ```
 DATABASE_URL=sqlite:///data/app.db
+```
+
+PostgreSQL is supported as a fallback if SQLite proves unsatisfactory (e.g., lock contention under concurrent load):
+
+```
+DATABASE_URL=postgresql://user:password@host:5432/dbname
 ```
 
 ### `ADMIN_EMAILS`

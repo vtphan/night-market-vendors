@@ -159,7 +159,7 @@ These are the happy-path flows that ~95% of users follow.
 3. Admin A: inventory check passes (1 available), approval committed, lock released
 4. Admin B: lock acquired, inventory check now shows 0 available → `ValueError` raised
 
-**Outcome:** Only one approval succeeds. Second admin sees "No booths available" error. *(On SQLite, `FOR UPDATE` is a no-op, so a brief double-approval window exists — mitigated by the inventory re-check at commit time.)*
+**Outcome:** Only one approval succeeds. Second admin sees "No booths available" error. *(SQLite is used in production; `FOR UPDATE` is a no-op there, so a brief double-approval window exists — mitigated by the inventory re-check at commit time. If the app is ever migrated to PostgreSQL, the row lock would close this window entirely.)*
 
 ---
 
@@ -196,7 +196,7 @@ These are the happy-path flows that ~95% of users follow.
 
 #### E-B1. DB Commit Fails After Stripe Refund Succeeds
 
-**Trigger:** `stripe.Refund.create()` returns success, then the DB commit fails (disk full, network partition to Supabase, etc.).
+**Trigger:** `stripe.Refund.create()` returns success, then the DB commit fails (disk full, SQLite lock timeout, etc.).
 
 **Sequence:**
 1. Registration transitioned to `cancelled` in memory (not committed)
@@ -423,14 +423,14 @@ These are the happy-path flows that ~95% of users follow.
 
 #### E-E2. SQLite Lock Contention Under Load
 
-**Trigger:** Multiple simultaneous admin actions or webhooks on SQLite (dev/small deploy).
+**Trigger:** Multiple simultaneous admin actions or webhooks on SQLite.
 
 **Sequence:**
 1. SQLite WAL mode allows concurrent reads but serializes writes
 2. `busy_timeout=5000`: writers wait up to 5 seconds for lock
 3. If still blocked after 5s: `OperationalError: database is locked`
 
-**Outcome:** Rare under normal load (~150 vendors). Mitigated by WAL mode and busy timeout. Production uses PostgreSQL with true row-level locking.
+**Outcome:** Rare under normal load (~150 vendors). Mitigated by WAL mode and busy timeout. SQLite is the production database; if lock contention becomes a recurring problem, migration to PostgreSQL is the fallback plan.
 
 ---
 
@@ -489,7 +489,7 @@ These are the happy-path flows that ~95% of users follow.
 |----|----------|------------|--------|------------|
 | E-A1 | Payment during approval revoke | Low | High (money moved) | Accept payment, alert admin, manual refund |
 | E-A2 | Duplicate webhook | Medium | None | StripeEvent unique constraint |
-| E-A3 | Concurrent last-booth approval | Low | Medium | `FOR UPDATE` row lock (PostgreSQL) |
+| E-A3 | Concurrent last-booth approval | Low | Medium | Inventory re-check at commit (`FOR UPDATE` if migrated to PostgreSQL) |
 | E-A4 | Vendor retries payment | Medium | None | PaymentIntent reuse, Stripe idempotency |
 | E-A5 | Registration ID collision | Very Low | None | 3 retries on unique constraint |
 | E-B1 | DB fail after Stripe refund | Very Low | Critical | CRITICAL log, admin alert, manual reconciliation |
@@ -509,7 +509,7 @@ These are the happy-path flows that ~95% of users follow.
 | E-D5 | Malicious file upload | Low | Low | Extension, type, size, path checks |
 | E-D6 | CSV formula injection | Low | Medium | Cell prefix sanitization |
 | E-E1 | Webhook handler crash | Low | Low | Stripe auto-retry up to 3 days |
-| E-E2 | SQLite lock contention | Low (dev) | Low | WAL mode, 5s timeout, PostgreSQL in prod |
+| E-E2 | SQLite lock contention | Low | Low | WAL mode, 5s timeout; PostgreSQL fallback if needed |
 | E-E3 | Email service outage | Low | Medium (OTP) / Low (other) | OTP: retry message. Others: fire-and-forget |
 | E-E4 | Stripe outage during payment | Low | Low | No state change, vendor retries |
 | E-E5 | Server restart mid-session | Low | Low | Cookie sessions, DB drafts, DB rate limits |
