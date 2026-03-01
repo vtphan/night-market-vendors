@@ -92,9 +92,7 @@
 {% endif %}
 
 {% if registration.status == "approved" and stripe_publishable_key %}
-{% set fee_pct = settings.processing_fee_percent if settings else 0 %}
-{% set fee_flat = settings.processing_fee_flat_cents if settings else 0 %}
-{% set fee_cents = ((booth_type.price * fee_pct / 100) | round(0, 'common') | int) + fee_flat %}
+{% set fee_cents = processing_fee_cents | default(0) %}
 {% set total_cents = booth_type.price + fee_cents %}
 <article>
     <header>Complete Payment</header>

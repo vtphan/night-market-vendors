@@ -44,6 +44,13 @@ def create_otp(db: Session, email: str) -> str | None:
     if recent_count >= 5:
         return None
 
+    # Invalidate any previous unused OTPs for this email to limit
+    # brute-force budget to 3 attempts per code (not 3 x 5 = 15/hour)
+    db.query(OTPCode).filter(
+        OTPCode.email == email,
+        OTPCode.used == False,
+    ).update({"used": True})
+
     code = generate_otp()
     otp = OTPCode(
         email=email,

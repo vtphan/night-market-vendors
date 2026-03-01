@@ -393,6 +393,10 @@ async def registration_detail(
     }
     if registration.status == "approved":
         ctx["stripe_publishable_key"] = STRIPE_PUBLISHABLE_KEY
+        # Pre-compute processing fee server-side using the same formula as payment.py
+        fee_percent = settings.processing_fee_percent if settings else 0
+        fee_flat = settings.processing_fee_flat_cents if settings else 0
+        ctx["processing_fee_cents"] = calculate_processing_fee(booth_type.price, fee_percent, fee_flat)
 
     return _template(request, "vendor/registration_detail.html", ctx)
 
@@ -413,6 +417,7 @@ async def create_payment(
             Registration.registration_id == registration_id,
             Registration.email == session["email"],
         )
+        .with_for_update()
         .first()
     )
     if not registration:
@@ -571,9 +576,20 @@ async def insurance_upload(
             "get_flashed_messages": lambda: flash,
         })
 
-    # Read file and validate size
-    contents = await file.read()
-    if len(contents) > MAX_FILE_SIZE:
+    # Read file in chunks to avoid holding unbounded data in memory
+    chunks = []
+    total_size = 0
+    while True:
+        chunk = await file.read(64 * 1024)  # 64 KB chunks
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > MAX_FILE_SIZE:
+            break
+        chunks.append(chunk)
+    contents = b"".join(chunks)
+
+    if total_size > MAX_FILE_SIZE:
         flash = [{"category": "error", "text": "File is too large. Maximum size is 10 MB."}]
         insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
         settings = db.query(EventSettings).first()

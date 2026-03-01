@@ -72,11 +72,18 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
         return
 
     if registration.status != "approved":
-        logger.info(
-            "Registration %s is %s, not approved — skipping",
+        logger.warning(
+            "Registration %s is %s, not approved — issuing automatic refund for PI %s",
             registration.registration_id,
             registration.status,
+            pi_id,
         )
+        try:
+            stripe.Refund.create(payment_intent=pi_id)
+            logger.info("Auto-refunded PaymentIntent %s (registration %s was %s)",
+                        pi_id, registration.registration_id, registration.status)
+        except stripe.StripeError:
+            logger.exception("Failed to auto-refund PaymentIntent %s — requires manual reconciliation", pi_id)
         return
 
     try:

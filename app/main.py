@@ -12,7 +12,7 @@ from app.config import DEBUG
 from app.database import Base, engine, SessionLocal, get_db
 from app.seed import seed_event_data, bootstrap_admins
 from app.session import read_session, refresh_session
-from app.models import EventSettings, BoothType, RegistrationDraft
+from app.models import EventSettings, BoothType, RegistrationDraft, OTPCode
 
 # Configure logging
 logging.basicConfig(
@@ -41,9 +41,15 @@ async def lifespan(app: FastAPI):
         # Clean up abandoned drafts older than 24 hours
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
         deleted = db.query(RegistrationDraft).filter(RegistrationDraft.updated_at < cutoff).delete()
-        db.commit()
         if deleted:
             logger.info("Cleaned up %d abandoned registration draft(s)", deleted)
+
+        # Clean up expired/used OTP records older than 24 hours
+        deleted_otps = db.query(OTPCode).filter(OTPCode.created_at < cutoff).delete()
+        if deleted_otps:
+            logger.info("Cleaned up %d expired OTP record(s)", deleted_otps)
+
+        db.commit()
     finally:
         db.close()
 

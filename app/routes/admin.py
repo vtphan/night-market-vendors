@@ -4,6 +4,7 @@ import logging
 import math
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
@@ -369,6 +370,7 @@ async def reject_registration(
     registration = (
         db.query(Registration)
         .filter(Registration.registration_id == reg_id)
+        .with_for_update()
         .first()
     )
     if not registration:
@@ -409,6 +411,7 @@ async def unreject_registration(
     registration = (
         db.query(Registration)
         .filter(Registration.registration_id == reg_id)
+        .with_for_update()
         .first()
     )
     if not registration:
@@ -467,14 +470,14 @@ async def cancel_registration(
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
 
-    # Convert dollar amount to cents
+    # Convert dollar amount to cents using Decimal to avoid float precision errors
     try:
-        amount_float = float(refund_amount)
-        if not math.isfinite(amount_float) or amount_float < 0:
+        amount_dec = Decimal(refund_amount)
+        if amount_dec < 0 or not amount_dec.is_finite():
             amount_cents = 0
         else:
-            amount_cents = round(amount_float * 100)
-    except (ValueError, TypeError):
+            amount_cents = int((amount_dec * 100).to_integral_value())
+    except (InvalidOperation, ValueError, TypeError):
         amount_cents = 0
 
     # Validate refund does not exceed amount paid minus prior refunds
@@ -678,15 +681,31 @@ async def update_inventory(
 ):
     booth_type = db.query(BoothType).filter(BoothType.id == booth_type_id).first()
     if booth_type and total_quantity >= 0:
+        # Prevent setting quantity below currently reserved (approved + paid) count
+        reserved = (
+            db.query(sa_func.count(Registration.id))
+            .filter(
+                Registration.booth_type_id == booth_type_id,
+                Registration.status.in_(["approved", "paid"]),
+            )
+            .scalar()
+        ) or 0
+        if total_quantity < reserved:
+            flash = [{"category": "error", "text": f"Cannot set quantity below {reserved} (currently reserved)."}]
+            inventory = get_inventory(db)
+            return _template(request, "admin/inventory.html", {
+                "inventory": inventory,
+                "get_flashed_messages": lambda: flash,
+            }, session=session)
         booth_type.total_quantity = total_quantity
         booth_type.description = description.strip()
         try:
-            price_float = float(price)
-            if math.isfinite(price_float):
-                price_cents = round(price_float * 100)
+            price_dec = Decimal(price)
+            if price_dec.is_finite():
+                price_cents = int((price_dec * 100).to_integral_value())
                 if price_cents >= 0:
                     booth_type.price = price_cents
-        except (ValueError, TypeError):
+        except (InvalidOperation, ValueError, TypeError):
             pass
         db.commit()
     return RedirectResponse(url="/admin/inventory", status_code=303)

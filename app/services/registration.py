@@ -79,24 +79,27 @@ def transition_status(
             f"Cannot transition from '{registration.status}' to '{new_status}'"
         )
 
+    old_status = registration.status
     registration.status = new_status
 
     if new_status == "approved":
         registration.approved_at = datetime.now(timezone.utc)
+        registration.rejected_at = None
         registration.reversal_reason = None
     elif new_status == "rejected":
         # If revoking approval, cancel any in-progress PaymentIntent
-        if registration.status == "approved" and registration.stripe_payment_intent_id:
+        if old_status == "approved" and registration.stripe_payment_intent_id:
             _cancel_stale_payment_intent(registration.stripe_payment_intent_id)
             registration.stripe_payment_intent_id = None
             registration.processing_fee = None
         registration.rejected_at = datetime.now(timezone.utc)
+        registration.approved_at = None
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "pending":
         # Returning from approved/rejected — store the revoke reason
         # If revoking approval, cancel any in-progress PaymentIntent
-        if registration.status == "approved" and registration.stripe_payment_intent_id:
+        if old_status == "approved" and registration.stripe_payment_intent_id:
             _cancel_stale_payment_intent(registration.stripe_payment_intent_id)
             registration.stripe_payment_intent_id = None
             registration.processing_fee = None
