@@ -753,3 +753,172 @@ async def test_story55_stripe_api_failure_graceful_error(client, db):
 
     db.refresh(reg)
     assert reg.status == "approved"
+
+
+# ── SQLite Lock Recovery ──────────────────────────────────────────────
+
+
+async def test_lock_recovery_admin_approve(client, db):
+    """SQLite lock: OperationalError on admin approve keeps status pending."""
+    from sqlalchemy.orm import Session as SessionCls
+
+    reg = await register_vendor(client, db)
+    assert reg.status == "pending"
+
+    seed_admin(db)
+    acook = admin_cookie()
+    detail = await client.get(
+        f"/admin/registrations/{reg.registration_id}", cookies=acook)
+    csrf = extract_csrf(detail.text)
+
+    with patch.object(
+        SessionCls, "commit",
+        side_effect=OperationalError("database is locked", {}, Exception()),
+    ), patch("app.routes.admin.send_approval_email"):
+        resp = await client.post(
+            f"/admin/registrations/{reg.registration_id}/approve",
+            data={"csrf_token": csrf},
+            cookies=acook,
+            follow_redirects=False,
+        )
+
+    # Middleware catches unhandled OperationalError → 500
+    assert resp.status_code == 500
+    assert "unexpected error" in resp.text.lower()
+
+    # Registration status unchanged
+    db.expire_all()
+    fresh = db.query(Registration).filter(
+        Registration.registration_id == reg.registration_id
+    ).first()
+    assert fresh.status == "pending"
+
+
+async def test_lock_recovery_insurance_upload(client, db, tmp_path):
+    """SQLite lock: OperationalError on insurance upload creates no record."""
+    from sqlalchemy.orm import Session as SessionCls
+    from app.main import app as fastapi_app
+
+    fastapi_app.state.uploads_dir = tmp_path / "insurance"
+    fastapi_app.state.uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    reg = await register_vendor(client, db)
+    vcook = vendor_cookie(reg.email)
+
+    resp = await client.get("/vendor/insurance", cookies=vcook)
+    csrf = extract_csrf(resp.text)
+
+    with patch.object(
+        SessionCls, "commit",
+        side_effect=OperationalError("database is locked", {}, Exception()),
+    ):
+        resp = await client.post(
+            "/vendor/insurance/upload",
+            data={"csrf_token": csrf},
+            files={"file": ("cert.pdf", b"%PDF-1.4 test", "application/pdf")},
+            cookies=vcook,
+        )
+
+    # Middleware catches re-raised OperationalError → 500
+    assert resp.status_code == 500
+    assert "unexpected error" in resp.text.lower()
+
+    # No InsuranceDocument record
+    db.expire_all()
+    count = db.query(InsuranceDocument).filter(
+        InsuranceDocument.email == reg.email
+    ).count()
+    assert count == 0
+
+
+async def test_lock_recovery_otp_verify(client, db):
+    """SQLite lock: OperationalError on OTP verify blocks login, OTP reusable."""
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy.orm import Session as SessionCls
+    from app.services.otp import hash_otp
+
+    seed_event_open(db)
+    email = "otplock@test.com"
+
+    # Create OTP directly with a known code
+    otp = OTPCode(
+        email=email,
+        code_hash=hash_otp("123456"),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+    )
+    db.add(otp)
+    db.commit()
+
+    # Get CSRF from the verify page
+    resp = await client.get(f"/auth/verify?email={email}&role=vendor")
+    csrf = extract_csrf(resp.text)
+
+    with patch.object(
+        SessionCls, "commit",
+        side_effect=OperationalError("database is locked", {}, Exception()),
+    ):
+        resp = await client.post(
+            "/auth/verify",
+            data={
+                "csrf_token": csrf,
+                "email": email,
+                "code": "123456",
+                "role": "vendor",
+            },
+        )
+
+    # Middleware catches → 500
+    assert resp.status_code == 500
+    assert "unexpected error" in resp.text.lower()
+
+    # No session cookie created
+    assert "session" not in resp.cookies
+
+    # OTP still unused — vendor can retry
+    db.expire_all()
+    otp_check = db.query(OTPCode).filter(
+        OTPCode.email == email,
+        OTPCode.used == False,
+    ).first()
+    assert otp_check is not None
+
+
+async def test_lock_recovery_webhook_commit(client, db):
+    """SQLite lock: OperationalError in webhook → 500, StripeEvent rolled back."""
+    from sqlalchemy.orm import Session as SessionCls
+
+    reg = await register_vendor(client, db)
+    reg = await approve_registration(client, db, reg.registration_id)
+    reg.stripe_payment_intent_id = "pi_lock_wh"
+    db.commit()
+
+    event = build_webhook_event("evt_lock_wh", "payment_intent.succeeded", {
+        "id": "pi_lock_wh", "amount": 15000,
+    })
+
+    with patch("app.routes.webhooks.stripe.Webhook.construct_event", return_value=event), \
+         patch.object(
+             SessionCls, "commit",
+             side_effect=OperationalError("database is locked", {}, Exception()),
+         ):
+        resp = await client.post(
+            "/api/webhooks/stripe",
+            content=json.dumps(event),
+            headers={"stripe-signature": "t"},
+        )
+
+    # Webhook handler catches exception → 500 (Stripe will retry)
+    assert resp.status_code == 500
+
+    # StripeEvent rolled back (not in table)
+    db.expire_all()
+    se = db.query(StripeEvent).filter(
+        StripeEvent.stripe_event_id == "evt_lock_wh"
+    ).first()
+    assert se is None
+
+    # Registration status unchanged
+    fresh = db.query(Registration).filter(
+        Registration.registration_id == reg.registration_id
+    ).first()
+    assert fresh.status == "approved"
