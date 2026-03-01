@@ -129,9 +129,9 @@
 </article>
 <script>
     window.PAYMENT_CONFIG = {
-        publishableKey: "{{ stripe_publishable_key }}",
-        registrationId: "{{ registration.registration_id }}",
-        csrfToken: "{{ csrf_token }}"
+        publishableKey: {{ stripe_publishable_key | tojson }},
+        registrationId: {{ registration.registration_id | tojson }},
+        csrfToken: {{ csrf_token | tojson }}
     };
 </script>
 <script src="/static/payment.js"></script>

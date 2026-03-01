@@ -50,9 +50,8 @@ async def login_page(request: Request, role: str = "vendor", db: Session = Depen
             return RedirectResponse(url="/admin", status_code=303)
         return RedirectResponse(url="/vendor/dashboard", status_code=303)
 
-    # If registration is closed and a vendor tries to access, send to homepage
-    if not registration_open and role == "vendor":
-        return RedirectResponse(url="/", status_code=303)
+    # Allow vendors to log in even when registration is closed — they need
+    # to check existing registrations and payment status.
 
     return request.app.state.templates.TemplateResponse(
         "auth/login.html",
@@ -231,10 +230,6 @@ async def google_login(request: Request, role: str = "vendor", db: Session = Dep
 
     role = role if role == "admin" else "vendor"
 
-    # Block vendor OAuth when registration is closed
-    if role == "vendor" and not _is_registration_open(db):
-        return RedirectResponse(url="/", status_code=303)
-
     # Create signed state containing the role and a nonce
     nonce = secrets.token_urlsafe(16)
     state_data = {"role": role, "nonce": nonce}
@@ -362,11 +357,6 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                 },
                 status_code=403,
             )
-    else:
-        # Vendor: check registration is open
-        if not _is_registration_open(db):
-            return RedirectResponse(url="/", status_code=303)
-
     # Create session (same as OTP flow)
     redirect_url = "/admin" if role == "admin" else "/vendor/dashboard"
     response = RedirectResponse(url=redirect_url, status_code=303)

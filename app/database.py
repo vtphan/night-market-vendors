@@ -12,6 +12,11 @@ if DATABASE_URL.startswith("sqlite"):
     # Single shared connection — matches our single-request-at-a-time model
     # and eliminates lock contention between pooled connections.
     pool_kwargs["poolclass"] = StaticPool
+else:
+    # Verify connections are alive before handing them out from the pool.
+    # Prevents "server closed the connection unexpectedly" errors after
+    # idle periods on PostgreSQL.
+    pool_kwargs["pool_pre_ping"] = True
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args, **pool_kwargs)
 

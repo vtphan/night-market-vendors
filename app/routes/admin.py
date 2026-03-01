@@ -445,9 +445,11 @@ async def cancel_registration(
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
 ):
+    # Lock the registration row to prevent concurrent cancel/refund
     registration = (
         db.query(Registration)
         .filter(Registration.registration_id == reg_id)
+        .with_for_update()
         .first()
     )
     if not registration:
@@ -486,21 +488,26 @@ async def cancel_registration(
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
 
+    # Transition status first (without committing), then refund — single atomic commit
+    try:
+        transition_status(db, registration, "cancelled", reversal_reason=reversal_reason, _commit=False)
+    except ValueError as e:
+        logger.warning("Invalid transition for %s: %s", reg_id, e)
+        db.rollback()
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
     if amount_cents > 0 and registration.stripe_payment_intent_id:
         try:
             create_refund(db, registration, amount_cents)
         except Exception:
             logger.exception("Stripe refund failed for %s", reg_id)
+            db.rollback()
             flash = [{"category": "error", "text": "Refund failed. Please check Stripe and try again."}]
             ctx = _detail_context(db, registration)
             ctx["get_flashed_messages"] = lambda: flash
             return _template(request, "admin/registration_detail.html", ctx, session=session)
 
-    try:
-        transition_status(db, registration, "cancelled", reversal_reason=reversal_reason)
-    except ValueError as e:
-        logger.warning("Invalid transition for %s: %s", reg_id, e)
-        return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+    db.commit()
 
     background_tasks.add_task(
         send_refund_email, registration.email, reg_id, amount_cents,
@@ -577,7 +584,10 @@ async def admin_insurance_file(
     if not doc:
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
-    file_path = request.app.state.uploads_dir / stored_filename
+    uploads_dir = request.app.state.uploads_dir
+    file_path = (uploads_dir / stored_filename).resolve()
+    if not file_path.is_relative_to(uploads_dir.resolve()):
+        return RedirectResponse(url="/admin/registrations", status_code=303)
     if not file_path.exists():
         return RedirectResponse(url="/admin/registrations", status_code=303)
 

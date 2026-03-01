@@ -3,6 +3,7 @@ import logging
 import stripe
 from fastapi import APIRouter, BackgroundTasks, Request, Depends
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import STRIPE_WEBHOOK_SECRET, APP_URL
@@ -29,11 +30,15 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, db
         logger.warning("Invalid webhook signature")
         return JSONResponse(status_code=400, content={"error": "Invalid signature"})
 
-    # Idempotency check
-    existing = db.query(StripeEvent).filter(
-        StripeEvent.stripe_event_id == event["id"]
-    ).first()
-    if existing:
+    # Idempotency: insert event record BEFORE handling to prevent races.
+    # flush() sends the INSERT to the DB so the unique constraint fires
+    # immediately. If a duplicate arrives concurrently, one will get an
+    # IntegrityError and skip processing.
+    db.add(StripeEvent(stripe_event_id=event["id"], event_type=event["type"]))
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
         logger.info("Duplicate webhook event %s, skipping", event["id"])
         return JSONResponse(status_code=200, content={"status": "duplicate"})
 
@@ -44,14 +49,14 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, db
             _handle_charge_refunded(db, event["data"]["object"])
         else:
             logger.info("Unhandled webhook event type: %s", event["type"])
+        # Single commit: event record + handler side effects
+        db.commit()
     except Exception:
+        # Rollback removes both the event record and handler changes,
+        # allowing Stripe to retry the webhook delivery.
         db.rollback()
         logger.exception("Webhook handler failed for event %s", event["id"])
         return JSONResponse(status_code=500, content={"error": "Handler failed"})
-
-    # Record event AFTER handler succeeds so failed events can be retried
-    db.add(StripeEvent(stripe_event_id=event["id"], event_type=event["type"]))
-    db.commit()
 
     return JSONResponse(status_code=200, content={"status": "ok"})
 
@@ -81,8 +86,8 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
         return
 
     registration.amount_paid = payment_intent["amount"]
-    # Single commit for both status transition and amount — no interleave window.
-    db.commit()
+    # No commit here — the caller (stripe_webhook) commits the entire
+    # transaction including the StripeEvent record.
 
     booth_type = db.query(BoothType).filter(
         BoothType.id == registration.booth_type_id

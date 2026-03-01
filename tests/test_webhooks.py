@@ -199,6 +199,8 @@ async def test_create_refund(mock_refund_create, db):
     mock_refund_create.return_value = MagicMock(id="re_test_123")
 
     refund = create_refund(db, reg, 15000)
+    # create_refund no longer commits — caller is responsible
+    db.commit()
 
     assert refund.id == "re_test_123"
     db.refresh(reg)

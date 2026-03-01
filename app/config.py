@@ -27,6 +27,14 @@ if not SECRET_KEY and not DEBUG:
 if not SECRET_KEY:
     SECRET_KEY = "dev-only-insecure-key"
 
+if not DEBUG:
+    if not STRIPE_SECRET_KEY:
+        raise RuntimeError("STRIPE_SECRET_KEY is required in production")
+    if not STRIPE_WEBHOOK_SECRET:
+        raise RuntimeError("STRIPE_WEBHOOK_SECRET is required in production")
+    if not RESEND_API_KEY:
+        raise RuntimeError("RESEND_API_KEY is required in production")
+
 # Google OAuth (optional — OTP still works without these)
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")

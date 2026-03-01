@@ -142,7 +142,8 @@
     <!-- Row 2: Approve Registration -->
     <form method="post" action="/admin/registrations/{{ registration.registration_id }}/approve"
           style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0;"
-          onsubmit="return confirm('Approve this registration?\n\nThe vendor ({{ registration.email }}) will be notified by email with a payment link.');">
+          data-vendor-email="{{ registration.email }}"
+          onsubmit="return confirm('Approve this registration?\n\nThe vendor (' + this.dataset.vendorEmail + ') will be notified by email with a payment link.');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" style="width: auto; margin: 0; background-color: #2e7d32; border-color: #2e7d32;"
                 {% if booth_availability is defined and booth_availability <= 0 %}disabled{% endif %}>
@@ -346,7 +347,7 @@
 </article>
 
 <script>
-var ADMIN_EMAIL = "{{ session.email }}";
+var ADMIN_EMAIL = {{ session.email | tojson }};
 var BOOTH_FEE_CENTS = {{ ((registration.amount_paid or 0) - (registration.processing_fee or 0)) }};
 
 function updateRefundAmount() {

@@ -121,9 +121,28 @@ class EventSettings(Base):
     notify_payment_received = Column(Boolean, default=False, server_default="0")
     notify_insurance_uploaded = Column(Boolean, default=False, server_default="0")
 
+    @staticmethod
+    def _ensure_utc(dt: datetime) -> datetime:
+        """Ensure a datetime is UTC-aware (handles both naive and aware)."""
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
     def is_registration_open(self) -> bool:
         """Check if vendor registration is currently open."""
         now = datetime.now(timezone.utc)
-        open_dt = self.registration_open_date.replace(tzinfo=timezone.utc)
-        close_dt = self.registration_close_date.replace(tzinfo=timezone.utc)
+        open_dt = self._ensure_utc(self.registration_open_date)
+        close_dt = self._ensure_utc(self.registration_close_date)
         return open_dt <= now <= close_dt
+
+    def get_registration_status(self) -> str:
+        """Return registration window status: 'open', 'coming_soon', or 'closed'."""
+        now = datetime.now(timezone.utc)
+        open_dt = self._ensure_utc(self.registration_open_date)
+        close_dt = self._ensure_utc(self.registration_close_date)
+        if open_dt <= now <= close_dt:
+            return "open"
+        elif now < open_dt:
+            return "coming_soon"
+        else:
+            return "closed"

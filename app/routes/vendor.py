@@ -623,7 +623,10 @@ async def insurance_file(
     if not doc or doc.email != session["email"]:
         return RedirectResponse(url="/vendor/insurance", status_code=303)
 
-    file_path = request.app.state.uploads_dir / stored_filename
+    uploads_dir = request.app.state.uploads_dir
+    file_path = (uploads_dir / stored_filename).resolve()
+    if not file_path.is_relative_to(uploads_dir.resolve()):
+        return RedirectResponse(url="/vendor/insurance", status_code=303)
     if not file_path.exists():
         return RedirectResponse(url="/vendor/insurance", status_code=303)
 

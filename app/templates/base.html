@@ -33,7 +33,7 @@
     </nav>
     <main class="container">
         {% for msg in get_flashed_messages() %}
-            <div class="flash-message {{ msg.category }}">{{ msg.text }}</div>
+            <div class="flash-message {{ msg.category }}" role="{{ 'alert' if msg.category == 'error' else 'status' }}">{{ msg.text }}</div>
         {% endfor %}
         {% block content %}{% endblock %}
     </main>

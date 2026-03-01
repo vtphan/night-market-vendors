@@ -128,20 +128,13 @@ async def health_check():
 # Homepage
 @app.get("/")
 async def homepage(request: Request, db = Depends(get_db)):
-    from datetime import datetime, timezone
-
     session = read_session(request)
     settings = db.query(EventSettings).first()
 
     if not settings:
         return RedirectResponse(url="/auth/login", status_code=303)
 
-    if settings.is_registration_open():
-        status = "open"
-    elif datetime.now(timezone.utc) < settings.registration_open_date.replace(tzinfo=timezone.utc):
-        status = "coming_soon"
-    else:
-        status = "closed"
+    status = settings.get_registration_status()
 
     registration_open = (status == "open")
 

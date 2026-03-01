@@ -29,6 +29,9 @@
       body: "csrf_token=" + encodeURIComponent(config.csrfToken),
     })
       .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Payment service error. Please try again.");
+        }
         return response.json();
       })
       .then(function (data) {
