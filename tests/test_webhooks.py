@@ -10,15 +10,8 @@ from app.main import app
 from tests.helpers import (
     admin_cookie, vendor_cookie, extract_csrf, seed_admin,
     seed_booth_types, seed_event, make_registration,
+    build_webhook_event,
 )
-
-
-def _build_webhook_event(event_id, event_type, data_object):
-    return {
-        "id": event_id,
-        "type": event_type,
-        "data": {"object": data_object},
-    }
 
 
 # ========================================
@@ -33,7 +26,7 @@ async def test_webhook_payment_succeeded(mock_construct, mock_email, db):
     reg = make_registration(db, booths[0].id, status="approved",
                             stripe_pi_id="pi_test_123")
 
-    event_data = _build_webhook_event(
+    event_data = build_webhook_event(
         "evt_test_001", "payment_intent.succeeded",
         {"id": "pi_test_123", "amount": 15000}
     )
@@ -63,7 +56,7 @@ async def test_webhook_idempotent(mock_construct, mock_email, db):
     reg = make_registration(db, booths[0].id, status="approved",
                             stripe_pi_id="pi_test_456")
 
-    event_data = _build_webhook_event(
+    event_data = build_webhook_event(
         "evt_test_dup", "payment_intent.succeeded",
         {"id": "pi_test_456", "amount": 15000}
     )
@@ -104,7 +97,7 @@ async def test_webhook_payment_succeeded_non_approved_accepts_payment(
     reg = make_registration(db, booths[0].id, status="rejected",
                             stripe_pi_id="pi_race_test")
 
-    event_data = _build_webhook_event(
+    event_data = build_webhook_event(
         "evt_test_race", "payment_intent.succeeded",
         {"id": "pi_race_test", "amount": 15000}
     )
@@ -151,7 +144,7 @@ async def test_webhook_invalid_signature(mock_construct, db):
 @patch("app.routes.webhooks.stripe.Webhook.construct_event")
 async def test_webhook_registration_not_found(mock_construct, mock_email, db):
     """Webhook for unknown PaymentIntent should return 200 and not crash."""
-    event_data = _build_webhook_event(
+    event_data = build_webhook_event(
         "evt_test_notfound", "payment_intent.succeeded",
         {"id": "pi_nonexistent", "amount": 10000}
     )
@@ -177,7 +170,7 @@ async def test_webhook_charge_refunded(mock_construct, db):
     make_registration(db, booths[0].id, status="cancelled",
                       stripe_pi_id="pi_refund_test", reg_id="ANM-2026-0010")
 
-    event_data = _build_webhook_event(
+    event_data = build_webhook_event(
         "evt_test_refund", "charge.refunded",
         {"id": "ch_test", "payment_intent": "pi_refund_test", "amount_refunded": 15000}
     )

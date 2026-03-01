@@ -1,5 +1,6 @@
 import os
 import pytest
+from httpx import AsyncClient, ASGITransport
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -54,3 +55,11 @@ def db():
         yield session
     finally:
         session.close()
+
+
+@pytest.fixture
+async def client():
+    """Async HTTP client wired to the FastAPI test app."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
+        yield c
