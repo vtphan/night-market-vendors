@@ -276,6 +276,16 @@ async def register_submit(
     if not all(draft.get(k) for k in required):
         return RedirectResponse(url="/vendor/register", status_code=303)
 
+    # Re-validate booth type is still active and category is still valid
+    if draft["category"] not in CATEGORIES:
+        return RedirectResponse(url="/vendor/register?edit=1", status_code=303)
+    booth_type_check = db.query(BoothType).filter(
+        BoothType.id == draft["booth_type_id"],
+        BoothType.is_active == True,
+    ).first()
+    if not booth_type_check:
+        return RedirectResponse(url="/vendor/register?edit=1", status_code=303)
+
     # Rate limit check
     ip = get_client_ip(request)
     if not check_submission_rate_limit(db, ip):

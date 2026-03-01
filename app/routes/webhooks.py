@@ -47,6 +47,8 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, db
             _handle_payment_succeeded(db, event["data"]["object"], background_tasks)
         elif event["type"] == "charge.refunded":
             _handle_charge_refunded(db, event["data"]["object"])
+        elif event["type"] == "charge.dispute.created":
+            _handle_dispute_created(db, event["data"]["object"], background_tasks)
         else:
             logger.info("Unhandled webhook event type: %s", event["type"])
         # Single commit: event record + handler side effects
@@ -63,9 +65,11 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, db
 
 def _handle_payment_succeeded(db: Session, payment_intent: dict, background_tasks: BackgroundTasks):
     pi_id = payment_intent["id"]
+    # Lock the row to prevent races with admin status changes (e.g. revoking
+    # approval concurrently).  with_for_update() is a no-op on SQLite.
     registration = db.query(Registration).filter(
         Registration.stripe_payment_intent_id == pi_id
-    ).first()
+    ).with_for_update().first()
 
     if not registration:
         logger.warning("No registration found for PaymentIntent %s", pi_id)
@@ -78,8 +82,13 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
             registration.status,
             pi_id,
         )
+        # Record the payment amount so financial records stay consistent
+        # even though the registration was not in the right state.
+        amount = payment_intent["amount"]
+        registration.amount_paid = amount
         try:
             stripe.Refund.create(payment_intent=pi_id)
+            registration.refund_amount = (registration.refund_amount or 0) + amount
             logger.info("Auto-refunded PaymentIntent %s (registration %s was %s)",
                         pi_id, registration.registration_id, registration.status)
         except stripe.StripeError:
@@ -91,7 +100,7 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
                 f"Registration {registration.registration_id} was {registration.status} when payment "
                 f"succeeded, but the automatic refund failed. Manual reconciliation is required "
                 f"in the Stripe Dashboard.\n\nPaymentIntent: {pi_id}\n"
-                f"Amount: ${payment_intent['amount'] / 100:.2f}",
+                f"Amount: ${amount / 100:.2f}",
             )
         return
 
@@ -174,8 +183,59 @@ def _handle_charge_refunded(db: Session, charge: dict):
         logger.info("Registration %s already cancelled, skipping further refund processing", registration.registration_id)
         return
 
-    logger.info(
-        "Received charge.refunded for registration %s (status: %s) — logged for reconciliation",
-        registration.registration_id,
-        registration.status,
+    # If fully refunded (e.g. via Stripe Dashboard) and still "paid", transition to cancelled.
+    amount_paid = registration.amount_paid or 0
+    if registration.status == "paid" and amount_paid > 0 and stripe_refunded >= amount_paid:
+        try:
+            transition_status(
+                db, registration, "cancelled",
+                reversal_reason="Fully refunded via Stripe Dashboard",
+                _commit=False,
+            )
+            logger.info(
+                "Registration %s auto-cancelled after full refund via Stripe Dashboard",
+                registration.registration_id,
+            )
+        except ValueError:
+            logger.exception("Failed to auto-cancel registration %s after full refund", registration.registration_id)
+    else:
+        logger.info(
+            "Received charge.refunded for registration %s (status: %s) — logged for reconciliation",
+            registration.registration_id,
+            registration.status,
+        )
+
+
+def _handle_dispute_created(db: Session, dispute: dict, background_tasks: BackgroundTasks):
+    """Alert admins when a customer files a chargeback/dispute."""
+    pi_id = dispute.get("payment_intent")
+    amount = dispute.get("amount", 0)
+    reason = dispute.get("reason", "unknown")
+    dispute_id = dispute.get("id", "unknown")
+
+    registration = None
+    if pi_id:
+        registration = db.query(Registration).filter(
+            Registration.stripe_payment_intent_id == pi_id
+        ).first()
+
+    reg_id = registration.registration_id if registration else "unknown"
+    biz_name = registration.business_name if registration else "unknown"
+
+    logger.warning(
+        "Dispute %s created for PI %s (registration %s, amount %d, reason: %s)",
+        dispute_id, pi_id, reg_id, amount, reason,
+    )
+
+    background_tasks.add_task(
+        send_admin_alert_email,
+        f"URGENT: Payment dispute filed — {reg_id}",
+        f"A customer has filed a payment dispute (chargeback).\n\n"
+        f"Dispute ID: {dispute_id}\n"
+        f"Registration: {reg_id}\n"
+        f"Business: {biz_name}\n"
+        f"Amount: ${amount / 100:.2f}\n"
+        f"Reason: {reason}\n\n"
+        f"Action required: Respond to this dispute in the Stripe Dashboard "
+        f"before the deadline to avoid losing the funds.",
     )

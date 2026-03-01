@@ -683,7 +683,8 @@ async def update_inventory(
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
 ):
-    booth_type = db.query(BoothType).filter(BoothType.id == booth_type_id).first()
+    # Lock the row to prevent races with concurrent approvals.
+    booth_type = db.query(BoothType).filter(BoothType.id == booth_type_id).with_for_update().first()
     if booth_type and total_quantity >= 0:
         # Prevent setting quantity below currently reserved (approved + paid) count
         reserved = (

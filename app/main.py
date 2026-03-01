@@ -1,9 +1,9 @@
 import logging
-import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import nh3
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -89,27 +89,24 @@ def format_datetime(dt) -> str:
 from app.services.registration import CATEGORIES, ELECTRICAL_EQUIPMENT_OPTIONS, EQUIP_LABELS
 
 # Allowlisted HTML tags and attributes for admin-supplied content.
-# Strips <script>, <iframe>, event handlers, etc. while allowing formatting.
-_SAFE_TAGS = re.compile(
-    r"<(?!/?(?:p|br|b|strong|i|em|u|a|ul|ol|li|h[1-6]|hr|small|span|div|article|header|table|thead|tbody|tr|th|td)\b)[^>]*>",
-    re.IGNORECASE,
-)
-_SAFE_ATTRS = re.compile(r"""\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)""", re.IGNORECASE)
-_DANGEROUS_ATTRS = re.compile(
-    r"""\s+(?:style|srcdoc|formaction)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)""",
-    re.IGNORECASE,
-)
-_JS_HREF = re.compile(r"""(href\s*=\s*(?:"|'))javascript:""", re.IGNORECASE)
+_SANITIZE_TAGS = {
+    "p", "br", "b", "strong", "i", "em", "u", "a",
+    "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6",
+    "hr", "small", "span", "div", "article", "header",
+    "table", "thead", "tbody", "tr", "th", "td",
+}
+_SANITIZE_ATTRS = {
+    "a": {"href", "title"},
+    "th": {"colspan", "rowspan"},
+    "td": {"colspan", "rowspan"},
+}
 
 
 def sanitize_html(value: str) -> Markup:
-    """Strip dangerous HTML tags/attributes, keep safe formatting tags."""
+    """Sanitize admin-supplied HTML, keeping safe formatting tags."""
     if not value:
         return Markup("")
-    result = _SAFE_TAGS.sub("", value)
-    result = _SAFE_ATTRS.sub("", result)
-    result = _DANGEROUS_ATTRS.sub("", result)
-    result = _JS_HREF.sub(r"\1#", result)
+    result = nh3.clean(value, tags=_SANITIZE_TAGS, attributes=_SANITIZE_ATTRS)
     return Markup(result)
 
 def get_event_name():
@@ -149,6 +146,15 @@ async def session_refresh_middleware(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://js.stripe.com 'unsafe-inline'; "
+        "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
+        "frame-src https://js.stripe.com; "
+        "connect-src 'self' https://api.stripe.com; "
+        "img-src 'self' data:; "
+        "font-src 'self' https://cdn.jsdelivr.net"
+    )
     if not DEBUG:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
 

@@ -12,11 +12,17 @@ from app.models import AdminUser
 
 
 def get_client_ip(request: Request) -> str:
-    """Extract real client IP, respecting X-Forwarded-For behind a reverse proxy."""
+    """Extract real client IP, respecting X-Forwarded-For behind a reverse proxy.
+
+    Uses the rightmost entry, which is the one appended by our trusted reverse
+    proxy. The leftmost entries are attacker-controlled and cannot be trusted.
+    """
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        # X-Forwarded-For: client, proxy1, proxy2 — take the first (leftmost)
-        return forwarded.split(",")[0].strip()
+        # X-Forwarded-For: client, proxy1, proxy2 — rightmost is from trusted proxy
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
     return request.client.host if request.client else "unknown"
 
 COOKIE_NAME = "session"

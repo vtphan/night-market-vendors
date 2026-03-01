@@ -87,22 +87,20 @@ def transition_status(
         registration.rejected_at = None
         registration.reversal_reason = None
     elif new_status == "rejected":
-        # If revoking approval, cancel any in-progress PaymentIntent
+        # If revoking approval, best-effort cancel any in-progress PaymentIntent.
+        # Keep stripe_payment_intent_id so the webhook auto-refund path can
+        # still find this registration if the PI already succeeded.
         if old_status == "approved" and registration.stripe_payment_intent_id:
             _cancel_stale_payment_intent(registration.stripe_payment_intent_id)
-            registration.stripe_payment_intent_id = None
-            registration.processing_fee = None
         registration.rejected_at = datetime.now(timezone.utc)
         registration.approved_at = None
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "pending":
         # Returning from approved/rejected — store the revoke reason
-        # If revoking approval, cancel any in-progress PaymentIntent
+        # Best-effort cancel; keep the ID for webhook auto-refund safety net.
         if old_status == "approved" and registration.stripe_payment_intent_id:
             _cancel_stale_payment_intent(registration.stripe_payment_intent_id)
-            registration.stripe_payment_intent_id = None
-            registration.processing_fee = None
         registration.rejected_at = None
         registration.approved_at = None
         if reversal_reason:
