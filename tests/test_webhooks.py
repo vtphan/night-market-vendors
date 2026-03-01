@@ -44,7 +44,9 @@ async def test_webhook_payment_succeeded(mock_construct, mock_email, db):
     db.refresh(reg)
     assert reg.status == "paid"
     assert reg.amount_paid == 15000
-    mock_email.assert_called_once()
+    mock_email.assert_called_once_with(
+        reg.email, reg.registration_id, "Premium", 15000,
+    )
 
 
 @pytest.mark.anyio

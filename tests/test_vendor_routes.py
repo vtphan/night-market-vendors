@@ -381,6 +381,9 @@ async def test_submit_creates_registration_and_redirects(db):
     assert reg.status == "pending"
     assert reg.business_name == "Test Biz"
     assert reg.registration_id.startswith("ANM-")
+    # Agreement metadata (gap test)
+    assert reg.agreement_accepted_at is not None
+    assert reg.agreement_ip_address is not None
 
 
 @pytest.mark.anyio

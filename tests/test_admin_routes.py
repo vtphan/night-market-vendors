@@ -169,6 +169,9 @@ async def test_approve_registration(db):
 
         assert response.status_code == 303
         mock_email.assert_called_once()
+        call_args = mock_email.call_args
+        assert call_args[0][0] == "vendor@test.com"  # recipient
+        assert call_args[0][1] == "ANM-2026-0020"    # registration_id
 
     # Verify DB
     reg = db.query(Registration).filter(Registration.registration_id == "ANM-2026-0020").first()
