@@ -2,6 +2,10 @@
 
 {% block title %}Registrations - Admin - Asian Night Market{% endblock %}
 
+{% block extra_head %}
+<script src="/static/clickable-rows.js" defer></script>
+{% endblock %}
+
 {% block content %}
 <h2>Registrations</h2>
 
@@ -58,12 +62,11 @@
                 <th>Status</th>
                 <th>Insurance</th>
                 <th>Date</th>
-                <th></th>
             </tr>
         </thead>
         <tbody>
             {% for reg in registrations %}
-            <tr>
+            <tr data-href="/admin/registrations/{{ reg.registration_id }}" style="cursor: pointer;">
                 <td><code>{{ reg.registration_id }}</code></td>
                 <td>{{ reg.business_name }}</td>
                 <td>{{ reg.contact_name }}</td>
@@ -75,7 +78,6 @@
                     {% if ins_doc and ins_doc.is_approved %}Approved{% elif ins_doc %}Uploaded{% else %}No{% endif %}
                 </td>
                 <td>{{ reg.created_at.strftime('%b %d') if reg.created_at else '' }}</td>
-                <td><a href="/admin/registrations/{{ reg.registration_id }}">View</a></td>
             </tr>
             {% endfor %}
         </tbody>
