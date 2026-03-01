@@ -82,12 +82,13 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
             registration.status,
             pi_id,
         )
-        # Do NOT set amount_paid — the registration never legitimately reached
-        # "paid" status, so amount_paid should stay null to avoid confusing
-        # revenue reports and CSV exports.  The refund_amount records the outflow.
+        # Record both amount_paid and refund_amount for complete financial
+        # accounting.  Revenue queries filter by status='paid', so this won't
+        # inflate revenue — but it keeps CSV exports and audit trails accurate.
         amount = payment_intent["amount"]
         try:
             stripe.Refund.create(payment_intent=pi_id)
+            registration.amount_paid = (registration.amount_paid or 0) + amount
             registration.refund_amount = (registration.refund_amount or 0) + amount
             logger.info("Auto-refunded PaymentIntent %s (registration %s was %s)",
                         pi_id, registration.registration_id, registration.status)
@@ -97,6 +98,7 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
             # the charge was already refunded before alerting.
             already_refunded = "already been refunded" in str(e).lower()
             if already_refunded:
+                registration.amount_paid = (registration.amount_paid or 0) + amount
                 registration.refund_amount = (registration.refund_amount or 0) + amount
                 logger.info(
                     "PaymentIntent %s already refunded (likely webhook retry) — recording refund",
