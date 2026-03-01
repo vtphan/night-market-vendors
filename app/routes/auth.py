@@ -21,7 +21,7 @@ from app.csrf import generate_csrf_token, require_csrf
 from app.session import create_session, clear_session, read_session, get_client_ip
 from app.services.otp import create_otp, validate_otp, is_valid_email
 from app.services.email import send_otp_email
-from app.models import AdminUser, EventSettings
+from app.models import AdminUser, EventSettings, OTPCode
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +166,14 @@ async def login_submit(
     loop = asyncio.get_event_loop()
     success = await loop.run_in_executor(None, partial(send_otp_email, email, code))
     if not success:
+        # Delete the unsent OTP so it doesn't consume the 5-per-hour rate-limit
+        # budget.  create_otp() already invalidated all previous codes, so the
+        # only unused row for this email is the one we just created.
+        db.query(OTPCode).filter(
+            OTPCode.email == email,
+            OTPCode.used == False,
+        ).delete()
+        db.commit()
         flash_messages.append({"category": "error", "text": "We couldn't send the verification code. Please try again."})
         return request.app.state.templates.TemplateResponse(
             "auth/login.html",
