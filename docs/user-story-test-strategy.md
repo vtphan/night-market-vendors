@@ -540,13 +540,13 @@ All 55 stories are implemented and passing (381 tests total across all test file
 
 | Story | Issue |
 |-------|-------|
-| 18 | Asserts registration ID appears on dashboard but doesn't verify the status label changes at each stage (pending → approved → paid). Only confirms the registration is listed. |
+| 18 | ~~Asserts registration ID appears but doesn't verify status label changes.~~ **Fixed** — now asserts `status-badge` CSS class and label text (`Pending` → `Approved` → `Paid`) at each stage. |
 | 25 | Only tests GET (verifies "closed" message). Missing POST rejection test — doesn't confirm that submitting the form is also blocked when registration is closed. |
 | 27 | Only tests GET to `/vendor/register` with admin cookie. Doesn't POST to the submit endpoint, so it doesn't prove admin sessions are blocked from creating registrations. |
 | 28 | Tests 2 of 3 specified routes (`/vendor/dashboard` and `/admin/registrations`). Missing unauthenticated GET to `/vendor/registration/{id}`. |
 | 32 | **Not implemented.** Registration submission rate limiting (Story 32) has no test. The rate-limit mechanism exists in code but is untested at the story level. |
-| 44 | Admin alert email mock is patched but not asserted. The test confirms the webhook returns 200 and status is unchanged, but doesn't verify `send_admin_alert_email` was called with the dispute details. |
-| 54 | **False positive.** The `register_vendor` and `approve_registration` helpers internally mock email functions, which fire before the outer `patch("app.services.email.send_email")` takes effect. The test passes because helpers suppress emails, not because the app gracefully handles email failures. Does not actually test email failure resilience. |
+| 44 | ~~Admin alert email mock patched but not asserted.~~ **Fixed** — now asserts `send_admin_alert_email` called once with dispute ID (`dp_44`), reason (`fraudulent`), and "dispute" in the subject. |
+| 54 | ~~False positive due to helper mocks suppressing emails.~~ **Fixed** — rewritten to bypass helpers, performing registration and approval inline with only `resend.Emails.send` mocked to raise. Asserts `"Failed to send email"` logged at both steps. |
 
 ## Additional Test Gaps to Close
 

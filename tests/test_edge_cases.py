@@ -272,13 +272,22 @@ async def test_story44_chargeback_alerts_admin(client, db):
         "reason": "fraudulent",
     })
     with patch("app.routes.webhooks.stripe.Webhook.construct_event", return_value=event), \
-         patch("app.routes.webhooks.send_admin_alert_email"):
+         patch("app.routes.webhooks.send_admin_alert_email") as mock_alert:
         resp = await client.post("/api/webhooks/stripe",
             content=json.dumps(event), headers={"stripe-signature": "t"})
 
     assert resp.status_code == 200
     db.refresh(reg)
     assert reg.status == "paid"  # unchanged
+
+    # Verify admin alert was sent with dispute details
+    mock_alert.assert_called_once()
+    alert_args = mock_alert.call_args
+    subject = alert_args[0][0] if alert_args[0] else alert_args[1].get("subject", "")
+    body = alert_args[0][1] if len(alert_args[0]) > 1 else alert_args[1].get("body", "")
+    assert "dispute" in subject.lower() or "dispute" in body.lower()
+    assert "dp_44" in body
+    assert "fraudulent" in body
 
 
 async def test_story45_price_change_after_approval(client, db):
@@ -714,19 +723,53 @@ async def test_story53_webhook_crash_allows_retry(client, db):
 
 async def test_story54_email_failure_doesnt_block(client, db, caplog):
     """Story 54 (E-E3): Non-OTP email failures are logged but don't block."""
-    # Patch the email send function to raise
+    email = "email54@test.com"
+    vcook = vendor_cookie(email)
+    seed_event_open(db)
+    booths = seed_booth_types(db)
+    seed_admin(db)
+    acook = admin_cookie()
+
+    # Step 1: fill out the registration form (no emails sent here)
+    page = await client.get("/vendor/register", cookies=vcook)
+    csrf = extract_csrf(page.text)
+    resp = await client.post("/vendor/register/step1", data={
+        "csrf_token": csrf, "contact_name": "Test Vendor", "email": email,
+        "phone": "555-0054", "business_name": "Story54 Biz", "category": "food",
+        "description": "Testing email resilience", "booth_type_id": str(booths[0].id),
+        "agreement_accepted": "yes",
+    }, cookies=vcook)
+    assert resp.status_code == 303
+
+    # Step 2: submit — real email functions run, but resend.Emails.send raises
+    page = await client.get("/vendor/register", cookies=vcook)
+    csrf = extract_csrf(page.text)
     with patch("app.services.email.resend.Emails.send", side_effect=Exception("Resend down")), \
          caplog.at_level(logging.ERROR):
-        reg = await register_vendor(client, db, email="email54@test.com")
+        resp = await client.post("/vendor/register/submit",
+            data={"csrf_token": csrf}, cookies=vcook)
+    assert resp.status_code == 303
 
+    reg = db.query(Registration).filter(Registration.email == email).first()
     assert reg is not None
     assert reg.status == "pending"
+    assert "Failed to send email" in caplog.text
 
+    # Step 3: approve — real email functions run, but resend.Emails.send raises
+    detail = await client.get(
+        f"/admin/registrations/{reg.registration_id}", cookies=acook)
+    csrf = extract_csrf(detail.text)
+    caplog.clear()
     with patch("app.services.email.resend.Emails.send", side_effect=Exception("Resend down")), \
          caplog.at_level(logging.ERROR):
-        reg = await approve_registration(client, db, reg.registration_id)
+        resp = await client.post(
+            f"/admin/registrations/{reg.registration_id}/approve",
+            data={"csrf_token": csrf}, cookies=acook)
+    assert resp.status_code == 303
 
+    db.refresh(reg)
     assert reg.status == "approved"
+    assert "Failed to send email" in caplog.text
 
 
 async def test_story55_stripe_api_failure_graceful_error(client, db):

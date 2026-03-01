@@ -515,19 +515,25 @@ async def test_story18_dashboard_reflects_every_stage(client, db):
     vcook = vendor_cookie(email)
     reg = await register_vendor(client, db, email=email)
 
-    # Pending
+    # Pending — dashboard shows "Pending" status label
     resp = await client.get("/vendor/dashboard", cookies=vcook)
     assert reg.registration_id in resp.text
+    assert 'status-badge pending' in resp.text
+    assert ">Pending<" in resp.text
 
-    # Approved
+    # Approved — dashboard shows "Approved" status label
     reg = await approve_registration(client, db, reg.registration_id)
     resp = await client.get("/vendor/dashboard", cookies=vcook)
     assert reg.registration_id in resp.text
+    assert 'status-badge approved' in resp.text
+    assert ">Approved<" in resp.text
 
-    # Paid
+    # Paid — dashboard shows "Paid" status label
     reg = await pay_registration(client, db, reg.registration_id)
     resp = await client.get("/vendor/dashboard", cookies=vcook)
     assert reg.registration_id in resp.text
+    assert 'status-badge paid' in resp.text
+    assert ">Paid<" in resp.text
 
 
 @pytest.mark.anyio
