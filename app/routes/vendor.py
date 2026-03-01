@@ -18,10 +18,16 @@ from app.services.registration import (
     check_submission_rate_limit,
     get_inventory,
     get_waitlist_position,
+    transition_status,
+    try_cancel_active_payment_intent,
     LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
-from app.services.email import send_submission_confirmation_email, send_admin_notification_email
+from app.services.email import (
+    send_submission_confirmation_email,
+    send_admin_notification_email,
+    send_withdrawal_confirmation_email,
+)
 from app.services.payment import create_payment_intent, calculate_processing_fee
 from app.config import STRIPE_PUBLISHABLE_KEY, APP_URL
 
@@ -342,6 +348,21 @@ async def register_submit(
     )
 
 
+# --- Discard draft ---
+
+@router.post("/register/discard")
+async def register_discard(
+    request: Request,
+    _csrf: None = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    session = read_session(request)
+    if not session or session.get("user_type") != "vendor":
+        return RedirectResponse(url="/auth/login", status_code=303)
+    _delete_draft(db, session["email"])
+    return RedirectResponse(url="/vendor/dashboard", status_code=303)
+
+
 # --- Confirmation page ---
 
 @router.get("/confirm/{registration_id}", response_class=HTMLResponse)
@@ -479,6 +500,72 @@ async def create_payment(
     })
 
 
+# --- Vendor withdrawal ---
+
+@router.post("/registration/{registration_id}/withdraw")
+async def withdraw_registration(
+    request: Request,
+    registration_id: str,
+    background_tasks: BackgroundTasks,
+    reason: str = Form(""),
+    session: dict = Depends(require_vendor),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = (
+        db.query(Registration)
+        .filter(
+            Registration.registration_id == registration_id,
+            Registration.email == session["email"],
+        )
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/vendor/dashboard", status_code=303)
+
+    if registration.status not in ("pending", "approved"):
+        return RedirectResponse(url=f"/vendor/registration/{registration_id}", status_code=303)
+
+    # If approved with a Stripe PI, try to cancel it first
+    if registration.status == "approved" and registration.stripe_payment_intent_id:
+        ok, msg = try_cancel_active_payment_intent(registration)
+        if not ok:
+            flash = [{"category": "error", "text": f"Cannot withdraw: {msg}"}]
+            booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+            settings = db.query(EventSettings).first()
+            insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
+            booth_price = registration.approved_price if registration.approved_price is not None else (booth_type.price if booth_type else 0)
+            return _template(request, "vendor/registration_detail.html", {
+                "registration": registration,
+                "booth_type": booth_type,
+                "booth_price": booth_price,
+                "settings": settings,
+                "waitlist_position": get_waitlist_position(db, registration),
+                "insurance_doc": insurance_doc,
+                "get_flashed_messages": lambda: flash,
+            })
+
+    reason = reason.strip()
+    transition_status(db, registration, "withdrawn", reversal_reason=reason or None)
+
+    booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+    background_tasks.add_task(
+        send_withdrawal_confirmation_email,
+        session["email"],
+        registration_id,
+        booth_type.name if booth_type else "Unknown",
+    )
+    background_tasks.add_task(
+        send_admin_notification_email,
+        "vendor_withdrawal",
+        registration_id,
+        registration.business_name,
+        f"{APP_URL}/admin/registrations/{registration_id}",
+    )
+
+    return RedirectResponse(url="/vendor/dashboard", status_code=303)
+
+
 # --- Vendor dashboard ---
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -548,6 +635,16 @@ async def vendor_dashboard(
         "settings": settings,
         "insurance_doc": insurance_doc,
         "needs_attention": needs_attention,
+    })
+
+
+# --- Vendor FAQ ---
+
+@router.get("/faq", response_class=HTMLResponse)
+async def vendor_faq(request: Request, db: Session = Depends(get_db)):
+    settings = db.query(EventSettings).first()
+    return _template(request, "vendor/faq.html", {
+        "settings": settings,
     })
 
 

@@ -23,11 +23,13 @@
                 <li><a href="/auth/logout">Logout</a></li>
             {% elif session and session.user_type == "vendor" %}
                 <li><a href="/vendor/dashboard">My Registrations</a></li>
+                <li><a href="/vendor/faq">FAQ</a></li>
                 <li><a href="/auth/logout">Logout</a></li>
             {% else %}
                 {% if registration_open | default(false) %}
                 <li><a href="/auth/login">Vendor Login</a></li>
                 {% endif %}
+                <li><a href="/vendor/faq">FAQ</a></li>
                 <li><a href="/auth/login?role=admin">Admin Login</a></li>
             {% endif %}
         </ul>

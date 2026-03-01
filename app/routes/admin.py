@@ -67,7 +67,7 @@ async def admin_dashboard(
     db: Session = Depends(get_db),
 ):
     # Counts by status
-    statuses = ["pending", "approved", "rejected", "paid", "cancelled"]
+    statuses = ["pending", "approved", "rejected", "paid", "cancelled", "withdrawn"]
     counts = {}
     for s in statuses:
         counts[s] = db.query(Registration).filter(Registration.status == s).count()
@@ -899,7 +899,7 @@ async def export_csv(
         "Booth Type", "Electrical Equipment", "Electrical Other",
         "Insurance", "Amount Paid", "Processing Fee", "Refund Amount",
         "Stripe Payment Intent ID", "Created At", "Approved At",
-        "Rejected At", "Cancelled At", "Reversal Reason", "Admin Notes",
+        "Rejected At", "Cancelled At", "Withdrawn At", "Reversal Reason", "Admin Notes",
     ])
 
     for reg in registrations:
@@ -932,6 +932,7 @@ async def export_csv(
             reg.approved_at.strftime("%Y-%m-%d %H:%M") if reg.approved_at else "",
             reg.rejected_at.strftime("%Y-%m-%d %H:%M") if reg.rejected_at else "",
             reg.cancelled_at.strftime("%Y-%m-%d %H:%M") if reg.cancelled_at else "",
+            reg.withdrawn_at.strftime("%Y-%m-%d %H:%M") if reg.withdrawn_at else "",
             _sanitize_csv(reg.reversal_reason or ""),
             _sanitize_csv(reg.admin_notes or ""),
         ])

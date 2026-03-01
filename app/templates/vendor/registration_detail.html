@@ -22,6 +22,15 @@
 </article>
 {% endif %}
 
+{% if registration.status == "withdrawn" %}
+<article style="background-color: #e8eaf6; border-left: 4px solid #283593; padding: 1rem;">
+    <strong>This registration has been withdrawn.</strong>
+    {% if registration.reversal_reason %}
+    <br><strong>Reason:</strong> {{ registration.reversal_reason }}
+    {% endif %}
+</article>
+{% endif %}
+
 {% if waitlist_position %}
 <article style="border-left: 4px solid #e65100; padding-left: 1rem;">
     <p style="margin: 0;">
@@ -88,6 +97,29 @@
     {% else %}
     <p>No document uploaded. <a href="/vendor/insurance">Upload your insurance certificate</a></p>
     {% endif %}
+</article>
+{% endif %}
+
+{% if registration.status in ["pending", "approved"] %}
+<article>
+    <header>Withdraw Registration</header>
+    <p>If you no longer wish to participate, you can withdraw this registration. <strong>This action is permanent and cannot be undone.</strong></p>
+    <button type="button" class="secondary outline" style="width: auto;" data-open-dialog="withdraw-dialog">Withdraw Registration</button>
+    <dialog id="withdraw-dialog">
+        <article style="max-width: 480px;">
+            <header><strong>Withdraw Registration</strong></header>
+            <form method="post" action="/vendor/registration/{{ registration.registration_id }}/withdraw">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>Reason (optional)</label>
+                <input type="text" name="reason" placeholder="e.g. Unable to attend" maxlength="500">
+                <p style="font-size: 0.85rem; color: var(--pico-muted-color);">This action is permanent. Your registration will be cancelled and cannot be restored.</p>
+                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="outline" style="width: auto;" onclick="this.closest('dialog').close()">Cancel</button>
+                    <button type="submit" style="width: auto; background-color: #c62828; border-color: #c62828;">Confirm Withdrawal</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
 </article>
 {% endif %}
 
@@ -166,6 +198,10 @@
         <dt>Declined</dt>
         <dd>{{ registration.rejected_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
         {% endif %}
+        {% if registration.withdrawn_at %}
+        <dt>Withdrawn</dt>
+        <dd>{{ registration.withdrawn_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
+        {% endif %}
     </dl>
 </article>
 
@@ -173,4 +209,13 @@
 <hr>
 <p><small>Questions? Contact us at <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>.</small></p>
 {% endif %}
+
+<script>
+document.querySelectorAll('[data-open-dialog]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var dialog = document.getElementById(this.getAttribute('data-open-dialog'));
+        if (dialog) dialog.showModal();
+    });
+});
+</script>
 {% endblock %}

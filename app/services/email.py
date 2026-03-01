@@ -176,6 +176,21 @@ def send_rejection_email(to: str, registration_id: str, reason: str | None = Non
     return send_email(to, f"Registration {registration_id} Update", html)
 
 
+def send_withdrawal_confirmation_email(to: str, registration_id: str, booth_type_name: str) -> bool:
+    """Send withdrawal confirmation email to vendor."""
+    try:
+        template = _env.get_template("withdrawal_confirmation.html")
+        html = template.render(
+            registration_id=registration_id,
+            booth_type_name=booth_type_name,
+            dashboard_url=f"{APP_URL}/vendor/dashboard",
+        )
+    except Exception:
+        logger.exception("Failed to render withdrawal confirmation template")
+        return False
+    return send_email(to, f"Registration {registration_id} Withdrawn", html)
+
+
 def send_admin_notification_email(
     event_type: str,
     registration_id: str,
@@ -201,6 +216,7 @@ def send_admin_notification_email(
         "new_registration": f"Night Market: New Registration {registration_id}",
         "payment_received": f"Night Market: Payment Received {registration_id}",
         "insurance_uploaded": f"Night Market: Insurance Uploaded {registration_id}",
+        "vendor_withdrawal": f"Night Market: Vendor Withdrawal {registration_id}",
     }
     subject = subject_map.get(event_type, f"Night Market: {registration_id}")
 

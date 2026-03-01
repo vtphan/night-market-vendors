@@ -61,6 +61,9 @@
             {% if registration.rejected_at %}
             <tr><th>Rejected</th><td>{{ registration.rejected_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
             {% endif %}
+            {% if registration.withdrawn_at %}
+            <tr><th>Withdrawn</th><td>{{ registration.withdrawn_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+            {% endif %}
             {% if registration.reversal_reason %}
             <tr><th>Reversal Reason</th><td>{{ registration.reversal_reason }}</td></tr>
             {% endif %}
@@ -351,6 +354,12 @@
     <hr style="margin: 1rem 0;">
     <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin: 0;">
         This registration has been cancelled and refunded. No further status changes are available.
+    </p>
+
+    {% elif registration.status == 'withdrawn' %}
+    <hr style="margin: 1rem 0;">
+    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin: 0;">
+        This registration was withdrawn by the vendor. No further status changes are available.
     </p>
     {% endif %}
 

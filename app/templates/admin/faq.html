@@ -27,6 +27,7 @@
                 <tr><td><strong>Rejected</strong></td><td>Admin rejected the registration.</td><td>No action needed. Can revert to Pending for re-review if circumstances change.</td></tr>
                 <tr><td><strong>Paid</strong></td><td>Vendor completed payment. Booth is confirmed.</td><td>Booth confirmed. No action needed unless cancellation is required (triggers refund).</td></tr>
                 <tr><td><strong>Cancelled</strong></td><td>Admin cancelled a paid registration.</td><td>Terminal state. Verify refund in Stripe Dashboard if needed. Booth slot has been freed.</td></tr>
+                <tr><td><strong>Withdrawn</strong></td><td>Vendor voluntarily withdrew their registration.</td><td>Terminal state. No admin action needed. If the vendor was approved, the booth slot has been freed.</td></tr>
             </tbody>
         </table>
     </details>
@@ -130,12 +131,19 @@
         <summary>What status transitions are allowed?</summary>
         <pre>Pending  → Approved
 Pending  → Rejected
+Pending  → Withdrawn   (vendor withdraws)
 Approved → Paid        (vendor pays)
 Approved → Rejected
 Approved → Pending     (revoke for re-review)
+Approved → Withdrawn   (vendor withdraws)
 Rejected → Pending     (revoke for re-review)
 Paid     → Cancelled   (admin cancels + refund)</pre>
         <p>Any transition not listed above is blocked by the system.</p>
+    </details>
+
+    <details name="q-transitions">
+        <summary>Can a vendor withdraw their own registration?</summary>
+        <p><strong>Yes.</strong> Vendors can withdraw registrations that are in Pending or Approved status from their registration detail page. Withdrawal is permanent — there is no undo. If the vendor was approved, the booth slot is freed immediately. The vendor and all admins receive email notifications. Vendors cannot withdraw after payment (Paid status); only an admin can cancel a paid registration.</p>
     </details>
 </details>
 </article>

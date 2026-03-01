@@ -154,7 +154,7 @@ def test_rejected_to_other_invalid(db):
 def test_cancelled_to_any_invalid(db):
     bt = _make_booth_type(db)
     reg = _make_registration(db, bt.id, status="cancelled")
-    for target in ["pending", "approved", "rejected", "paid"]:
+    for target in ["pending", "approved", "rejected", "paid", "withdrawn"]:
         with pytest.raises(ValueError, match="Cannot transition"):
             transition_status(db, reg, target)
 
@@ -317,5 +317,82 @@ def test_inventory_frees_slot_on_approval_revoke(db):
     assert inventory[0]["available"] == 1
     assert inventory[0]["approved"] == 1
     assert inventory[0]["pending"] == 1
+
+
+# --- Withdrawal tests ---
+
+def test_pending_to_withdrawn(db):
+    bt = _make_booth_type(db)
+    reg = _make_registration(db, bt.id, status="pending")
+    result = transition_status(db, reg, "withdrawn", reversal_reason="No longer interested")
+    assert result.status == "withdrawn"
+    assert result.withdrawn_at is not None
+    assert result.reversal_reason == "No longer interested"
+
+
+def test_approved_to_withdrawn(db):
+    bt = _make_booth_type(db)
+    reg = _make_registration(db, bt.id, status="approved")
+    reg.approved_price = bt.price
+    db.commit()
+    result = transition_status(db, reg, "withdrawn")
+    assert result.status == "withdrawn"
+    assert result.approved_price is None
+    assert result.withdrawn_at is not None
+
+
+def test_rejected_to_withdrawn_invalid(db):
+    bt = _make_booth_type(db)
+    reg = _make_registration(db, bt.id, status="rejected")
+    with pytest.raises(ValueError, match="Cannot transition"):
+        transition_status(db, reg, "withdrawn")
+
+
+def test_paid_to_withdrawn_invalid(db):
+    bt = _make_booth_type(db)
+    reg = _make_registration(db, bt.id, status="paid")
+    with pytest.raises(ValueError, match="Cannot transition"):
+        transition_status(db, reg, "withdrawn")
+
+
+def test_withdrawn_to_any_invalid(db):
+    """Withdrawn is a terminal state — no transitions out."""
+    bt = _make_booth_type(db)
+    reg = _make_registration(db, bt.id, status="withdrawn")
+    for target in ["pending", "approved", "rejected", "paid", "cancelled"]:
+        with pytest.raises(ValueError, match="Cannot transition"):
+            transition_status(db, reg, target)
+
+
+def test_inventory_frees_slot_on_withdrawal_from_approved(db):
+    """Withdrawing from approved should free one booth slot."""
+    bt = _make_booth_type(db, qty=2)
+    reg1 = _make_registration(db, bt.id, status="approved", email="a@test.com", reg_id="ANM-2026-0001")
+    _make_registration(db, bt.id, status="approved", email="b@test.com", reg_id="ANM-2026-0002")
+
+    inventory = get_inventory(db)
+    assert inventory[0]["available"] == 0
+
+    transition_status(db, reg1, "withdrawn")
+
+    inventory = get_inventory(db)
+    assert inventory[0]["available"] == 1
+    assert inventory[0]["approved"] == 1
+    assert inventory[0]["withdrawn"] == 1
+
+
+def test_inventory_unaffected_by_pending_withdrawal(db):
+    """Withdrawing from pending should not change available count."""
+    bt = _make_booth_type(db, qty=5)
+    reg = _make_registration(db, bt.id, status="pending", email="a@test.com", reg_id="ANM-2026-0001")
+
+    inventory = get_inventory(db)
+    assert inventory[0]["available"] == 5
+
+    transition_status(db, reg, "withdrawn")
+
+    inventory = get_inventory(db)
+    assert inventory[0]["available"] == 5
+    assert inventory[0]["withdrawn"] == 1
 
 

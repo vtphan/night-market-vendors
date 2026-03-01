@@ -55,6 +55,11 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" style="margin: 0; width: 100%;">Submit Registration</button>
         </form>
+        <form method="post" action="/vendor/register/discard" style="margin: 0;"
+              onsubmit="return confirm('Discard this registration? All entered information will be lost.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="secondary outline" style="margin: 0;">Discard</button>
+        </form>
     </div>
 </article>
 {% endblock %}

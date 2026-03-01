@@ -114,6 +114,7 @@ def get_event_name():
 
 VENDOR_STATUS_LABELS = {
     "rejected": "Declined",
+    "withdrawn": "Withdrawn",
 }
 
 def vendor_status(status: str) -> str:

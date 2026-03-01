@@ -12,7 +12,7 @@ class Registration(Base):
     __tablename__ = "registrations"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending', 'approved', 'rejected', 'paid', 'cancelled')",
+            "status IN ('pending', 'approved', 'rejected', 'paid', 'cancelled', 'withdrawn')",
             name="ck_registration_status",
         ),
         CheckConstraint("amount_paid IS NULL OR amount_paid >= 0", name="ck_amount_paid_non_negative"),
@@ -40,6 +40,7 @@ class Registration(Base):
     approved_at = Column(DateTime, nullable=True)
     rejected_at = Column(DateTime, nullable=True)
     cancelled_at = Column(DateTime, nullable=True)
+    withdrawn_at = Column(DateTime, nullable=True)
     reversal_reason = Column(String, nullable=True)
     agreement_accepted_at = Column(DateTime, nullable=False)
     agreement_ip_address = Column(String, nullable=False)

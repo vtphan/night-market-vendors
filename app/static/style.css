@@ -65,6 +65,12 @@
     border: 1px solid #d6d8db;
 }
 
+.status-badge.withdrawn {
+    background-color: #e8eaf6;
+    color: #283593;
+    border: 1px solid #9fa8da;
+}
+
 /* Step progress indicator */
 .step-progress {
     display: flex;

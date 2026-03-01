@@ -13,10 +13,11 @@ logger = logging.getLogger(__name__)
 # --- Status state machine ---
 
 VALID_TRANSITIONS = {
-    "pending": ["approved", "rejected"],
-    "approved": ["paid", "rejected", "pending"],
+    "pending": ["approved", "rejected", "withdrawn"],
+    "approved": ["paid", "rejected", "pending", "withdrawn"],
     "rejected": ["pending"],
     "paid": ["cancelled"],
+    "withdrawn": [],
 }
 
 CATEGORIES = {
@@ -130,6 +131,12 @@ def transition_status(
             registration.approved_price = None
         registration.rejected_at = None
         registration.approved_at = None
+        if reversal_reason:
+            registration.reversal_reason = reversal_reason
+    elif new_status == "withdrawn":
+        if old_status == "approved":
+            registration.approved_price = None
+        registration.withdrawn_at = datetime.now(timezone.utc)
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "cancelled":
@@ -302,6 +309,7 @@ def get_inventory(db: Session) -> list[dict]:
             "paid": counts["paid"],
             "rejected": counts["rejected"],
             "cancelled": counts["cancelled"],
+            "withdrawn": counts["withdrawn"],
             "reserved": counts["approved"] + counts["paid"],
             "available": bt.total_quantity - counts["approved"] - counts["paid"],
         })
@@ -356,7 +364,7 @@ def _get_booth_counts(db: Session, booth_type_id: int) -> dict:
         .group_by(Registration.status)
         .all()
     )
-    result = {"pending": 0, "approved": 0, "paid": 0, "rejected": 0, "cancelled": 0}
+    result = {"pending": 0, "approved": 0, "paid": 0, "rejected": 0, "cancelled": 0, "withdrawn": 0}
     for status, count in counts:
         if status in result:
             result[status] = count

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Vendor FAQ{% endblock %}
+{% block content %}
+<h1>Vendor FAQ</h1>
+<p>Click a topic to expand it, then click any question to see the answer.</p>
+
+<div class="faq-sections">
+
+<article>
+<details name="section">
+    <summary><strong>Registration</strong> — How to register, drafts, and discarding</summary>
+
+    <details name="q-reg">
+        <summary>How do I register as a vendor?</summary>
+        <p>Click <strong>Vendor Login</strong> on the homepage and enter your email address. You'll receive a one-time verification code — enter it to log in. Once logged in, click <strong>Register</strong> to start your application. Fill out the form with your business information, select a booth type, accept the vendor agreement, and review your submission before submitting.</p>
+    </details>
+
+    <details name="q-reg">
+        <summary>Can I edit my registration after starting it?</summary>
+        <p>Before you submit, you can go back and edit your information on the review page. Once submitted, your registration cannot be edited. If you need to make changes after submission, contact the organizers.</p>
+    </details>
+
+    <details name="q-reg">
+        <summary>What happens if I start a registration but don't finish it?</summary>
+        <p>Your in-progress registration is saved as a draft. When you return and log in with the same email, you'll pick up where you left off. Drafts are automatically deleted after 24 hours of inactivity.</p>
+    </details>
+
+    <details name="q-reg">
+        <summary>How do I discard a draft and start over?</summary>
+        <p>On the review page (step 2), click the <strong>Discard</strong> button. This permanently deletes your draft. You can then start a new registration from scratch.</p>
+    </details>
+
+    <details name="q-reg">
+        <summary>Can I submit multiple registrations?</summary>
+        <p><strong>Yes.</strong> You can submit multiple registrations for different booth types or purposes. Each registration is reviewed independently by the organizers.</p>
+    </details>
+</details>
+</article>
+
+<article>
+<details name="section">
+    <summary><strong>Approval & Payment</strong> — What happens after you submit</summary>
+
+    <details name="q-approval">
+        <summary>What happens after I submit my registration?</summary>
+        <p>Your registration is placed in <strong>Pending Review</strong> status. The event organizers will review your application and either approve or decline it. You'll receive an email notification when a decision is made.</p>
+    </details>
+
+    <details name="q-approval">
+        <summary>How long does the review take?</summary>
+        <p>Review times vary, but most applications are reviewed within 3-5 business days. You can check your status anytime on your <a href="/vendor/dashboard">vendor dashboard</a>.</p>
+    </details>
+
+    <details name="q-approval">
+        <summary>How do I pay after being approved?</summary>
+        <p>Once approved, visit your registration detail page from the <a href="/vendor/dashboard">vendor dashboard</a>. You'll see a payment section with the amount due and a secure card payment form. Payment is processed through Stripe — your card information never touches our server.</p>
+    </details>
+
+    <details name="q-approval">
+        <summary>How urgently should I pay after being approved?</summary>
+        <p>You should pay as soon as possible. Your booth slot is reserved when you're approved, but the organizers may revoke your approval if payment is not received in a reasonable time frame. Your registration is only fully confirmed once payment is complete.</p>
+    </details>
+</details>
+</article>
+
+<article>
+<details name="section">
+    <summary><strong>Insurance</strong> — What's required and how to upload</summary>
+
+    <details name="q-insurance">
+        <summary>Do I need insurance to participate?</summary>
+        <p>Yes. All vendors are required to provide proof of liability insurance. You can upload your insurance certificate through the <a href="/vendor/insurance">insurance page</a> on your vendor dashboard.</p>
+    </details>
+
+    <details name="q-insurance">
+        <summary>What file types are accepted?</summary>
+        <p>You can upload a <strong>PDF, PNG, or JPG</strong> file up to 10 MB. Make sure the document is legible and includes your policy details.</p>
+    </details>
+
+    <details name="q-insurance">
+        <summary>When should I upload my insurance document?</summary>
+        <p>Upload your insurance document as soon as possible, ideally when you submit your registration or shortly after. The organizers review insurance separately from your registration.</p>
+    </details>
+
+    {% if settings and settings.insurance_instructions %}
+    <details name="q-insurance">
+        <summary>Where can I get insurance?</summary>
+        <p>{{ settings.insurance_instructions | sanitize_html }}</p>
+    </details>
+    {% endif %}
+</details>
+</article>
+
+<article>
+<details name="section">
+    <summary><strong>Understanding Your Status</strong> — What each status means</summary>
+
+    <details name="q-status">
+        <summary>What do the different statuses mean?</summary>
+        <table>
+            <thead>
+                <tr><th>Status</th><th>What It Means</th><th>What To Do</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>Pending Review</strong></td><td>Your registration has been submitted and is waiting for organizer review.</td><td>No action needed. You'll be notified by email when a decision is made.</td></tr>
+                <tr><td><strong>Approved</strong></td><td>Your registration has been approved. A booth slot is reserved for you.</td><td>Complete payment as soon as possible to confirm your spot.</td></tr>
+                <tr><td><strong>Paid</strong></td><td>Payment is complete. Your booth is confirmed.</td><td>No further action needed. Make sure your insurance document is uploaded.</td></tr>
+                <tr><td><strong>Declined</strong></td><td>The organizers were unable to approve your registration.</td><td>Check the reason provided. Contact the organizers if you have questions.</td></tr>
+                <tr><td><strong>Cancelled</strong></td><td>Your paid registration has been cancelled by the organizers.</td><td>Check your email for refund details.</td></tr>
+                <tr><td><strong>Withdrawn</strong></td><td>You voluntarily withdrew your registration.</td><td>This is permanent. Submit a new registration if you change your mind.</td></tr>
+            </tbody>
+        </table>
+    </details>
+</details>
+</article>
+
+<article>
+<details name="section">
+    <summary><strong>Withdrawal</strong> — How to withdraw your registration</summary>
+
+    <details name="q-withdraw">
+        <summary>How do I withdraw my registration?</summary>
+        <p>Open your registration from the <a href="/vendor/dashboard">vendor dashboard</a> and scroll down to the <strong>Withdraw Registration</strong> section. Click the button, optionally provide a reason, and confirm. You'll receive an email confirmation.</p>
+    </details>
+
+    <details name="q-withdraw">
+        <summary>When can I withdraw?</summary>
+        <p>You can withdraw while your registration is in <strong>Pending Review</strong> or <strong>Approved</strong> status. Once you've paid, only the event organizers can cancel your registration.</p>
+    </details>
+
+    <details name="q-withdraw">
+        <summary>Can I undo a withdrawal?</summary>
+        <p><strong>No.</strong> Withdrawal is permanent and cannot be undone. If you change your mind, you'll need to submit a new registration (if registration is still open).</p>
+    </details>
+
+    <details name="q-withdraw">
+        <summary>What happens to my booth slot if I withdraw after being approved?</summary>
+        <p>Your reserved booth slot is freed immediately and becomes available for other vendors.</p>
+    </details>
+</details>
+</article>
+
+<article>
+<details name="section">
+    <summary><strong>Contact & Support</strong> — How to reach the organizers</summary>
+
+    <details name="q-contact">
+        <summary>How do I contact the event organizers?</summary>
+        {% if settings and settings.contact_email %}
+        <p>Email us at <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>. Include your registration ID if you have one — it helps us locate your application quickly.</p>
+        {% else %}
+        <p>Contact information will be provided by the event organizers.</p>
+        {% endif %}
+    </details>
+
+    <details name="q-contact">
+        <summary>I didn't receive an email notification. What should I do?</summary>
+        <p>Check your spam or junk folder first. Email notifications are sent automatically but may be delayed or filtered. You can always check your current status by logging in to your <a href="/vendor/dashboard">vendor dashboard</a>.</p>
+    </details>
+</details>
+</article>
+
+</div>
+{% endblock %}
