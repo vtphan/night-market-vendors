@@ -157,6 +157,11 @@ async def register_step1(
     if not session or session.get("user_type") != "vendor":
         return RedirectResponse(url="/auth/login", status_code=303)
 
+    # Block submissions if registration is closed
+    settings = db.query(EventSettings).first()
+    if settings and not settings.is_registration_open():
+        return RedirectResponse(url="/vendor/register", status_code=303)
+
     # Force email from session — ignore form value
     email = session.get("email", "").lower().strip()
     errors = []
@@ -255,7 +260,12 @@ async def register_submit(
     db: Session = Depends(get_db),
 ):
     session = read_session(request)
-    if not session:
+    if not session or session.get("user_type") != "vendor":
+        return RedirectResponse(url="/vendor/register", status_code=303)
+
+    # Block submissions if registration is closed
+    settings_check = db.query(EventSettings).first()
+    if settings_check and not settings_check.is_registration_open():
         return RedirectResponse(url="/vendor/register", status_code=303)
 
     email = session.get("email", "").lower().strip()

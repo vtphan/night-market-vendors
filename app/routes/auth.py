@@ -317,7 +317,10 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             logger.warning("No id_token in Google token response")
             return RedirectResponse(url="/auth/login", status_code=303)
 
-        claims = jose_jwt.decode(id_token, jwks)
+        claims = jose_jwt.decode(id_token, jwks, claims_options={
+            "iss": {"values": ["https://accounts.google.com", "accounts.google.com"]},
+            "aud": {"value": GOOGLE_CLIENT_ID},
+        })
         claims.validate()
 
         # Verify nonce matches

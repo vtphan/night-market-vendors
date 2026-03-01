@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
+import stripe
 from sqlalchemy import func, or_, and_
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
@@ -48,6 +49,18 @@ EQUIP_LABELS = {
 }
 
 
+def _cancel_stale_payment_intent(payment_intent_id: str) -> None:
+    """Best-effort cancel of a Stripe PaymentIntent that is no longer needed."""
+    try:
+        stripe.PaymentIntent.cancel(payment_intent_id)
+        logger.info("Cancelled stale PaymentIntent %s", payment_intent_id)
+    except stripe.StripeError:
+        logger.warning(
+            "Could not cancel PaymentIntent %s (may already be terminal)",
+            payment_intent_id,
+        )
+
+
 def transition_status(
     db: Session,
     registration: Registration,
@@ -72,11 +85,21 @@ def transition_status(
         registration.approved_at = datetime.now(timezone.utc)
         registration.reversal_reason = None
     elif new_status == "rejected":
+        # If revoking approval, cancel any in-progress PaymentIntent
+        if registration.status == "approved" and registration.stripe_payment_intent_id:
+            _cancel_stale_payment_intent(registration.stripe_payment_intent_id)
+            registration.stripe_payment_intent_id = None
+            registration.processing_fee = None
         registration.rejected_at = datetime.now(timezone.utc)
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "pending":
         # Returning from approved/rejected — store the revoke reason
+        # If revoking approval, cancel any in-progress PaymentIntent
+        if registration.status == "approved" and registration.stripe_payment_intent_id:
+            _cancel_stale_payment_intent(registration.stripe_payment_intent_id)
+            registration.stripe_payment_intent_id = None
+            registration.processing_fee = None
         registration.rejected_at = None
         registration.approved_at = None
         if reversal_reason:

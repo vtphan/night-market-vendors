@@ -48,21 +48,29 @@ def create_payment_intent(
         try:
             existing = stripe.PaymentIntent.retrieve(registration.stripe_payment_intent_id)
             if existing.status in _REUSABLE_PI_STATES:
+                if existing.amount == total_amount:
+                    logger.info(
+                        "Reusing PaymentIntent %s for registration %s (status: %s)",
+                        existing.id,
+                        registration.registration_id,
+                        existing.status,
+                    )
+                    return existing.client_secret
+                # Amount changed (e.g. price or fee update) — cancel stale PI
                 logger.info(
-                    "Reusing PaymentIntent %s for registration %s (status: %s)",
+                    "PaymentIntent %s amount mismatch (%d vs %d) — cancelling and creating new one",
+                    existing.id, existing.amount, total_amount,
+                )
+                stripe.PaymentIntent.cancel(existing.id)
+            else:
+                logger.info(
+                    "Existing PaymentIntent %s is %s — creating new one",
                     existing.id,
-                    registration.registration_id,
                     existing.status,
                 )
-                return existing.client_secret
+        except stripe.StripeError:
             logger.info(
-                "Existing PaymentIntent %s is %s — creating new one",
-                existing.id,
-                existing.status,
-            )
-        except stripe.InvalidRequestError:
-            logger.info(
-                "PaymentIntent %s not found — creating new one",
+                "PaymentIntent %s not retrievable — creating new one",
                 registration.stripe_payment_intent_id,
             )
 

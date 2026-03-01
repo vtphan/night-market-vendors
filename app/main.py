@@ -37,15 +37,15 @@ async def lifespan(app: FastAPI):
         bootstrap_admins(db)
         settings = db.query(EventSettings).first()
         app.state.event_name = settings.event_name if settings else "Vendor Registration"
+
+        # Clean up abandoned drafts older than 24 hours
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        deleted = db.query(RegistrationDraft).filter(RegistrationDraft.updated_at < cutoff).delete()
+        db.commit()
+        if deleted:
+            logger.info("Cleaned up %d abandoned registration draft(s)", deleted)
     finally:
         db.close()
-
-    # Clean up abandoned drafts older than 24 hours
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-    deleted = db.query(RegistrationDraft).filter(RegistrationDraft.updated_at < cutoff).delete()
-    db.commit()
-    if deleted:
-        logger.info("Cleaned up %d abandoned registration draft(s)", deleted)
 
     uploads_dir = Path(__file__).resolve().parent.parent / "uploads" / "insurance"
     uploads_dir.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+import math
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
@@ -468,14 +469,16 @@ async def cancel_registration(
 
     # Convert dollar amount to cents
     try:
-        amount_cents = round(float(refund_amount) * 100)
-        if amount_cents < 0:
+        amount_float = float(refund_amount)
+        if not math.isfinite(amount_float) or amount_float < 0:
             amount_cents = 0
+        else:
+            amount_cents = round(amount_float * 100)
     except (ValueError, TypeError):
         amount_cents = 0
 
-    # Validate refund does not exceed amount paid
-    max_refundable = registration.amount_paid or 0
+    # Validate refund does not exceed amount paid minus prior refunds
+    max_refundable = (registration.amount_paid or 0) - (registration.refund_amount or 0)
     if amount_cents > max_refundable:
         flash = [{"category": "error", "text": f"Refund amount (${amount_cents / 100:.2f}) exceeds amount paid (${max_refundable / 100:.2f})."}]
         ctx = _detail_context(db, registration)
@@ -678,9 +681,11 @@ async def update_inventory(
         booth_type.total_quantity = total_quantity
         booth_type.description = description.strip()
         try:
-            price_cents = round(float(price) * 100)
-            if price_cents >= 0:
-                booth_type.price = price_cents
+            price_float = float(price)
+            if math.isfinite(price_float):
+                price_cents = round(price_float * 100)
+                if price_cents >= 0:
+                    booth_type.price = price_cents
         except (ValueError, TypeError):
             pass
         db.commit()
@@ -742,7 +747,10 @@ async def update_settings(
             settings.insurance_instructions = insurance_instructions.strip()
             settings.vendor_agreement_text = vendor_agreement_text.strip()
             try:
-                settings.processing_fee_percent = float(processing_fee_percent)
+                fee_pct = float(processing_fee_percent)
+                if not math.isfinite(fee_pct):
+                    fee_pct = 0
+                settings.processing_fee_percent = max(0, min(fee_pct, 50))
             except (ValueError, TypeError):
                 settings.processing_fee_percent = 0
             try:
