@@ -154,8 +154,13 @@ async def test_story40_registration_id_collision_retry(client, db):
 # ── Stripe & Payment Edge Cases ────────────────────────────────────────
 
 
-async def test_story41_db_commit_fails_after_refund(client, db, caplog):
-    """Story 41 (E-B1): DB commit fails after Stripe refund — CRITICAL log."""
+async def test_story41_refund_fails_after_cancellation(client, db):
+    """Story 41 (E-B1): Stripe refund fails after cancellation committed.
+
+    With the commit-first approach, the cancellation is committed to DB before
+    the Stripe refund is attempted.  If the refund fails, the registration is
+    correctly cancelled and admins are alerted to issue the refund manually.
+    """
     reg = await register_vendor(client, db)
     reg = await approve_registration(client, db, reg.registration_id)
     reg = await pay_registration(client, db, reg.registration_id)
@@ -167,21 +172,10 @@ async def test_story41_db_commit_fails_after_refund(client, db, caplog):
         f"/admin/registrations/{reg.registration_id}", cookies=acook)
     csrf = extract_csrf(detail.text)
 
-    # Sabotage: mock create_refund to succeed but make the next commit fail
-    def sabotage_commit(db_session, registration, amount):
-        registration.refund_amount = (registration.refund_amount or 0) + amount
-        real_commit = db_session.commit
-
-        def fail_once():
-            db_session.commit = real_commit
-            raise OperationalError("simulated disk full", {}, Exception())
-        db_session.commit = fail_once
-
     refund_str = f"{(reg.amount_paid or 0) / 100:.2f}"
-    with patch("app.routes.admin.create_refund", side_effect=sabotage_commit), \
+    with patch("app.routes.admin.create_refund", side_effect=Exception("Stripe down")), \
          patch("app.routes.admin.send_refund_email"), \
-         patch("app.routes.admin.send_admin_alert_email"), \
-         caplog.at_level(logging.CRITICAL, logger="app.routes.admin"):
+         patch("app.routes.admin.send_admin_alert_email") as mock_alert:
         resp = await client.post(
             f"/admin/registrations/{reg.registration_id}/cancel",
             data={
@@ -195,16 +189,19 @@ async def test_story41_db_commit_fails_after_refund(client, db, caplog):
 
     # Route returns the detail template with error flash (200), not 303 redirect
     assert resp.status_code == 200
+    assert "refund failed" in resp.text.lower()
 
-    # Registration should still be "paid" (commit rolled back)
+    # Registration should be "cancelled" (committed before refund attempt)
     fresh = db.query(Registration).filter(
         Registration.registration_id == reg.registration_id
     ).first()
     db.refresh(fresh)
-    assert fresh.status == "paid"
+    assert fresh.status == "cancelled"
 
-    # CRITICAL log emitted
-    assert any("DB commit failed AFTER Stripe refund" in r.message for r in caplog.records)
+    # Admin alert sent so they know to issue the refund via Stripe Dashboard
+    mock_alert.assert_called_once()
+    alert_subject = mock_alert.call_args[0][0]
+    assert "refund failed" in alert_subject.lower()
 
 
 async def test_story42_full_refund_via_dashboard(client, db):

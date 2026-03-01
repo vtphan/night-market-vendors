@@ -66,8 +66,11 @@ These are the happy-path flows that ~95% of users follow.
 | Step | Actor | Action | System Response |
 |------|-------|--------|-----------------|
 | 1 | Admin | Opens paid registration, clicks "Cancel & Refund" | Dialog for refund amount (presets from refund policy) + reason |
-| 2 | Admin | Enters amount ≤ (`amount_paid` − prior refunds), enters reason, confirms | Atomic transaction: transition `paid → cancelled` → `stripe.Refund.create()` → record `refund_amount` → commit |
+| 2 | Admin | Enters amount ≤ (`amount_paid` − prior refunds), enters reason, confirms | **Step 1:** transition `paid → cancelled` committed to DB. **Step 2:** `stripe.Refund.create()` → record `refund_amount` → commit |
 | 3 | System | Sends refund confirmation email to vendor | Includes reason and processing fee note |
+| 4 | System | Sends admin alert email to all admins | Records who cancelled, reason, and refund amount for audit trail |
+
+**Design note — commit-first ordering:** The cancellation is committed to the database *before* the Stripe refund is issued. This ensures the irreversible external operation (money movement) only happens after the app state is consistent. If the Stripe refund fails after the cancellation commit, the admin is alerted to issue the refund manually via Stripe Dashboard. This is strictly recoverable. The alternative (refund-first) risked an irrecoverable inconsistency: money refunded but the app still showing "paid".
 
 ---
 
@@ -194,17 +197,17 @@ These are the happy-path flows that ~95% of users follow.
 
 ### Category B: Stripe & Payment Edge Cases
 
-#### E-B1. DB Commit Fails After Stripe Refund Succeeds
+#### E-B1. Stripe Refund Fails After Cancellation Committed
 
-**Trigger:** `stripe.Refund.create()` returns success, then the DB commit fails (disk full, SQLite lock timeout, etc.).
+**Trigger:** Registration is cancelled and committed to DB, then `stripe.Refund.create()` fails (Stripe outage, network error, invalid PaymentIntent, etc.).
 
 **Sequence:**
-1. Registration transitioned to `cancelled` in memory (not committed)
-2. Stripe refund API call succeeds — money is returning to vendor's card
-3. `session.commit()` raises an exception
-4. DB rolled back: registration still shows `paid` in the app
+1. Registration transitioned to `cancelled` and committed to DB
+2. Stripe refund API call fails — no money moves
+3. DB rolled back for the refund_amount update only; cancellation persists
+4. Admin alert email sent with PaymentIntent ID and instructions
 
-**Outcome:** CRITICAL log entry. Urgent admin alert email with Stripe Dashboard link and instructions. Vendor receives refund on their card but app still shows "Paid". Requires manual reconciliation: admin must verify refund in Stripe Dashboard and either retry the cancel in-app or update the record directly.
+**Outcome:** Registration correctly shows "Cancelled" in the app. No money has moved. Admin is alerted to issue the refund manually via Stripe Dashboard. This is strictly recoverable — the admin has the PaymentIntent ID and a clear error message. The previous approach (refund-first) risked an irrecoverable state where money was refunded but the app still showed "Paid".
 
 ---
 
@@ -492,7 +495,7 @@ These are the happy-path flows that ~95% of users follow.
 | E-A3 | Concurrent last-booth approval | Low | Medium | Inventory re-check at commit (`FOR UPDATE` if migrated to PostgreSQL) |
 | E-A4 | Vendor retries payment | Medium | None | PaymentIntent reuse, Stripe idempotency |
 | E-A5 | Registration ID collision | Very Low | None | 3 retries on unique constraint |
-| E-B1 | DB fail after Stripe refund | Very Low | Critical | CRITICAL log, admin alert, manual reconciliation |
+| E-B1 | Stripe refund fails after cancel committed | Very Low | Low | Admin alert, manual refund via Stripe Dashboard (recoverable) |
 | E-B2 | Dashboard refund (outside app) | Low | Medium | Webhook sync, admin alert |
 | E-B3 | Chargeback/dispute | Low | High | Admin alert, manual response |
 | E-B4 | Price change after approval | Medium | None | `approved_price` lock |

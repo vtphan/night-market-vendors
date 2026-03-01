@@ -367,9 +367,10 @@ async def test_vendor_pay_rejects_wrong_vendor(db):
 # ========================================
 
 @pytest.mark.anyio
+@patch("app.routes.admin.send_admin_alert_email")
 @patch("app.routes.admin.create_refund")
 @patch("app.routes.admin.send_refund_email")
-async def test_admin_cancel_paid_registration(mock_email, mock_refund, db):
+async def test_admin_cancel_paid_registration(mock_email, mock_refund, mock_alert, db):
     seed_admin(db)
     booths = seed_booth_types(db)
     reg = make_registration(db, booths[0].id, status="paid",
@@ -395,6 +396,9 @@ async def test_admin_cancel_paid_registration(mock_email, mock_refund, db):
     assert reg.status == "cancelled"
     mock_refund.assert_called_once()
     mock_email.assert_called_once()
+    # Admin alert sent for financial records
+    mock_alert.assert_called_once()
+    assert "cancelled" in mock_alert.call_args[0][0].lower()
 
 
 @pytest.mark.anyio

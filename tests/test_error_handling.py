@@ -154,7 +154,8 @@ async def test_stripe_refund_failure_shows_flash_error(db):
         )
         csrf = extract_csrf(detail_resp.text)
 
-        with patch("app.routes.admin.create_refund", side_effect=Exception("Stripe refund error")):
+        with patch("app.routes.admin.create_refund", side_effect=Exception("Stripe refund error")), \
+             patch("app.routes.admin.send_admin_alert_email"):
             response = await client.post(
                 f"/admin/registrations/{reg.registration_id}/cancel",
                 cookies=admin_cookie(),
@@ -163,11 +164,12 @@ async def test_stripe_refund_failure_shows_flash_error(db):
             )
             # Should render the detail page with flash error (200), not redirect
             assert response.status_code == 200
-            assert "Refund failed" in response.text
+            assert "refund failed" in response.text.lower()
 
-        # Registration should still be confirmed
+        # Cancellation was committed before the refund attempt, so status is
+        # "cancelled". Admin is alerted to issue refund via Stripe Dashboard.
         db.refresh(reg)
-        assert reg.status == "paid"
+        assert reg.status == "cancelled"
 
 
 # ========================================

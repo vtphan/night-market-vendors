@@ -373,7 +373,8 @@ async def cancel_registration(client, db, registration_id, admin_cookies=None,
     csrf = extract_csrf(detail.text)
 
     with patch("app.routes.admin.create_refund"), \
-         patch("app.routes.admin.send_refund_email"):
+         patch("app.routes.admin.send_refund_email"), \
+         patch("app.routes.admin.send_admin_alert_email"):
         resp = await client.post(
             f"/admin/registrations/{registration_id}/cancel",
             data={

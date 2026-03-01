@@ -533,54 +533,51 @@ async def cancel_registration(
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
 
-    # Transition status first (without committing), then refund — single atomic commit
+    # Step 1: Commit cancellation to DB first — no money moves yet.
     try:
-        transition_status(db, registration, "cancelled", reversal_reason=reversal_reason, _commit=False)
+        transition_status(db, registration, "cancelled", reversal_reason=reversal_reason)
     except ValueError as e:
         logger.warning("Invalid transition for %s: %s", reg_id, e)
         db.rollback()
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
-    stripe_refund_succeeded = False
+    # Step 2: Issue Stripe refund (only after DB is consistent).
     if amount_cents > 0 and registration.stripe_payment_intent_id:
         try:
             create_refund(db, registration, amount_cents)
-            stripe_refund_succeeded = True
+            db.commit()
         except Exception:
-            logger.exception("Stripe refund failed for %s", reg_id)
             db.rollback()
-            flash = [{"category": "error", "text": "Refund failed. Please check Stripe and try again."}]
+            logger.error("Stripe refund failed for %s after cancellation", reg_id)
+            background_tasks.add_task(
+                send_admin_alert_email,
+                f"Action required: refund failed — {reg_id}",
+                f"Registration {reg_id} ({registration.business_name}) was cancelled "
+                f"but the Stripe refund of ${amount_cents / 100:.2f} failed.\n\n"
+                f"Please issue the refund manually in the Stripe Dashboard.\n"
+                f"PaymentIntent: {registration.stripe_payment_intent_id}",
+            )
+            flash = [{"category": "error", "text": "Registration cancelled but refund failed. Please issue the refund via Stripe Dashboard."}]
             ctx = _detail_context(db, registration)
             ctx["get_flashed_messages"] = lambda: flash
             return _template(request, "admin/registration_detail.html", ctx, session=session)
 
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
-        if stripe_refund_succeeded:
-            logger.critical(
-                "DB commit failed AFTER Stripe refund succeeded for %s "
-                "(refund of %d cents). Manual reconciliation required in Stripe Dashboard.",
-                reg_id, amount_cents,
-            )
-            background_tasks.add_task(
-                send_admin_alert_email,
-                f"URGENT: DB commit failed after Stripe refund — {reg_id}",
-                f"A Stripe refund of ${amount_cents / 100:.2f} was processed for "
-                f"registration {reg_id}, but the database commit failed. "
-                f"The registration may still show as 'paid' in the app.\n\n"
-                f"Manual reconciliation is required in the Stripe Dashboard.",
-            )
-        flash = [{"category": "error", "text": "Failed to save changes. Please check Stripe Dashboard for refund status."}]
-        ctx = _detail_context(db, registration)
-        ctx["get_flashed_messages"] = lambda: flash
-        return _template(request, "admin/registration_detail.html", ctx, session=session)
-
+    # Notify vendor
     background_tasks.add_task(
         send_refund_email, registration.email, reg_id, amount_cents,
         reason=reversal_reason or None,
         processing_fee_cents=registration.processing_fee or 0,
+    )
+
+    # Notify all admins for financial records
+    background_tasks.add_task(
+        send_admin_alert_email,
+        f"Registration cancelled & refunded — {reg_id}",
+        f"Registration {reg_id} ({registration.business_name}) has been cancelled "
+        f"by {session.get('email', 'unknown')}.\n\n"
+        f"Reason: {reversal_reason}\n"
+        f"Refund amount: ${amount_cents / 100:.2f}\n"
+        f"PaymentIntent: {registration.stripe_payment_intent_id or 'N/A'}",
     )
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
