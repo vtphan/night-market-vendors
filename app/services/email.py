@@ -16,6 +16,42 @@ _template_dir = Path(__file__).resolve().parent.parent / "templates" / "emails"
 _env = Environment(loader=FileSystemLoader(str(_template_dir)), autoescape=True)
 
 
+def _get_email_globals() -> dict:
+    """Load event_name and contact_email from EventSettings for email templates."""
+    from app.database import SessionLocal
+    from app.models import EventSettings
+
+    db = SessionLocal()
+    try:
+        settings = db.query(EventSettings).first()
+        if settings:
+            return {
+                "event_name": settings.event_name,
+                "contact_email": settings.contact_email,
+            }
+    except Exception:
+        logger.exception("Failed to load EventSettings for email globals")
+    finally:
+        db.close()
+    return {"event_name": "Asian Night Market", "contact_email": ""}
+
+
+_env.globals["event_name"] = ""
+_env.globals["contact_email"] = ""
+
+
+_original_get_template = _env.get_template
+
+
+def _get_template_with_globals(name, *args, **kwargs):
+    """Wrapper that refreshes globals from EventSettings before each render."""
+    _env.globals.update(_get_email_globals())
+    return _original_get_template(name, *args, **kwargs)
+
+
+_env.get_template = _get_template_with_globals
+
+
 def send_email(to: str, subject: str, html_body: str) -> bool:
     """Send an email via Resend. Returns True on success, False on failure."""
     try:
@@ -59,19 +95,19 @@ def send_submission_confirmation_email(to: str, registration_id: str, booth_type
     return send_email(to, f"Registration {registration_id} Received", html)
 
 
-def send_approval_email(to: str, registration_id: str, payment_url: str, insurance_instructions: str = "") -> bool:
-    """Send registration approval notification with payment link."""
+def send_approval_email(to: str, registration_id: str, portal_domain: str, insurance_instructions: str = "") -> bool:
+    """Send registration approval notification directing vendor to the portal."""
     try:
         template = _env.get_template("approval.html")
         html = template.render(
             registration_id=registration_id,
-            payment_url=payment_url,
+            portal_domain=portal_domain,
             insurance_instructions=insurance_instructions,
         )
     except Exception:
         logger.exception("Failed to render approval email template")
         return False
-    return send_email(to, f"Registration {registration_id} Approved!", html)
+    return send_email(to, f"Registration {registration_id} - Status Update", html)
 
 
 def send_payment_confirmation_email(to: str, registration_id: str, booth_type_name: str, amount_cents: int) -> bool:
