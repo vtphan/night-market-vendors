@@ -109,14 +109,16 @@ async def admin_dashboard(
         Registration.status.in_(["paid", "cancelled"])
     ).scalar() or 0
 
-    # Revenue by booth type
+    # Revenue by booth type — inject into inventory dicts
     revenue_by_booth = (
-        db.query(BoothType.name, sa_func.sum(Registration.amount_paid))
-        .join(BoothType, Registration.booth_type_id == BoothType.id)
+        db.query(Registration.booth_type_id, sa_func.sum(Registration.amount_paid))
         .filter(Registration.status == "paid")
-        .group_by(BoothType.name)
+        .group_by(Registration.booth_type_id)
         .all()
     )
+    revenue_by_booth_dict = dict(revenue_by_booth)
+    for item in inventory:
+        item["revenue"] = revenue_by_booth_dict.get(item["id"], 0) or 0
 
     # Recent pending registrations (up to 5)
     recent_pending = (
@@ -214,7 +216,6 @@ async def admin_dashboard(
         "noted_registrations": noted_registrations,
         "revenue_total": revenue_total,
         "refund_total": refund_total,
-        "revenue_by_booth": revenue_by_booth,
         "recent_pending": recent_pending,
         "last_registration_at": last_registration_at,
         "daily_counts": daily_counts,
@@ -351,11 +352,14 @@ async def approve_registration(
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
 
-    payment_url = f"{APP_URL}/vendor/registration/{reg_id}"
+    # Extract just the domain so the email tells vendors where to log in
+    # without embedding a direct link (reduces spam-filter risk).
+    from urllib.parse import urlparse
+    portal_domain = urlparse(APP_URL).hostname or APP_URL
     settings = db.query(EventSettings).first()
     background_tasks.add_task(
         send_approval_email,
-        registration.email, reg_id, payment_url,
+        registration.email, reg_id, portal_domain,
         insurance_instructions=settings.insurance_instructions if settings else "",
     )
 

@@ -151,15 +151,6 @@
     white-space: nowrap;
 }
 
-/* Revenue breakdown */
-.revenue-list { list-style: none; padding: 0; margin: 0; }
-.revenue-list li {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.3rem 0;
-    font-size: 0.9rem;
-}
-
 /* Chart area */
 .chart-container {
     position: relative;
@@ -320,11 +311,11 @@
         </article>
         {% endif %}
 
-        <!-- Booth Capacity -->
+        <!-- Booth Overview -->
         <article>
             <header>
                 <div class="section-header">
-                    <strong>Booth Capacity</strong>
+                    <strong>Booth Overview</strong>
                     <a href="/admin/inventory">Manage &rarr;</a>
                 </div>
             </header>
@@ -354,24 +345,29 @@
                     <span><span class="legend-dot" style="background:#3b82f6;"></span>Approved {{ item.approved }}</span>
                     <span><span class="legend-dot" style="background:#f59e0b;"></span>Pending {{ item.pending }}</span>
                 </div>
+                <div style="font-size: 0.8rem; color: var(--pico-muted-color); margin-top: 0.25rem;">
+                    Revenue: <strong style="color: #15803d;">${{ "%.2f"|format((item.revenue or 0) / 100) }}</strong>
+                </div>
             </div>
             {% endfor %}
+            <div style="border-top: 2px solid var(--pico-muted-border-color); margin-top: 0.5rem; padding-top: 0.75rem; font-size: 0.9rem;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Total Revenue</span>
+                    <strong style="color: #15803d;">${{ "%.2f"|format(revenue_total / 100) }}</strong>
+                </div>
+                {% if refund_total > 0 %}
+                <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+                    <span>Refunded</span>
+                    <strong style="color: #dc2626;">${{ "%.2f"|format(refund_total / 100) }}</strong>
+                </div>
+                {% endif %}
+                <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+                    <span>Net Revenue</span>
+                    <strong>${{ "%.2f"|format((revenue_total - refund_total) / 100) }}</strong>
+                </div>
+            </div>
         </article>
 
-        <!-- Registration Timeline Chart -->
-        <article>
-            <header><strong>Registration Activity</strong></header>
-            <div class="chart-tabs">
-                <button class="chart-tab active" data-chart-tab="daily">Last 30 Days</button>
-                <button class="chart-tab" data-chart-tab="hourly">By Hour</button>
-            </div>
-            <div class="chart-container" id="chart-daily">
-                <canvas id="daily-chart" height="180"></canvas>
-            </div>
-            <div class="chart-container" id="chart-hourly" style="display:none;">
-                <canvas id="hourly-chart" height="180"></canvas>
-            </div>
-        </article>
     </div>
 
     <!-- Right column (secondary) -->
@@ -410,34 +406,6 @@
             </footer>
         </article>
 
-        <!-- Revenue -->
-        <article>
-            <header><strong>Revenue</strong></header>
-            <div style="text-align:center; margin-bottom:0.75rem;">
-                <div style="font-size:1.5rem; font-weight:700; color:#15803d;">
-                    ${{ "%.2f"|format(revenue_total / 100) }}
-                </div>
-                {% if refund_total > 0 %}
-                <div style="font-size:0.85rem; color:#dc2626;">
-                    Refunded: ${{ "%.2f"|format(refund_total / 100) }}
-                </div>
-                {% endif %}
-                <div style="font-size:0.85rem; color:var(--pico-muted-color);">
-                    Net: ${{ "%.2f"|format((revenue_total - refund_total) / 100) }}
-                </div>
-            </div>
-            {% if revenue_by_booth %}
-            <ul class="revenue-list">
-                {% for name, amount in revenue_by_booth %}
-                <li>
-                    <span>{{ name }}</span>
-                    <strong>${{ "%.2f"|format((amount or 0) / 100) }}</strong>
-                </li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-        </article>
-
         <!-- Insurance -->
         <article>
             <header><strong>Insurance</strong></header>
@@ -455,6 +423,21 @@
                     <td><span class="badge badge-rejected">{{ insurance_counts.none }}</span></td>
                 </tr>
             </table>
+        </article>
+
+        <!-- Registration Timeline Chart -->
+        <article>
+            <header><strong>Registration Activity</strong></header>
+            <div class="chart-tabs">
+                <button class="chart-tab active" data-chart-tab="daily">Last 30 Days</button>
+                <button class="chart-tab" data-chart-tab="hourly">By Hour</button>
+            </div>
+            <div class="chart-container" id="chart-daily">
+                <canvas id="daily-chart" height="180"></canvas>
+            </div>
+            <div class="chart-container" id="chart-hourly" style="display:none;">
+                <canvas id="hourly-chart" height="180"></canvas>
+            </div>
         </article>
 
     </div>
