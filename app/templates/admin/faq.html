@@ -19,14 +19,14 @@
         <summary>What do the registration statuses mean?</summary>
         <table>
             <thead>
-                <tr><th>Status</th><th>Meaning</th></tr>
+                <tr><th>Status</th><th>Meaning</th><th>What to know</th></tr>
             </thead>
             <tbody>
-                <tr><td><strong>Pending</strong></td><td>Vendor submitted a registration. Waiting for admin review.</td></tr>
-                <tr><td><strong>Approved</strong></td><td>Admin approved the registration. Vendor can now pay.</td></tr>
-                <tr><td><strong>Rejected</strong></td><td>Admin rejected the registration.</td></tr>
-                <tr><td><strong>Paid</strong></td><td>Vendor completed payment. Booth is confirmed.</td></tr>
-                <tr><td><strong>Cancelled</strong></td><td>Admin cancelled a paid registration. Refund issued via Stripe.</td></tr>
+                <tr><td><strong>Pending</strong></td><td>Vendor submitted a registration. Waiting for admin review.</td><td>Does not reserve a booth slot. No action needed from vendor.</td></tr>
+                <tr><td><strong>Approved</strong></td><td>Admin approved the registration. Vendor can now pay.</td><td>Immediately reserves a booth slot — even before the vendor pays. No auto-expiration. Monitor unpaid approvals.</td></tr>
+                <tr><td><strong>Rejected</strong></td><td>Admin rejected the registration.</td><td>No booth slot held. Can be reverted to Pending for re-review.</td></tr>
+                <tr><td><strong>Paid</strong></td><td>Vendor completed payment. Booth is confirmed.</td><td>Can only move to Cancelled (with optional refund). Cannot be reverted to Approved or Pending.</td></tr>
+                <tr><td><strong>Cancelled</strong></td><td>Admin cancelled a paid registration.</td><td>Booth slot freed. Refund issued through Stripe (if any). This is a terminal state.</td></tr>
             </tbody>
         </table>
     </details>
@@ -51,6 +51,22 @@
     <details name="q-start">
         <summary>How do I know how many booth spots are left?</summary>
         <p>The admin dashboard shows availability counts for each booth type. Available = total quantity minus registrations in Approved or Paid status.</p>
+    </details>
+
+    <details name="q-start">
+        <summary>Can a vendor submit multiple registrations?</summary>
+        <p><strong>Yes.</strong> There is no limit on registrations per vendor. A single email address can have multiple registrations for the same or different booth types. Each registration is tracked independently — you must approve, reject, or cancel each one separately. If a vendor submits duplicates by accident, reject the extras manually.</p>
+    </details>
+
+    <details name="q-start">
+        <summary>What are the OTP and session limits?</summary>
+        <p>OTP codes expire after <strong>10 minutes</strong>. Each code allows a maximum of 3 wrong attempts before it is locked — the vendor or admin must request a new code. A maximum of 5 codes can be requested per email per hour.</p>
+        <p>Admin sessions expire after <strong>8 hours</strong> or <strong>1 hour of inactivity</strong>, whichever comes first. Vendor sessions last 24 hours or 4 hours of inactivity.</p>
+    </details>
+
+    <details name="q-start">
+        <summary>Is it safe for multiple admins to use the system at the same time?</summary>
+        <p><strong>Yes.</strong> Critical operations (approvals, cancellations, refunds) are protected against race conditions. If two admins try to approve the last available booth slot simultaneously, only one will succeed — the other will see an error message. It is safe to have multiple admins working concurrently.</p>
     </details>
 </details>
 </article>
@@ -82,6 +98,11 @@
     <details name="q-inventory">
         <summary>How do I change booth types, prices, or quantities?</summary>
         <p>Go to <strong>Admin Settings</strong>. Each booth type can be edited for name, description, price, and total quantity. <strong>Price changes only affect future approvals.</strong> Already approved and paid registrations keep the price that was locked in at approval time. If you revoke an approval and re-approve, the new price will apply.</p>
+    </details>
+
+    <details name="q-inventory">
+        <summary>Can I change a vendor's category after they register?</summary>
+        <p><strong>Yes.</strong> Open the registration detail page and use the category dropdown to correct it. Categories (Food, Beverage, Merchandise, Entertainment, Non-Profit, Health &amp; Beauty, Promotion, Other) are available as filters on the registration list page for grouping vendors by type.</p>
     </details>
 </details>
 </article>
@@ -121,6 +142,32 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
 
 <article>
 <details name="section">
+    <summary><strong>Processing Fees</strong> — How vendor-facing fees work</summary>
+
+    <details name="q-fees">
+        <summary>How do processing fees work?</summary>
+        <p>The system can pass Stripe's processing fee through to vendors so the organization nets the full booth price. When enabled, the vendor sees and pays: booth fee + processing fee. The fee is calculated using a pass-through formula that accounts for Stripe's percentage and flat fee.</p>
+    </details>
+
+    <details name="q-fees">
+        <summary>How do I configure the processing fee?</summary>
+        <p>Go to <strong>Admin Settings</strong> under "Payment &amp; Fees." You can set the percentage (default 2.9%) and flat amount (default 30 cents) to match Stripe's rates. To absorb fees yourself instead of passing them to vendors, set both to 0.</p>
+    </details>
+
+    <details name="q-fees">
+        <summary>When does the processing fee get calculated?</summary>
+        <p>The processing fee is calculated when the vendor loads the payment page, using the <strong>current</strong> fee settings at that moment. Unlike the booth price (which is locked at approval time), the processing fee is not locked in advance. If you change the fee percentage, it affects any vendor who hasn't yet initiated payment.</p>
+    </details>
+
+    <details name="q-fees">
+        <summary>Is the processing fee refundable?</summary>
+        <p><strong>No.</strong> When you cancel a registration and issue a refund, the refund percentage applies only to the booth fee. The processing fee is never refunded to the vendor. This is shown clearly in the cancellation dialog.</p>
+    </details>
+</details>
+</article>
+
+<article>
+<details name="section">
     <summary><strong>Payments and Refunds</strong> — Stripe payments, refunds, and cancellations</summary>
 
     <details name="q-payments">
@@ -134,8 +181,18 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
     </details>
 
     <details name="q-payments">
+        <summary>A vendor says they paid but the status still shows Approved. What happened?</summary>
+        <p>There may be a short delay between Stripe processing the payment and the system receiving the webhook notification. Wait a few minutes and refresh. If the status still hasn't changed, check the Stripe Dashboard to confirm the payment succeeded, and contact the developer if reconciliation is needed.</p>
+    </details>
+
+    <details name="q-payments">
         <summary>How do I issue a refund?</summary>
-        <p>Open the Paid registration and use the Cancel button. You will be prompted to select a refund percentage (e.g., 100%, 75%, 50%, 25%, or 0%). The refund is processed through Stripe automatically.</p>
+        <p>Open the Paid registration and use the Cancel button. You will be prompted to select a refund percentage and a reason. The refund is processed through Stripe automatically. The <strong>refund percentage applies only to the booth fee</strong> — the processing fee (shown separately in the dialog) is not refunded.</p>
+    </details>
+
+    <details name="q-payments">
+        <summary>Can I customize the refund percentage options?</summary>
+        <p><strong>Yes.</strong> Go to <strong>Admin Settings</strong> and edit the "Refund Presets" field. The default is <code>100,75,50,25,0</code>. For example, if your policy only allows full or no refund, set it to <code>100,0</code>. You can also set a "Refund Policy" text that is shown to admins in the cancellation dialog and to vendors on their registration page.</p>
     </details>
 
     <details name="q-payments">
@@ -145,7 +202,17 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
 
     <details name="q-payments">
         <summary>Does a "100% refund" mean the vendor gets all their money back?</summary>
-        <p>The vendor receives 100% of the booth fee back. However, the Stripe processing fee (2.9% + 30 cents) is non-recoverable on your end — that cost is absorbed by the organization.</p>
+        <p>The vendor receives 100% of the booth fee back. The processing fee is not refunded. Additionally, the Stripe processing fee (2.9% + 30 cents) on the original charge is non-recoverable on your end — that cost is absorbed by the organization.</p>
+    </details>
+
+    <details name="q-payments">
+        <summary>Can I issue a refund directly in the Stripe Dashboard?</summary>
+        <p><strong>Yes, but use caution.</strong> Refunds made directly in Stripe are synced back to the app via webhook. A full refund in Stripe will automatically cancel the registration in the app. A partial refund updates the refund amount but does <strong>not</strong> change the registration status — it stays Paid. An alert email is sent to all admin addresses in either case.</p>
+    </details>
+
+    <details name="q-payments">
+        <summary>What happens if a vendor files a chargeback?</summary>
+        <p>The system detects chargebacks via Stripe and sends an <strong>urgent alert email</strong> to all admin addresses with the dispute details. The registration status is not automatically changed. You must respond to the dispute directly in the Stripe Dashboard before the deadline (typically 7–21 days). Missing the deadline means you automatically lose the funds.</p>
     </details>
 </details>
 </article>
@@ -171,8 +238,19 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
     </details>
 
     <details name="q-email">
+        <summary>Can I receive notifications when vendors take actions?</summary>
+        <p><strong>Yes.</strong> Go to <strong>Admin Settings</strong> and enable the notification toggles under "Email Notifications." Three options are available:</p>
+        <ul>
+            <li><strong>New registration submitted</strong> — notified when a vendor registers</li>
+            <li><strong>Payment received</strong> — notified when a vendor completes payment</li>
+            <li><strong>Insurance uploaded</strong> — notified when a vendor uploads an insurance document</li>
+        </ul>
+        <p>These are <strong>off by default</strong>. Notifications are sent to all admin email addresses simultaneously.</p>
+    </details>
+
+    <details name="q-email">
         <summary>Can I prevent an email from being sent?</summary>
-        <p>No. Emails are sent automatically on the actions listed above.</p>
+        <p>No. Vendor-facing emails (confirmations, approvals, rejections, refunds) are sent automatically and cannot be suppressed. Admin notification emails can be toggled off in Settings.</p>
     </details>
 
     <details name="q-email">
@@ -205,7 +283,7 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
 
 <article>
 <details name="section">
-    <summary><strong>Event Settings</strong> — Dates, content, and configuration</summary>
+    <summary><strong>Event Settings</strong> — Dates, content, configuration, and export</summary>
 
     <details name="q-settings">
         <summary>How do I update event dates, registration window, or page content?</summary>
@@ -215,6 +293,22 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
     <details name="q-settings">
         <summary>Do settings changes take effect immediately?</summary>
         <p>Yes. Changes are saved and reflected on vendor-facing pages immediately.</p>
+    </details>
+
+    <details name="q-settings">
+        <summary>What happens when registration closes?</summary>
+        <p>Closing the registration window (past the close date) prevents new vendor registrations. However, <strong>vendors can still log in</strong> to check their existing registrations, and <strong>approved vendors can still pay</strong> after registration closes. Only new submissions are blocked.</p>
+    </details>
+
+    <details name="q-settings">
+        <summary>Where does the banner text appear?</summary>
+        <p>Banner text appears at the top of the <strong>homepage</strong> and the <strong>vendor dashboard</strong> only. It does not appear on admin pages, the registration form, or confirmation pages. Use it for time-sensitive announcements vendors will see when they visit or log in (e.g., "Payment deadline is March 15").</p>
+    </details>
+
+    <details name="q-settings">
+        <summary>How do I export registration data?</summary>
+        <p>Go to <strong>/admin/export</strong> (or use the Export link on the dashboard). The CSV includes <strong>all registrations regardless of status</strong> — pending, approved, rejected, paid, and cancelled. Columns include business name, contact info, booth type, category, insurance status, payment amounts, Stripe IDs, timestamps, reversal reasons, and admin notes. The file is named <code>registrations_YYYYMMDD.csv</code>.</p>
+        <p>Be mindful that admin notes and reversal reasons are included — review before sharing externally.</p>
     </details>
 </details>
 </article>
