@@ -43,6 +43,17 @@
                 <td><span class="status-badge {{ registration.status }}">{{ registration.status | title }}</span></td>
             </tr>
             <tr><th>Booth Type</th><td>{{ booth_type.name if booth_type else 'N/A' }} ({{ format_price(booth_type.price) if booth_type else 'N/A' }})</td></tr>
+            {% if registration.approved_price is not none %}
+            <tr>
+                <th>Approved Price</th>
+                <td>
+                    {{ format_price(registration.approved_price) }}
+                    {% if booth_type and registration.approved_price != booth_type.price %}
+                    <small style="color: #e65100;"> (current price: {{ format_price(booth_type.price) }})</small>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
             <tr><th>Submitted</th><td>{{ registration.created_at.strftime('%b %d, %Y %I:%M %p') if registration.created_at else '' }}</td></tr>
             {% if registration.approved_at %}
             <tr><th>Approved</th><td>{{ registration.approved_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
