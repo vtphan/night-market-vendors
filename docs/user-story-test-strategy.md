@@ -1,10 +1,16 @@
-# Test Strategy: User Story End-to-End Coverage
+# User Story Test Strategy
+
+A design document for building lightweight, composable test infrastructure that turns user stories into automated end-to-end tests. The approach is project-agnostic: define a small set of async action helpers for frequently-used multi-step flows, document inline patterns for everything else, and write each test as a short sequence of helper calls and assertions.
+
+**What this document is.** A reusable strategy template. It defines the infrastructure (helpers, patterns, mock cheat sheet), catalogs the user stories to test (ranked by priority), and provides step-by-step build instructions. In a different project, you can point to this file and say *"build a similar lightweight testing infrastructure to test user stories for this project"* — adapting the helpers, patterns, and stories to that project's domain.
+
+**What this document is not.** A description of the project's basic unit and route tests, which exist separately and predate this strategy. See "Relationship to Basic Tests" below.
 
 ## Goal
 
 Build a lightweight, reusable testing infrastructure so that any user story or workflow path through the app can be tested with a short, readable test — roughly 10–15 lines per story.
 
-The app has two actors (vendor and admin), a state machine with seven transitions, Stripe payment integration, and an insurance document workflow. Today's tests cover individual steps well but don't chain them together into full user stories. We want to close that gap.
+The app has two actors (vendor and admin), a state machine with seven transitions, Stripe payment integration, and an insurance document workflow. The basic tests cover individual steps well but don't chain them together into full user stories. This strategy closes that gap.
 
 ## Why This Matters
 
@@ -40,11 +46,27 @@ paid      → cancelled   POST /admin/registrations/{id}/cancel
 
 **Note — Approved → Pending:** The state machine in `registration.py` allows `approved → pending`, and the `/unreject` route calls `transition_status(db, reg, "pending")`. Although the route name says "unreject," it works for any transition to `pending` that the state machine permits. The spec (§4.2) omits this transition — the spec should be updated to match the code.
 
-## Current State
+## Relationship to Basic Tests
 
-We have ~160 tests across 7 test files. They cover individual features thoroughly: OTP auth, form validation, state transitions, admin operations, Stripe webhooks, insurance, and error handling. The test infrastructure in `tests/helpers.py` provides data-seeding helpers (`seed_event_open`, `seed_booth_types`, `make_registration`, `seed_draft`) and auth helpers (`vendor_cookie`, `admin_cookie`, `extract_csrf`).
+Before this strategy was written, the project already had **138 basic test functions** across 7 test files (~241 collected tests with backend parametrization). These basic tests cover individual features in isolation:
 
-What's missing: composable **action helpers** for complex multi-step flows, and **end-to-end tests** that chain actions into full user story paths.
+| Test file | Functions | What it covers |
+|-----------|-----------|----------------|
+| `test_registration_transitions.py` | 26 | State machine transitions (valid and invalid) |
+| `test_admin_routes.py` | 26 | Admin approve, reject, unreject, cancel, inventory, settings |
+| `test_vendor_routes.py` | 24 | Registration form, submit, dashboard, confirmation page |
+| `test_auth.py` | 23 | OTP login, session handling, expiry, rate limits |
+| `test_webhooks.py` | 17 | Stripe webhooks, payment service, refunds, CSV export |
+| `test_insurance.py` | 15 | Insurance upload, approve, revoke, download, validation |
+| `test_error_handling.py` | 7 | 404s, missing config, error pages |
+
+These basic tests are **not described in this document**. They use the same `conftest.py` fixtures and data-seeding helpers in `tests/helpers.py`, but each test exercises a single route or service function. They are the project's first layer of defense — verifying that each endpoint behaves correctly in isolation.
+
+This strategy adds the **second layer**: end-to-end user story tests that chain multiple steps together, verifying that the handoffs between features work correctly. The user story tests build on the same infrastructure (fixtures, helpers) and add 4 async action helpers for complex multi-step flows.
+
+## Starting Point
+
+The basic tests provide data-seeding helpers (`seed_event_open`, `seed_booth_types`, `make_registration`, `seed_draft`) and auth helpers (`vendor_cookie`, `admin_cookie`, `extract_csrf`) in `tests/helpers.py`. What's missing: composable **action helpers** for complex multi-step flows, and **end-to-end tests** that chain actions into full user story paths.
 
 ## The Approach: 4 Helpers + Inline Patterns
 
@@ -555,4 +577,20 @@ These are acknowledged limitations of the test strategy that would require addit
 7. Add gap tests (email content, agreement metadata) to existing test files.
 8. `pytest -v` after each step. Fix failures before moving on.
 
-Expected outcome: ~60 new tests with 4 helpers + inline patterns.
+Expected outcome: ~66 new test functions (132 collected with backend parametrization) with 4 helpers + inline patterns, bringing the total to ~204 functions / ~373 collected tests.
+
+## Adapting This Strategy for Other Projects
+
+This document is designed to be reusable. To apply it to a different project:
+
+1. **Identify your actors and state machine.** This project has two actors (vendor, admin) and a 5-state registration lifecycle. Your project might have different actors (buyer, seller, moderator) or a different domain model (orders, tickets, subscriptions). Map out the valid transitions.
+
+2. **Audit existing basic tests.** Catalog what's already tested in isolation. The gap between "each endpoint works" and "the full workflow works" is what user story tests fill.
+
+3. **Design 3–5 action helpers.** Look for multi-step flows that appear in 5+ stories and save 10+ lines per use. These are your helpers. Everything else stays inline. Resist the urge to abstract single-use flows — explicit inline code is easier to read and debug.
+
+4. **Write a mock target cheat sheet.** For every external service (payment provider, email, OAuth, file storage), document the exact `@patch()` path derived from actual imports. This prevents the most common test-writing mistake: guessing mock paths.
+
+5. **Rank stories by priority.** Tier 1 = happy paths everyone hits. Tier 2 = common variations. Tiers 3–5 = corrections, guard rails, security. Higher tiers = edge cases and resilience. Build and test incrementally, one tier at a time.
+
+6. **Keep helpers honest.** Helpers return objects; tests assert on them. Helpers should only assert on HTTP status codes to catch setup errors. All business-logic assertions belong in the test body.
