@@ -252,6 +252,8 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 
 **Outcome:** App stays in sync with Stripe. Admin alerted for visibility. Partial refunds require manual follow-up.
 
+**Design note — abnormal operation:** Refunds issued directly in the Stripe Dashboard bypass the app's Cancel & Refund flow, which means no vendor notification, no audit trail through the app, and no admin reason recorded. This is not normal operation — all cancellations and refunds should go through the app. The admin alert explicitly flags this as unexpected and asks the admin to investigate who issued the refund, why it bypassed the app, and to notify the vendor manually.
+
 ---
 
 #### E-B3. Chargeback / Dispute Filed

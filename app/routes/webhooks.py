@@ -220,10 +220,16 @@ def _handle_charge_refunded(db: Session, charge: dict, background_tasks: Backgro
             )
             background_tasks.add_task(
                 send_admin_alert_email,
-                f"Registration auto-cancelled after Stripe Dashboard refund — {registration.registration_id}",
+                f"UNEXPECTED: Registration auto-cancelled after Stripe Dashboard refund — {registration.registration_id}",
+                f"A full refund was issued directly in the Stripe Dashboard, bypassing "
+                f"the app's Cancel & Refund flow. This is not normal operation — all "
+                f"cancellations and refunds should go through the app for proper "
+                f"tracking and vendor notification.\n\n"
                 f"Registration {registration.registration_id} ({registration.business_name}) "
-                f"was fully refunded via Stripe Dashboard (${stripe_refunded / 100:.2f}) "
-                f"and has been auto-cancelled.\n\n"
+                f"was fully refunded (${stripe_refunded / 100:.2f}) and has been "
+                f"auto-cancelled to keep inventory accurate.\n\n"
+                f"Please investigate who issued this refund and why.\n"
+                f"The vendor ({registration.email}) has NOT been notified.\n\n"
                 f"PaymentIntent: {pi_id}\n"
                 f"Review: {APP_URL}/admin/registrations/{registration.registration_id}",
             )
@@ -241,10 +247,17 @@ def _handle_charge_refunded(db: Session, charge: dict, background_tasks: Backgro
         registration.admin_notes = f"{system_note}\n{existing_notes}".strip()
         background_tasks.add_task(
             send_admin_alert_email,
-            f"Partial refund detected via Stripe Dashboard — {registration.registration_id}",
+            f"UNEXPECTED: Partial refund issued via Stripe Dashboard — {registration.registration_id}",
+            f"A partial refund was issued directly in the Stripe Dashboard, bypassing "
+            f"the app's Cancel & Refund flow. This is not normal operation — all "
+            f"refunds should go through the app for proper tracking and vendor "
+            f"notification.\n\n"
             f"Registration {registration.registration_id} ({registration.business_name}) "
-            f"received a partial refund via Stripe Dashboard "
-            f"(${stripe_refunded / 100:.2f} of ${amount_paid / 100:.2f}).\n\n"
+            f"received a partial refund "
+            f"(${stripe_refunded / 100:.2f} of ${amount_paid / 100:.2f}). "
+            f"The registration remains 'paid' — no automatic status change.\n\n"
+            f"Please investigate who issued this refund and why.\n"
+            f"The vendor ({registration.email}) has NOT been notified.\n\n"
             f"PaymentIntent: {pi_id}\n"
             f"Review: {APP_URL}/admin/registrations/{registration.registration_id}",
         )
