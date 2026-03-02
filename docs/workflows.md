@@ -77,6 +77,8 @@ These are the happy-path flows that ~95% of users follow.
 
 The alternative (refund-first, single transaction) risked an irrecoverable inconsistency: money refunded but the app still showing "paid".
 
+**Design note — vendor notification on failure:** When the Stripe refund fails or the post-refund DB commit fails, the vendor is intentionally NOT notified automatically. In these failure paths, the situation is abnormal and requires human judgment — the admin may need to investigate the root cause, issue a manual refund, or communicate specific context to the vendor. Sending an automated email risks delivering inaccurate or premature information. Instead, the admin alert explicitly reminds the admin to notify the vendor manually, including the vendor's email address. The happy path (refund succeeds and commits) continues to send automated vendor and audit trail emails as normal.
+
 ---
 
 ### W6. Vendor Insurance Upload
@@ -219,7 +221,7 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 3. Cancellation persists; `refund_amount` is not updated
 4. Admin alert email: "refund failed — issue manually via Stripe Dashboard"
 
-**Outcome:** Registration correctly shows "Cancelled" in the app. No money has moved. Admin is alerted to issue the refund manually via Stripe Dashboard. This is strictly recoverable — the admin has the PaymentIntent ID and a clear error message.
+**Outcome:** Registration correctly shows "Cancelled" in the app. No money has moved. Admin is alerted to issue the refund manually via Stripe Dashboard, and reminded to notify the vendor manually. The vendor is intentionally not notified automatically (see W5 design note). This is strictly recoverable — the admin has the PaymentIntent ID, vendor email, and a clear error message.
 
 ---
 
@@ -233,7 +235,7 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 3. `db.commit()` for `refund_amount` fails — rolled back; app does not record the refund
 4. Admin alert email: "refund SUCCEEDED but failed to record — DO NOT re-issue"
 
-**Outcome:** Registration shows "Cancelled" with `refund_amount = 0` temporarily. The `charge.refunded` webhook (E-B2) will fire and sync `refund_amount` from Stripe's authoritative total, self-correcting the data. The admin alert explicitly warns against issuing a duplicate refund. Stripe also caps total refunds at the original charge amount as a safeguard.
+**Outcome:** Registration shows "Cancelled" with `refund_amount = 0` temporarily. The `charge.refunded` webhook (E-B2) will fire and sync `refund_amount` from Stripe's authoritative total, self-correcting the data. The admin alert explicitly warns against issuing a duplicate refund and reminds the admin to notify the vendor manually (see W5 design note). Stripe also caps total refunds at the original charge amount as a safeguard.
 
 ---
 

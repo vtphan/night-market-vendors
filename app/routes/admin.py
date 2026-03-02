@@ -552,7 +552,11 @@ async def cancel_registration(
                 f"Action required: refund failed — {reg_id}",
                 f"Registration {reg_id} ({registration.business_name}) was cancelled "
                 f"but the Stripe refund of ${amount_cents / 100:.2f} failed.\n\n"
-                f"Please issue the refund manually in the Stripe Dashboard.\n"
+                f"Action required:\n"
+                f"1. Issue the refund manually in the Stripe Dashboard.\n"
+                f"2. Notify the vendor ({registration.email}) about the cancellation "
+                f"and refund status.\n\n"
+                f"The vendor has NOT been automatically notified.\n"
                 f"PaymentIntent: {registration.stripe_payment_intent_id}",
             )
             flash = [{"category": "error", "text": "Registration cancelled but refund failed. Please issue the refund via Stripe Dashboard."}]
@@ -571,7 +575,9 @@ async def cancel_registration(
                 f"Registration {reg_id} ({registration.business_name}): the Stripe refund "
                 f"of ${amount_cents / 100:.2f} SUCCEEDED, but failed to save to the database.\n\n"
                 f"DO NOT issue another refund. The charge.refunded webhook will sync "
-                f"the amount automatically.\n"
+                f"the amount automatically.\n\n"
+                f"Please notify the vendor ({registration.email}) about the cancellation "
+                f"and refund. The vendor has NOT been automatically notified.\n"
                 f"PaymentIntent: {registration.stripe_payment_intent_id}",
             )
             flash = [{"category": "error", "text": "Refund was issued but failed to record. Do NOT re-issue — it will sync automatically."}]
