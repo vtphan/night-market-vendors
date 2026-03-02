@@ -162,9 +162,9 @@ def approve_with_inventory_check(db: Session, registration: Registration) -> Reg
 
     Uses SELECT ... FOR UPDATE on the BoothType row to serialize concurrent
     approvals for the same booth type. NOTE: with_for_update() is a no-op on
-    SQLite — concurrency safety on SQLite relies on the single-writer property
-    and our single-threaded request model. On PostgreSQL (production) it
-    provides true row-level locking.
+    SQLite, so a post-commit verification step detects and reverts overbooking
+    caused by concurrent approvals. On PostgreSQL it provides true row-level
+    locking and the post-commit check acts as a safety net.
 
     Raises ValueError if inventory is insufficient or the transition is invalid.
     """
@@ -193,7 +193,25 @@ def approve_with_inventory_check(db: Session, registration: Registration) -> Reg
     registration.approved_price = booth_type.price
 
     # Transition commits the transaction, releasing the lock
-    return transition_status(db, registration, "approved")
+    transition_status(db, registration, "approved")
+
+    # Post-commit verification: re-read counts to detect concurrent approval.
+    # with_for_update() is a no-op on SQLite, so the pre-commit check alone
+    # cannot prevent overbooking under concurrency. If another approval
+    # committed between our read and our commit, revert to pending.
+    db.refresh(booth_type)
+    post_counts = _get_booth_counts(db, registration.booth_type_id)
+    post_available = booth_type.total_quantity - post_counts["approved"] - post_counts["paid"]
+    if post_available < 0:
+        transition_status(
+            db, registration, "pending",
+            reversal_reason="System: reverted — booth fully booked by concurrent approval",
+        )
+        raise ValueError(
+            f"No {booth_type.name} booths available (concurrent approval detected)"
+        )
+
+    return registration
 
 
 # --- Registration ID generation ---

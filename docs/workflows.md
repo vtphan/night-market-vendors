@@ -30,7 +30,7 @@ These are the happy-path flows that ~95% of users follow.
 |------|-------|--------|-----------------|
 | 1 | Admin | Logs in via OTP (email in `admin_users` table) | Admin session (8h timeout) |
 | 2 | Admin | Opens dashboard, sees pending registrations | Counts, recent list, capacity alerts |
-| 3 | Admin | Opens registration detail, clicks "Approve" | Atomic: locks `BoothType` row → checks inventory → sets `approved_price` → transitions to `approved` |
+| 3 | Admin | Opens registration detail, clicks "Approve" | Locks `BoothType` row → checks inventory → sets `approved_price` → transitions to `approved` → post-commit verification reverts if concurrent approval caused overbooking |
 | 4 | System | Sends approval email to vendor | Contains payment portal domain (not direct link) |
 
 **Preconditions:** Available inventory > 0 for the selected booth type.
@@ -156,13 +156,20 @@ These are the happy-path flows that ~95% of users follow.
 
 **Trigger:** Two admins view the same booth type showing 1 available, both click "Approve" on different pending registrations.
 
-**Sequence:**
+**Sequence (PostgreSQL — row-level locking):**
 1. Admin A's request locks `BoothType` row (`SELECT ... FOR UPDATE`)
 2. Admin B's request blocks on the same lock
 3. Admin A: inventory check passes (1 available), approval committed, lock released
 4. Admin B: lock acquired, inventory check now shows 0 available → `ValueError` raised
 
-**Outcome:** Only one approval succeeds. Second admin sees "No booths available" error. *(SQLite is used in production; `FOR UPDATE` is a no-op there, so a brief double-approval window exists — mitigated by the inventory re-check at commit time. If the app is ever migrated to PostgreSQL, the row lock would close this window entirely.)*
+**Sequence (SQLite — post-commit verification):**
+`FOR UPDATE` is a no-op on SQLite, so both requests can read the same stale count. A post-commit verification step detects and reverts the overbooking:
+1. Admin A: reads count (1 available), commits approval
+2. Admin B: reads count (1 available, stale), commits approval → overbooked
+3. Admin B: post-commit re-read detects `available < 0` → reverts approval back to `pending` (with system reason) → `ValueError` raised
+4. If both detect the overbook simultaneously, both revert; admin retries and one succeeds
+
+**Outcome:** Only one approval succeeds. Second admin sees "No booths available (concurrent approval detected)" error. No approval email is sent for the reverted approval (email is queued only after the function returns successfully).
 
 ---
 
@@ -492,7 +499,7 @@ These are the happy-path flows that ~95% of users follow.
 |----|----------|------------|--------|------------|
 | E-A1 | Payment during approval revoke | Low | High (money moved) | Accept payment, alert admin, manual refund |
 | E-A2 | Duplicate webhook | Medium | None | StripeEvent unique constraint |
-| E-A3 | Concurrent last-booth approval | Low | Medium | Inventory re-check at commit (`FOR UPDATE` if migrated to PostgreSQL) |
+| E-A3 | Concurrent last-booth approval | Low | Medium | Post-commit verification reverts overbooking (`FOR UPDATE` on PostgreSQL) |
 | E-A4 | Vendor retries payment | Medium | None | PaymentIntent reuse, Stripe idempotency |
 | E-A5 | Registration ID collision | Very Low | None | 3 retries on unique constraint |
 | E-B1 | Stripe refund fails after cancel committed | Very Low | Low | Admin alert, manual refund via Stripe Dashboard (recoverable) |
