@@ -185,6 +185,15 @@ tr[data-href]:hover td {
     padding: 0.5rem 0.75rem;
 }
 
+/* Payment success button override */
+button.payment-success,
+button.payment-success:hover,
+button.payment-success:focus {
+    background-color: #155724;
+    border-color: #155724;
+    pointer-events: none;
+}
+
 /* Banner */
 .site-banner {
     background-color: #e8f4fd;

@@ -94,9 +94,16 @@ def create_payment_intent(
                     existing.status,
                 )
         except stripe.StripeError:
-            logger.info(
-                "PaymentIntent %s not retrievable — creating new one",
+            # Don't create a new PI when we can't verify the old one's
+            # status — the old PI may have already succeeded, and
+            # overwriting the ID would orphan that payment.
+            logger.warning(
+                "PaymentIntent %s not retrievable — refusing to create a new one",
                 registration.stripe_payment_intent_id,
+            )
+            raise ValueError(
+                "Unable to verify your previous payment attempt. "
+                "Please wait a moment and try again."
             )
 
     intent = stripe.PaymentIntent.create(

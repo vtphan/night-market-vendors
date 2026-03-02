@@ -114,7 +114,7 @@
                 <input type="text" name="reason" placeholder="e.g. Unable to attend" maxlength="500">
                 <p style="font-size: 0.85rem; color: var(--pico-muted-color);">This action is permanent. Your registration will be cancelled and cannot be restored.</p>
                 <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="outline" style="width: auto;" onclick="this.closest('dialog').close()">Cancel</button>
+                    <button type="button" class="outline" style="width: auto;" data-close-dialog>Cancel</button>
                     <button type="submit" style="width: auto; background-color: #c62828; border-color: #c62828;">Confirm Withdrawal</button>
                 </footer>
             </form>
@@ -150,18 +150,17 @@
     {% if settings and settings.refund_policy %}
     <p style="font-size: 0.85rem; color: var(--pico-muted-color);"><strong>Refund policy:</strong> {{ settings.refund_policy }}</p>
     {% endif %}
-    <form id="payment-form">
+    <form id="payment-form"
+          data-publishable-key="{{ stripe_publishable_key }}"
+          data-registration-id="{{ registration.registration_id }}"
+          data-csrf-token="{{ csrf_token }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div id="card-element" style="padding: 12px; border: 1px solid var(--pico-form-element-border-color); border-radius: 4px; margin-bottom: 1rem;"></div>
         <div id="card-errors" role="alert" style="color: #c62828; margin-bottom: 1rem;"></div>
         <button type="submit" id="pay-button">Pay ${{ "%.2f" | format(total_cents / 100) }}</button>
+        <p id="payment-status-msg" style="display: none; text-align: center; font-size: 0.85rem; margin-top: 0.5rem;"></p>
     </form>
 </article>
-<script id="payment-config" type="application/json">{
-    "publishableKey": {{ stripe_publishable_key | tojson }},
-    "registrationId": {{ registration.registration_id | tojson }},
-    "csrfToken": {{ csrf_token | tojson }}
-}</script>
 <script src="/static/payment.js"></script>
 {% endif %}
 
@@ -210,12 +209,5 @@
 <p><small>Questions? Contact us at <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>.</small></p>
 {% endif %}
 
-<script>
-document.querySelectorAll('[data-open-dialog]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-        var dialog = document.getElementById(this.getAttribute('data-open-dialog'));
-        if (dialog) dialog.showModal();
-    });
-});
-</script>
+<script src="/static/dialogs.js"></script>
 {% endblock %}

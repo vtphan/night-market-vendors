@@ -546,6 +546,8 @@ async def withdraw_registration(
             })
 
     reason = reason.strip()
+    if reason:
+        reason = f"{reason} \u2014 {registration.contact_name} ({session['email']})"
     transition_status(db, registration, "withdrawn", reversal_reason=reason or None)
 
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()

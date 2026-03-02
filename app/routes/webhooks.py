@@ -72,6 +72,23 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
     ).with_for_update().first()
 
     if not registration:
+        # Fallback: the PI ID on the registration may have been overwritten
+        # (e.g. a transient Stripe API error during PI retrieval caused
+        # create_payment_intent to create a new PI).  The original PI's
+        # metadata still carries the registration_id, so try that.
+        reg_id = payment_intent.get("metadata", {}).get("registration_id")
+        if reg_id:
+            registration = db.query(Registration).filter(
+                Registration.registration_id == reg_id
+            ).with_for_update().first()
+            if registration:
+                logger.warning(
+                    "PaymentIntent %s matched registration %s via metadata fallback "
+                    "(current PI on record: %s)",
+                    pi_id, reg_id, registration.stripe_payment_intent_id,
+                )
+
+    if not registration:
         logger.warning("No registration found for PaymentIntent %s", pi_id)
         return
 
@@ -177,6 +194,26 @@ def _handle_charge_refunded(db: Session, charge: dict, background_tasks: Backgro
     registration = db.query(Registration).filter(
         Registration.stripe_payment_intent_id == pi_id
     ).with_for_update().first()
+
+    if not registration:
+        # Fallback: match by metadata in case the PI ID was overwritten.
+        # charge.refunded events include a payment_intent field but not
+        # the PI's metadata directly, so retrieve it from Stripe.
+        try:
+            pi_obj = stripe.PaymentIntent.retrieve(pi_id)
+            reg_id = (pi_obj.metadata or {}).get("registration_id")
+            if reg_id:
+                registration = db.query(Registration).filter(
+                    Registration.registration_id == reg_id
+                ).with_for_update().first()
+                if registration:
+                    logger.warning(
+                        "Refund charge PI %s matched registration %s via metadata fallback "
+                        "(current PI on record: %s)",
+                        pi_id, reg_id, registration.stripe_payment_intent_id,
+                    )
+        except stripe.StripeError:
+            logger.warning("Could not retrieve PI %s for metadata fallback", pi_id)
 
     if not registration:
         logger.warning("No registration found for refund charge PI %s", pi_id)
