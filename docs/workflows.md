@@ -70,7 +70,12 @@ These are the happy-path flows that ~95% of users follow.
 | 3 | System | Sends refund confirmation email to vendor | Includes reason and processing fee note |
 | 4 | System | Sends admin alert email to all admins | Records who cancelled, reason, and refund amount for audit trail |
 
-**Design note — commit-first ordering:** The cancellation is committed to the database *before* the Stripe refund is issued. This ensures the irreversible external operation (money movement) only happens after the app state is consistent. If the Stripe refund fails after the cancellation commit, the admin is alerted to issue the refund manually via Stripe Dashboard. This is strictly recoverable. The alternative (refund-first) risked an irrecoverable inconsistency: money refunded but the app still showing "paid".
+**Design note — commit-first ordering:** The cancellation is committed to the database *before* the Stripe refund is issued. This ensures the irreversible external operation (money movement) only happens after the app state is consistent. The Stripe API call and the subsequent DB commit are in separate try/except blocks so the admin alert accurately reflects what happened:
+
+- **Stripe API fails** (no money moved): admin is told to issue the refund manually via Stripe Dashboard.
+- **Stripe succeeds but DB commit fails** (money moved but not recorded): admin is told the refund succeeded and warned NOT to re-issue. The `charge.refunded` webhook will sync `refund_amount` automatically.
+
+The alternative (refund-first, single transaction) risked an irrecoverable inconsistency: money refunded but the app still showing "paid".
 
 ---
 
@@ -204,17 +209,31 @@ These are the happy-path flows that ~95% of users follow.
 
 ### Category B: Stripe & Payment Edge Cases
 
-#### E-B1. Stripe Refund Fails After Cancellation Committed
+#### E-B1a. Stripe Refund Fails After Cancellation Committed
 
 **Trigger:** Registration is cancelled and committed to DB, then `stripe.Refund.create()` fails (Stripe outage, network error, invalid PaymentIntent, etc.).
 
 **Sequence:**
 1. Registration transitioned to `cancelled` and committed to DB
 2. Stripe refund API call fails — no money moves
-3. DB rolled back for the refund_amount update only; cancellation persists
-4. Admin alert email sent with PaymentIntent ID and instructions
+3. Cancellation persists; `refund_amount` is not updated
+4. Admin alert email: "refund failed — issue manually via Stripe Dashboard"
 
-**Outcome:** Registration correctly shows "Cancelled" in the app. No money has moved. Admin is alerted to issue the refund manually via Stripe Dashboard. This is strictly recoverable — the admin has the PaymentIntent ID and a clear error message. The previous approach (refund-first) risked an irrecoverable state where money was refunded but the app still showed "Paid".
+**Outcome:** Registration correctly shows "Cancelled" in the app. No money has moved. Admin is alerted to issue the refund manually via Stripe Dashboard. This is strictly recoverable — the admin has the PaymentIntent ID and a clear error message.
+
+---
+
+#### E-B1b. Stripe Refund Succeeds But DB Commit Fails
+
+**Trigger:** Registration is cancelled, `stripe.Refund.create()` succeeds (money moves), but the subsequent `db.commit()` to record `refund_amount` fails (e.g., SQLite `database is locked`).
+
+**Sequence:**
+1. Registration transitioned to `cancelled` and committed to DB
+2. Stripe refund API call succeeds — money refunded to vendor
+3. `db.commit()` for `refund_amount` fails — rolled back; app does not record the refund
+4. Admin alert email: "refund SUCCEEDED but failed to record — DO NOT re-issue"
+
+**Outcome:** Registration shows "Cancelled" with `refund_amount = 0` temporarily. The `charge.refunded` webhook (E-B2) will fire and sync `refund_amount` from Stripe's authoritative total, self-correcting the data. The admin alert explicitly warns against issuing a duplicate refund. Stripe also caps total refunds at the original charge amount as a safeguard.
 
 ---
 
@@ -502,7 +521,8 @@ These are the happy-path flows that ~95% of users follow.
 | E-A3 | Concurrent last-booth approval | Low | Medium | Post-commit verification reverts overbooking (`FOR UPDATE` on PostgreSQL) |
 | E-A4 | Vendor retries payment | Medium | None | PaymentIntent reuse, Stripe idempotency |
 | E-A5 | Registration ID collision | Very Low | None | 3 retries on unique constraint |
-| E-B1 | Stripe refund fails after cancel committed | Very Low | Low | Admin alert, manual refund via Stripe Dashboard (recoverable) |
+| E-B1a | Stripe refund fails after cancel committed | Very Low | Low | Admin alert, manual refund via Stripe Dashboard (recoverable) |
+| E-B1b | Stripe refund succeeds but DB commit fails | Very Low | Low | Admin alert warns "DO NOT re-issue"; `charge.refunded` webhook syncs automatically |
 | E-B2 | Dashboard refund (outside app) | Low | Medium | Webhook sync, admin alert |
 | E-B3 | Chargeback/dispute | Low | High | Admin alert, manual response |
 | E-B4 | Price change after approval | Medium | None | `approved_price` lock |
