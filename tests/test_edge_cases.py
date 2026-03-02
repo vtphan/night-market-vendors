@@ -204,6 +204,76 @@ async def test_story41_refund_fails_after_cancellation(client, db):
     assert "refund failed" in alert_subject.lower()
 
 
+async def test_story41b_refund_succeeds_but_db_commit_fails(client, db):
+    """Story 41b: Stripe refund succeeds but DB commit fails afterward.
+
+    The admin alert must tell them NOT to re-issue (money already moved),
+    unlike the plain refund-failure case which tells them to issue manually.
+    """
+    reg = await register_vendor(client, db)
+    reg = await approve_registration(client, db, reg.registration_id)
+    reg = await pay_registration(client, db, reg.registration_id)
+    assert reg.status == "paid"
+
+    seed_admin(db)
+    acook = admin_cookie()
+    detail = await client.get(
+        f"/admin/registrations/{reg.registration_id}", cookies=acook)
+    csrf = extract_csrf(detail.text)
+
+    refund_str = f"{(reg.amount_paid or 0) / 100:.2f}"
+
+    # create_refund succeeds (no exception), but the db.commit() after it fails
+    real_create_refund = None
+
+    def fake_create_refund(db_session, registration, amount_cents):
+        """Call real create_refund, then sabotage the next commit."""
+        from app.services.payment import create_refund as real_fn
+        result = real_fn(db_session, registration, amount_cents)
+        # Make the next commit raise an OperationalError
+        original_commit = db_session.commit
+
+        def failing_commit():
+            db_session.commit = original_commit  # restore for future calls
+            raise OperationalError("COMMIT", {}, Exception("database is locked"))
+
+        db_session.commit = failing_commit
+        return result
+
+    with patch("app.routes.admin.create_refund", side_effect=fake_create_refund), \
+         patch("app.routes.admin.send_refund_email"), \
+         patch("app.routes.admin.send_admin_alert_email") as mock_alert, \
+         patch("stripe.Refund.create", return_value=MagicMock(id="re_test")):
+        resp = await client.post(
+            f"/admin/registrations/{reg.registration_id}/cancel",
+            data={
+                "csrf_token": csrf,
+                "refund_amount": refund_str,
+                "reversal_reason": "Test cancel",
+            },
+            cookies=acook,
+            follow_redirects=False,
+        )
+
+    # Should render detail page with a "do not re-issue" flash
+    assert resp.status_code == 200
+    assert "do not" in resp.text.lower() or "do not" in resp.text
+
+    # Registration is still cancelled (committed in step 1)
+    fresh = db.query(Registration).filter(
+        Registration.registration_id == reg.registration_id
+    ).first()
+    db.refresh(fresh)
+    assert fresh.status == "cancelled"
+
+    # Admin alert must say refund SUCCEEDED, not "refund failed"
+    mock_alert.assert_called_once()
+    alert_subject = mock_alert.call_args[0][0]
+    assert "succeeded" in alert_subject.lower()
+    alert_body = mock_alert.call_args[0][1]
+    assert "DO NOT" in alert_body
+
+
 async def test_story42_full_refund_via_dashboard(client, db):
     """Story 42 (E-B2): Full refund via Stripe Dashboard auto-cancels."""
     reg = await register_vendor(client, db)

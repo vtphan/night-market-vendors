@@ -545,10 +545,8 @@ async def cancel_registration(
     if amount_cents > 0 and registration.stripe_payment_intent_id:
         try:
             create_refund(db, registration, amount_cents)
-            db.commit()
         except Exception:
-            db.rollback()
-            logger.error("Stripe refund failed for %s after cancellation", reg_id)
+            logger.exception("Stripe refund failed for %s after cancellation", reg_id)
             background_tasks.add_task(
                 send_admin_alert_email,
                 f"Action required: refund failed — {reg_id}",
@@ -558,6 +556,25 @@ async def cancel_registration(
                 f"PaymentIntent: {registration.stripe_payment_intent_id}",
             )
             flash = [{"category": "error", "text": "Registration cancelled but refund failed. Please issue the refund via Stripe Dashboard."}]
+            ctx = _detail_context(db, registration)
+            ctx["get_flashed_messages"] = lambda: flash
+            return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("DB commit failed after successful Stripe refund for %s", reg_id)
+            background_tasks.add_task(
+                send_admin_alert_email,
+                f"Refund succeeded but failed to record — {reg_id}",
+                f"Registration {reg_id} ({registration.business_name}): the Stripe refund "
+                f"of ${amount_cents / 100:.2f} SUCCEEDED, but failed to save to the database.\n\n"
+                f"DO NOT issue another refund. The charge.refunded webhook will sync "
+                f"the amount automatically.\n"
+                f"PaymentIntent: {registration.stripe_payment_intent_id}",
+            )
+            flash = [{"category": "error", "text": "Refund was issued but failed to record. Do NOT re-issue — it will sync automatically."}]
             ctx = _detail_context(db, registration)
             ctx["get_flashed_messages"] = lambda: flash
             return _template(request, "admin/registration_detail.html", ctx, session=session)
