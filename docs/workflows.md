@@ -12,13 +12,12 @@ These are the happy-path flows that ~95% of users follow.
 
 | Step | Actor | Action | System Response |
 |------|-------|--------|-----------------|
-| 1 | Vendor | Visits `/vendor/register` | Shows agreement page (or "coming soon" / "closed" based on dates) |
-| 2 | Vendor | Accepts agreement, enters name + email | Draft saved to `registration_drafts`; redirects to OTP login |
-| 3 | Vendor | Receives OTP email, enters 6-digit code | Session created (signed cookie, 24h vendor timeout) |
-| 4 | Vendor | Fills contact & profile (business name, phone, category, description, electrical needs) | Draft updated per step |
-| 5 | Vendor | Selects booth type from available options | Draft updated; availability shown as derived count |
-| 6 | Vendor | Reviews summary, submits | Registration created (`status=pending`, ID `ANM-YYYY-NNNN`); confirmation email sent; draft deleted |
-| 7 | Vendor | Sees confirmation page with registration ID | Links to vendor dashboard |
+| 1 | Vendor | Visits `/vendor/register` | If not logged in, redirects to `/auth/login`; if registration window not open, shows "coming soon" or "closed" page |
+| 2 | Vendor | Logs in via OTP or Google OAuth | Session created (signed cookie); redirected back to `/vendor/register` |
+| 3 | Vendor | Fills form: contact info (name, phone), business profile (name, category, description, electrical needs), selects booth type, accepts vendor agreement | Validation server-side; availability shown as derived count |
+| 4 | Vendor | Submits step 1 | Draft saved to `registration_drafts`; redirected to review summary (step 2) |
+| 5 | Vendor | Reviews summary, submits | Registration created (`status=pending`, ID `ANM-YYYY-NNNN`); confirmation email sent; draft deleted |
+| 6 | Vendor | Sees confirmation page with registration ID | Links to vendor dashboard |
 
 **Preconditions:** Registration window open. Vendor not rate-limited (< 10 submissions / IP / hour).
 
@@ -121,6 +120,22 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 | 2 | System | Generates 6-digit code, HMAC-SHA256 hashes it, stores in `otp_codes` | All previous codes for that email invalidated |
 | 3 | User | Enters code within 10 minutes | Timing-safe comparison; max 3 failed attempts per code; marks `used` on success |
 | 4 | System | Creates signed session cookie | Role determined by `admin_users` table membership |
+
+**Alternative:** Google OAuth login is available when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are configured. The vendor or admin clicks "Sign in with Google", authenticates via Google's OAuth 2.0 flow (authorization code + ID token verification with nonce), and receives the same signed session cookie. Admin access is still gated by the `admin_users` table. The OTP flow remains the primary method; Google OAuth is opt-in.
+
+---
+
+### W10. Vendor Withdrawal
+
+| Step | Actor | Action | System Response |
+|------|-------|--------|-----------------|
+| 1 | Vendor | Opens a pending or approved registration, clicks "Withdraw" | If approved with active PaymentIntent, attempts `PaymentIntent.cancel()` first |
+| 2 | Vendor | Optionally enters a reason, confirms | Transitions to `withdrawn`; records `withdrawn_at` and reason (attributed to vendor) |
+| 3 | System | Sends withdrawal confirmation email to vendor | Admin notification sent |
+
+**Preconditions:** Registration status is `pending` or `approved`. Vendors cannot withdraw `paid` registrations (admin must use Cancel & Refund).
+
+**Design note — PI cancellation before withdrawal:** If the vendor's registration is `approved` and a PaymentIntent exists, the system attempts to cancel it before allowing withdrawal. If the PI is in a terminal state (`succeeded` or `processing`), the withdrawal is blocked and the vendor sees an error — they must wait for payment to complete or contact an admin.
 
 ---
 
@@ -322,7 +337,7 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 2. After 3 failed attempts: code permanently invalidated
 3. Attacker must request new code (rate-limited: 5 codes/email/hour, 20 codes/IP/hour)
 
-**Outcome:** At most 15 guesses per email per hour across 5 codes. Probability of guessing any single code: 3/1,000,000 = 0.0003%. Combined: ~0.0015% per hour. HMAC comparison is timing-safe.
+**Outcome:** Each new OTP request invalidates all previous unused codes for that email, so the attacker only ever has 3 guesses on the single active code. Requesting a new code resets the attempt budget but also generates a different code. Effective budget: 3 guesses per code, not 15 across 5. Probability of guessing: 3/1,000,000 = 0.0003% per code. HMAC comparison is timing-safe.
 
 ---
 
@@ -342,10 +357,10 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 
 #### E-C3. Session Expiry Mid-Action
 
-**Trigger:** Vendor's session expires (24h inactivity) while filling out a multi-step form.
+**Trigger:** Vendor's session expires while filling out the registration form.
 
 **Sequence:**
-1. Vendor on step 3 of registration
+1. Vendor is on the registration form (step 1 or review step)
 2. Session middleware detects expired session on next request
 3. Redirected to login page
 4. After re-login, draft data is still in `registration_drafts` (keyed by email)
@@ -532,7 +547,7 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 | E-B4 | Price change after approval | Medium | None | `approved_price` lock |
 | E-B5 | Fee change after PI created | Low | None | PI cancelled and recreated |
 | E-B6 | Invalid webhook signature | Low | None | Rejected with 400 |
-| E-C1 | OTP brute-force | Low | Low | 3 attempts/code, rate limits |
+| E-C1 | OTP brute-force | Low | Low | 3 attempts/code (previous codes invalidated), rate limits |
 | E-C2 | OTP email failure | Low | Medium | Delete OTP, show retry message |
 | E-C3 | Session expiry mid-form | Medium | None | Draft persistence in DB |
 | E-C4 | Session theft | Very Low | High | HttpOnly, Secure, SameSite, signed |
