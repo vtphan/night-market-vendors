@@ -426,6 +426,7 @@ async def registration_detail(
         "settings": settings,
         "waitlist_position": get_waitlist_position(db, registration),
         "insurance_doc": insurance_doc,
+        "now": datetime.now(timezone.utc),
     }
     if registration.status == "approved":
         ctx["stripe_publishable_key"] = STRIPE_PUBLISHABLE_KEY
@@ -605,13 +606,25 @@ async def vendor_dashboard(
     )
 
     # Approved registrations awaiting payment
+    now = datetime.now(timezone.utc)
     for item in reg_data:
         if item["registration"].status == "approved":
+            reg = item["registration"]
+            deadline = reg.payment_deadline
+            deadline_date = None
+            overdue = False
+            if deadline:
+                if deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=timezone.utc)
+                deadline_date = deadline.strftime("%b %d, %Y")
+                overdue = now > deadline
             needs_attention.append({
                 "type": "payment",
-                "message": f"{item['registration'].business_name} — approved, awaiting payment",
-                "link": f"/vendor/registration/{item['registration'].registration_id}",
+                "message": f"{reg.business_name} — approved, awaiting payment",
+                "link": f"/vendor/registration/{reg.registration_id}",
                 "link_text": "Pay now",
+                "deadline_date": deadline_date,
+                "overdue": overdue,
             })
 
     # Insurance: needs upload or pending review (only if vendor has active registrations)

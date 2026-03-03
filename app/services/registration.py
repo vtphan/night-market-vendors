@@ -6,7 +6,7 @@ from sqlalchemy import func, or_, and_
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.models import Registration, BoothType
+from app.models import Registration, BoothType, EventSettings
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +123,9 @@ def transition_status(
             registration.approved_price = None
         registration.rejected_at = datetime.now(timezone.utc)
         registration.approved_at = None
+        registration.payment_deadline = None
+        registration.last_reminder_sent_at = None
+        registration.reminder_count = 0
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "pending":
@@ -131,12 +134,16 @@ def transition_status(
             registration.approved_price = None
         registration.rejected_at = None
         registration.approved_at = None
+        registration.payment_deadline = None
+        registration.last_reminder_sent_at = None
+        registration.reminder_count = 0
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "withdrawn":
         if old_status == "approved":
             registration.approved_price = None
         registration.withdrawn_at = datetime.now(timezone.utc)
+        registration.payment_deadline = None
         if reversal_reason:
             registration.reversal_reason = reversal_reason
     elif new_status == "cancelled":
@@ -192,8 +199,20 @@ def approve_with_inventory_check(db: Session, registration: Registration) -> Reg
     # don't retroactively affect this vendor's payment amount.
     registration.approved_price = booth_type.price
 
-    # Transition commits the transaction, releasing the lock
-    transition_status(db, registration, "approved")
+    # Transition without committing — we still need to set the deadline
+    transition_status(db, registration, "approved", _commit=False)
+
+    # Set payment deadline from event settings
+    settings = db.query(EventSettings).first()
+    deadline_days = settings.payment_deadline_days if settings else 7
+    registration.payment_deadline = compute_payment_deadline(
+        registration.approved_at, deadline_days
+    )
+    registration.last_reminder_sent_at = None
+    registration.reminder_count = 0
+
+    db.commit()
+    db.refresh(registration)
 
     # Post-commit verification: re-read counts to detect concurrent approval.
     # with_for_update() is a no-op on SQLite, so the pre-commit check alone
@@ -372,6 +391,76 @@ def get_waitlist_position(db: Session, registration: Registration) -> int | None
         .scalar()
     )
     return ahead + 1
+
+
+def compute_payment_deadline(approved_at: datetime, deadline_days: int) -> datetime:
+    """Return end-of-day UTC on the day that is `deadline_days` after approval."""
+    target = approved_at + timedelta(days=deadline_days)
+    return target.replace(hour=23, minute=59, second=59, microsecond=0)
+
+
+def get_unpaid_registrations(db: Session, settings: EventSettings) -> list[dict]:
+    """Get all approved-but-unpaid registrations with urgency bands.
+
+    Urgency levels:
+    - "normal"    — within R1 window
+    - "reminder_1" — past R1, before R2
+    - "reminder_2" — past R2, before deadline
+    - "overdue"   — past deadline
+
+    Returns list sorted by payment_deadline ascending (most urgent first).
+    """
+    registrations = (
+        db.query(Registration)
+        .filter(Registration.status == "approved")
+        .order_by(Registration.payment_deadline.asc().nullslast())
+        .all()
+    )
+
+    now = datetime.now(timezone.utc)
+    r1_days = settings.reminder_1_days if settings else 2
+    r2_days = settings.reminder_2_days if settings else 5
+
+    result = []
+    for reg in registrations:
+        if not reg.approved_at:
+            continue
+
+        approved_at = reg.approved_at
+        if approved_at.tzinfo is None:
+            approved_at = approved_at.replace(tzinfo=timezone.utc)
+
+        days_since = (now - approved_at).days
+
+        deadline = reg.payment_deadline
+        if deadline:
+            if deadline.tzinfo is None:
+                deadline = deadline.replace(tzinfo=timezone.utc)
+            days_until = (deadline - now).total_seconds() / 86400
+        else:
+            days_until = None
+
+        # Determine urgency
+        if deadline and now > deadline:
+            urgency = "overdue"
+        elif days_since >= r2_days:
+            urgency = "reminder_2"
+        elif days_since >= r1_days:
+            urgency = "reminder_1"
+        else:
+            urgency = "normal"
+
+        deadline_date = deadline.strftime("%b %d, %Y") if deadline else None
+
+        result.append({
+            "registration": reg,
+            "days_since_approval": days_since,
+            "days_until_deadline": round(days_until, 1) if days_until is not None else None,
+            "urgency": urgency,
+            "deadline_date": deadline_date,
+        })
+
+    return result
 
 
 def _get_booth_counts(db: Session, booth_type_id: int) -> dict:

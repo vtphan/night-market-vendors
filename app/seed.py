@@ -48,6 +48,13 @@ def seed_event_data(db: Session) -> None:
             processing_fee_flat_cents=evt.get("processing_fee_flat_cents", 30),
             refund_policy=evt.get("refund_policy", ""),
             refund_presets=evt.get("refund_presets", "100,75,50,25,0"),
+            payment_deadline_days=evt.get("payment_deadline_days", 7),
+            reminder_1_days=evt.get("reminder_1_days", 2),
+            reminder_2_days=evt.get("reminder_2_days", 5),
+            reminder_1_subject=evt.get("reminder_1_subject", "Payment Reminder — {event_name}"),
+            reminder_1_body=evt.get("reminder_1_body", ""),
+            reminder_2_subject=evt.get("reminder_2_subject", "Urgent: Payment Deadline Approaching — {event_name}"),
+            reminder_2_body=evt.get("reminder_2_body", ""),
         )
         db.add(settings)
         db.commit()

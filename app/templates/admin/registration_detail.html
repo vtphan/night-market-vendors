@@ -58,6 +58,34 @@
             {% if registration.approved_at %}
             <tr><th>Approved</th><td>{{ registration.approved_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
             {% endif %}
+            {% if registration.payment_deadline and registration.status == 'approved' %}
+            <tr>
+                <th>Payment Deadline</th>
+                <td>
+                    {{ registration.payment_deadline.strftime('%b %d, %Y') }}
+                    {% if now is defined %}
+                        {% set deadline_ts = registration.payment_deadline.timestamp() %}
+                        {% set now_ts = now.timestamp() %}
+                        {% if now_ts > deadline_ts %}
+                        <span class="status-badge rejected" style="margin-left: 0.5rem;">OVERDUE</span>
+                        {% elif (deadline_ts - now_ts) <= 172800 %}
+                        <span class="status-badge pending" style="margin-left: 0.5rem;">Due soon</span>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+            {% if registration.reminder_count and registration.reminder_count > 0 %}
+            <tr>
+                <th>Reminders Sent</th>
+                <td>
+                    {{ registration.reminder_count }}
+                    {% if registration.last_reminder_sent_at %}
+                    <small style="color: var(--pico-muted-color);">(last: {{ registration.last_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})</small>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
             {% if registration.rejected_at %}
             <tr><th>Rejected</th><td>{{ registration.rejected_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
             {% endif %}
@@ -204,7 +232,22 @@
     {% elif registration.status == 'approved' %}
     <hr style="margin: 1rem 0;">
 
-    <!-- Row 2: Revoke Approval -->
+    <!-- Send Payment Reminder -->
+    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0; flex-wrap: wrap;">
+        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/remind" style="margin: 0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;">
+                Send Payment Reminder
+            </button>
+        </form>
+        {% if registration.reminder_count %}
+        <small style="color: var(--pico-muted-color);">{{ registration.reminder_count }} reminder{{ 's' if registration.reminder_count != 1 }} sent</small>
+        {% endif %}
+    </div>
+
+    <hr style="margin: 1rem 0;">
+
+    <!-- Revoke Approval -->
     <button type="button" class="outline" style="width: auto; margin: 0;"
             data-open-dialog="revoke-approval-dialog">
         Revoke Approval
@@ -220,6 +263,7 @@
                 <label>Reason</label>
                 <select id="revoke-approval-reason-select" data-reason-select="revoke-approval">
                     <option value="" disabled selected>Select reason...</option>
+                    <option value="Payment was not completed within the required timeframe">Payment deadline expired</option>
                     <option value="Needs additional review">Needs additional review</option>
                     <option value="Capacity change">Capacity change</option>
                     <option value="Approved in error">Approved in error</option>

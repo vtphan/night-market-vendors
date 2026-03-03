@@ -20,13 +20,14 @@ from app.services.registration import (
     approve_with_inventory_check,
     get_inventory,
     get_booth_availability,
+    get_unpaid_registrations,
     try_cancel_active_payment_intent,
     LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
 from app.services.email import (
     send_approval_email, send_approval_revoked_email, send_rejection_email,
-    send_refund_email, send_admin_alert_email,
+    send_refund_email, send_admin_alert_email, send_payment_reminder_email,
 )
 from app.services.payment import create_refund
 from app.config import APP_URL, ADMIN_EMAILS
@@ -45,99 +46,8 @@ def _template(request, name, ctx, session=None):
     return request.app.state.templates.TemplateResponse(name, ctx)
 
 
-def _detail_context(db, registration):
-    """Build full context for registration_detail.html re-renders."""
-    booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
-    return {
-        "registration": registration,
-        "booth_type": booth_type,
-        "booth_availability": get_booth_availability(db, registration.booth_type_id),
-        "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
-        "insurance_doc": db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first(),
-        "settings": db.query(EventSettings).first(),
-    }
-
-
-# --- Dashboard ---
-
-@router.get("", response_class=HTMLResponse)
-async def admin_dashboard(
-    request: Request,
-    session: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    # Counts by status
-    statuses = ["pending", "approved", "rejected", "paid", "cancelled", "withdrawn"]
-    counts = {}
-    for s in statuses:
-        counts[s] = db.query(Registration).filter(Registration.status == s).count()
-    counts["total"] = sum(counts.values())
-
-    inventory = get_inventory(db)
-
-    # Insurance counts (per unique vendor email with active registrations)
-    active_emails_q = (
-        db.query(Registration.email)
-        .filter(Registration.status.in_(["pending", "approved", "paid"]))
-        .distinct()
-    )
-    active_email_list = [r[0] for r in active_emails_q.all()]
-    all_docs = {
-        doc.email: doc
-        for doc in db.query(InsuranceDocument)
-        .filter(InsuranceDocument.email.in_(active_email_list))
-        .all()
-    }
-    insurance_counts = {
-        "approved": sum(1 for e in active_email_list if e in all_docs and all_docs[e].is_approved),
-        "uploaded": sum(1 for e in active_email_list if e in all_docs and not all_docs[e].is_approved),
-        "none": sum(1 for e in active_email_list if e not in all_docs),
-    }
-
-    noted_registrations = (
-        db.query(Registration)
-        .filter(sa_func.length(sa_func.trim(Registration.admin_notes)) > 0)
-        .order_by(Registration.updated_at.desc())
-        .all()
-    )
-
-    # Revenue: total paid amount
-    revenue_total = db.query(sa_func.coalesce(sa_func.sum(Registration.amount_paid), 0)).filter(
-        Registration.status == "paid"
-    ).scalar() or 0
-    refund_total = db.query(sa_func.coalesce(sa_func.sum(Registration.refund_amount), 0)).filter(
-        Registration.status.in_(["paid", "cancelled"])
-    ).scalar() or 0
-
-    # Revenue by booth type — inject into inventory dicts
-    revenue_by_booth = (
-        db.query(Registration.booth_type_id, sa_func.sum(Registration.amount_paid))
-        .filter(Registration.status == "paid")
-        .group_by(Registration.booth_type_id)
-        .all()
-    )
-    revenue_by_booth_dict = dict(revenue_by_booth)
-    for item in inventory:
-        item["revenue"] = revenue_by_booth_dict.get(item["id"], 0) or 0
-
-    # Recent pending registrations (up to 5)
-    recent_pending = (
-        db.query(Registration)
-        .filter(Registration.status == "pending")
-        .order_by(Registration.created_at.desc())
-        .limit(5)
-        .all()
-    )
-
-    # Last registration timestamp
-    last_registration = (
-        db.query(Registration.created_at)
-        .order_by(Registration.created_at.desc())
-        .first()
-    )
-    last_registration_at = last_registration[0] if last_registration else None
-
-    # Registration time distribution (last 30 days, by day)
+def _compute_chart_data(db):
+    """Return daily (last 30 days) and hourly registration counts for charts."""
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     daily_counts_raw = (
         db.query(
@@ -149,7 +59,6 @@ async def admin_dashboard(
         .order_by("day")
         .all()
     )
-    # Fill in missing days with 0
     daily_counts = []
     if daily_counts_raw:
         day_map = {str(row[0]): row[1] for row in daily_counts_raw}
@@ -163,7 +72,6 @@ async def admin_dashboard(
             })
             current += timedelta(days=1)
 
-    # Hourly distribution (all time)
     hourly_counts_raw = (
         db.query(
             extract("hour", Registration.created_at).label("hour"),
@@ -178,50 +86,136 @@ async def admin_dashboard(
         if row[0] is not None:
             hourly_counts[int(row[0])] = row[1]
 
-    # Capacity alerts: booth types where pending registrations meet or exceed available slots
-    capacity_alerts = []
-    for item in inventory:
-        if item["pending"] > 0 and item["available"] <= item["pending"]:
-            overflow = item["pending"] - item["available"]
-            capacity_alerts.append({
-                "id": item["id"],
-                "name": item["name"],
-                "available": item["available"],
-                "pending": item["pending"],
-                "overflow": overflow,  # how many pending can't fit
-                "total_quantity": item["total_quantity"],
-                "reserved": item["reserved"],
-            })
+    return daily_counts, hourly_counts
 
-    # Insurance docs pending review (up to 5)
-    pending_insurance = []
-    emails_with_pending_docs = (
-        db.query(InsuranceDocument)
-        .filter(InsuranceDocument.is_approved == False)
-        .limit(5)
+
+def _inventory_context(db):
+    """Build full context for inventory.html renders."""
+    inventory = get_inventory(db)
+    revenue_by_booth = dict(
+        db.query(Registration.booth_type_id, sa_func.sum(Registration.amount_paid))
+        .filter(Registration.status == "paid")
+        .group_by(Registration.booth_type_id)
         .all()
     )
-    for doc in emails_with_pending_docs:
-        reg = db.query(Registration).filter(
-            Registration.email == doc.email,
-            Registration.status.in_(["pending", "approved", "paid"]),
-        ).first()
-        if reg:
-            pending_insurance.append({"doc": doc, "registration": reg})
+    refund_by_booth = dict(
+        db.query(Registration.booth_type_id, sa_func.sum(Registration.refund_amount))
+        .filter(Registration.status.in_(["paid", "cancelled"]))
+        .group_by(Registration.booth_type_id)
+        .all()
+    )
+    for item in inventory:
+        item["revenue"] = revenue_by_booth.get(item["id"], 0) or 0
+        item["refund"] = refund_by_booth.get(item["id"], 0) or 0
+    return {
+        "inventory": inventory,
+        "revenue_total": sum(item["revenue"] for item in inventory),
+        "refund_total": sum(item["refund"] for item in inventory),
+        "total_capacity": sum(item["total_quantity"] for item in inventory),
+        "total_paid": sum(item["paid"] for item in inventory),
+        "total_approved": sum(item["approved"] for item in inventory),
+        "total_pending": sum(item["pending"] for item in inventory),
+    }
+
+
+def _detail_context(db, registration):
+    """Build full context for registration_detail.html re-renders."""
+    booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+    return {
+        "registration": registration,
+        "booth_type": booth_type,
+        "booth_availability": get_booth_availability(db, registration.booth_type_id),
+        "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
+        "insurance_doc": db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first(),
+        "settings": db.query(EventSettings).first(),
+        "now": datetime.now(timezone.utc),
+    }
+
+
+# --- Dashboard ---
+
+@router.get("", response_class=HTMLResponse)
+async def admin_dashboard(
+    request: Request,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    inventory = get_inventory(db)
+
+    # Status counts for pipeline bar
+    status_rows = (
+        db.query(Registration.status, sa_func.count(Registration.id))
+        .group_by(Registration.status)
+        .all()
+    )
+    status_counts = {row[0]: row[1] for row in status_rows}
+    total_registrations = sum(status_counts.values())
+    total_vendors = db.query(
+        sa_func.count(sa_func.distinct(Registration.email))
+    ).scalar() or 0
+
+    # Pending count
+    pending_count = status_counts.get("pending", 0)
+
+    # Unpaid registrations + urgency counts
+    settings = db.query(EventSettings).first()
+    unpaid_registrations = get_unpaid_registrations(db, settings) if settings else []
+    unpaid_count = len(unpaid_registrations)
+    urgency_counts = {"normal": 0, "reminder_1": 0, "reminder_2": 0, "overdue": 0}
+    for item in unpaid_registrations:
+        urgency_counts[item["urgency"]] += 1
+
+    # Insurance coverage: vendor-level breakdown
+    paid_count = status_counts.get("paid", 0)
+    approved_ins_subq = db.query(InsuranceDocument.email).filter(
+        InsuranceDocument.is_approved == True
+    ).scalar_subquery()
+    pending_ins_subq = db.query(InsuranceDocument.email).filter(
+        InsuranceDocument.is_approved == False
+    ).scalar_subquery()
+
+    active_vendor_count = db.query(
+        sa_func.count(sa_func.distinct(Registration.email))
+    ).filter(Registration.status.in_(["approved", "paid"])).scalar() or 0
+    vendors_with_approved_doc = db.query(
+        sa_func.count(sa_func.distinct(Registration.email))
+    ).filter(
+        Registration.status.in_(["approved", "paid"]),
+        Registration.email.in_(approved_ins_subq),
+    ).scalar() or 0
+    vendors_with_pending_doc = db.query(
+        sa_func.count(sa_func.distinct(Registration.email))
+    ).filter(
+        Registration.status.in_(["approved", "paid"]),
+        Registration.email.in_(pending_ins_subq),
+    ).scalar() or 0
+    vendors_without_doc = active_vendor_count - vendors_with_approved_doc - vendors_with_pending_doc
+
+    active_without_approved_ins = active_vendor_count - vendors_with_approved_doc
+
+    # Meta line
+    last_registration = (
+        db.query(Registration.created_at)
+        .order_by(Registration.created_at.desc())
+        .first()
+    )
+    last_registration_at = last_registration[0] if last_registration else None
 
     return _template(request, "admin/dashboard.html", {
-        "counts": counts,
         "inventory": inventory,
-        "insurance_counts": insurance_counts,
-        "noted_registrations": noted_registrations,
-        "revenue_total": revenue_total,
-        "refund_total": refund_total,
-        "recent_pending": recent_pending,
+        "pending_count": pending_count,
+        "unpaid_count": unpaid_count,
+        "urgency_counts": urgency_counts,
+        "active_vendor_count": active_vendor_count,
+        "vendors_without_doc": vendors_without_doc,
+        "vendors_with_pending_doc": vendors_with_pending_doc,
+        "vendors_with_approved_doc": vendors_with_approved_doc,
+        "active_without_approved_ins": active_without_approved_ins,
+        "paid_count": paid_count,
         "last_registration_at": last_registration_at,
-        "daily_counts": daily_counts,
-        "hourly_counts": hourly_counts,
-        "pending_insurance": pending_insurance,
-        "capacity_alerts": capacity_alerts,
+        "status_counts": status_counts,
+        "total_registrations": total_registrations,
+        "total_vendors": total_vendors,
     }, session=session)
 
 
@@ -279,6 +273,8 @@ async def registration_list(
     # Build insurance doc lookup by email
     insurance_docs = {doc.email: doc for doc in db.query(InsuranceDocument).all()}
 
+    daily_counts, hourly_counts = _compute_chart_data(db)
+
     return _template(request, "admin/registrations.html", {
         "registrations": registrations,
         "booth_types": booth_types,
@@ -288,6 +284,8 @@ async def registration_list(
         "filter_booth_type": booth_type,
         "filter_insurance": insurance,
         "filter_search": search,
+        "daily_counts": daily_counts,
+        "hourly_counts": hourly_counts,
     }, session=session)
 
 
@@ -320,6 +318,7 @@ async def registration_detail(
         "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
         "insurance_doc": insurance_doc,
         "settings": settings,
+        "now": datetime.now(timezone.utc),
     }, session=session)
 
 
@@ -357,11 +356,89 @@ async def approve_registration(
     from urllib.parse import urlparse
     portal_domain = urlparse(APP_URL).hostname or APP_URL
     settings = db.query(EventSettings).first()
+    deadline_date = (
+        registration.payment_deadline.strftime("%b %d, %Y")
+        if registration.payment_deadline else None
+    )
     background_tasks.add_task(
         send_approval_email,
         registration.email, reg_id, portal_domain,
         insurance_instructions=settings.insurance_instructions if settings else "",
+        deadline_date=deadline_date,
     )
+
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
+# --- Send payment reminder ---
+
+@router.post("/registrations/{reg_id}/remind")
+async def send_reminder(
+    request: Request,
+    reg_id: str,
+    background_tasks: BackgroundTasks,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    if registration.status != "approved":
+        flash = [{"category": "error", "text": "Can only send reminders for approved registrations."}]
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+    # Rate limit: 1 reminder per hour
+    now = datetime.now(timezone.utc)
+    if registration.last_reminder_sent_at:
+        last = registration.last_reminder_sent_at
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        if (now - last).total_seconds() < 3600:
+            flash = [{"category": "error", "text": "A reminder was sent less than 1 hour ago. Please wait before sending another."}]
+            ctx = _detail_context(db, registration)
+            ctx["get_flashed_messages"] = lambda: flash
+            return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+    settings = db.query(EventSettings).first()
+    # Select template: reminder_1 for first, reminder_2 for subsequent
+    if registration.reminder_count == 0 and settings:
+        subject_tpl = settings.reminder_1_subject or "Payment Reminder — {event_name}"
+        body_tpl = settings.reminder_1_body or ""
+    elif settings:
+        subject_tpl = settings.reminder_2_subject or "Urgent: Payment Deadline Approaching — {event_name}"
+        body_tpl = settings.reminder_2_body or ""
+    else:
+        subject_tpl = "Payment Reminder — {event_name}"
+        body_tpl = ""
+
+    from urllib.parse import urlparse
+    portal_domain = urlparse(APP_URL).hostname or APP_URL
+    deadline_date = (
+        registration.payment_deadline.strftime("%b %d, %Y")
+        if registration.payment_deadline else "N/A"
+    )
+
+    background_tasks.add_task(
+        send_payment_reminder_email,
+        registration.email,
+        reg_id,
+        portal_domain,
+        deadline_date,
+        subject_tpl,
+        body_tpl,
+    )
+
+    registration.last_reminder_sent_at = now
+    registration.reminder_count = (registration.reminder_count or 0) + 1
+    db.commit()
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -745,10 +822,8 @@ async def inventory_page(
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    inventory = get_inventory(db)
-    return _template(request, "admin/inventory.html", {
-        "inventory": inventory,
-    }, session=session)
+    return _template(request, "admin/inventory.html",
+                     _inventory_context(db), session=session)
 
 
 @router.post("/inventory/{booth_type_id}")
@@ -776,11 +851,9 @@ async def update_inventory(
         ) or 0
         if total_quantity < reserved:
             flash = [{"category": "error", "text": f"Cannot set quantity below {reserved} (currently reserved)."}]
-            inventory = get_inventory(db)
-            return _template(request, "admin/inventory.html", {
-                "inventory": inventory,
-                "get_flashed_messages": lambda: flash,
-            }, session=session)
+            ctx = _inventory_context(db)
+            ctx["get_flashed_messages"] = lambda: flash
+            return _template(request, "admin/inventory.html", ctx, session=session)
         booth_type.total_quantity = total_quantity
         booth_type.description = description.strip()
         try:
@@ -792,6 +865,60 @@ async def update_inventory(
         except (InvalidOperation, ValueError, TypeError):
             pass
         db.commit()
+    return RedirectResponse(url="/admin/inventory", status_code=303)
+
+
+@router.post("/inventory")
+async def update_inventory_bulk(
+    request: Request,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    form = await request.form()
+    booth_types = db.query(BoothType).filter(BoothType.is_active == True).with_for_update().all()
+    errors = []
+    for bt in booth_types:
+        prefix = f"bt_{bt.id}_"
+        raw_qty = form.get(f"{prefix}total_quantity")
+        raw_price = form.get(f"{prefix}price")
+        raw_desc = form.get(f"{prefix}description", "")
+        if raw_qty is None or raw_price is None:
+            continue
+        try:
+            qty = int(raw_qty)
+        except (ValueError, TypeError):
+            continue
+        if qty < 0:
+            continue
+        reserved = (
+            db.query(sa_func.count(Registration.id))
+            .filter(
+                Registration.booth_type_id == bt.id,
+                Registration.status.in_(["approved", "paid"]),
+            )
+            .scalar()
+        ) or 0
+        if qty < reserved:
+            errors.append(f"{bt.name}: cannot set quantity below {reserved} (currently reserved).")
+            continue
+        bt.total_quantity = qty
+        bt.description = str(raw_desc).strip()
+        try:
+            price_dec = Decimal(str(raw_price))
+            if price_dec.is_finite():
+                price_cents = int((price_dec * 100).to_integral_value())
+                if price_cents >= 0:
+                    bt.price = price_cents
+        except (InvalidOperation, ValueError, TypeError):
+            pass
+    if errors:
+        db.rollback()
+        flash = [{"category": "error", "text": e} for e in errors]
+        ctx = _inventory_context(db)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/inventory.html", ctx, session=session)
+    db.commit()
     return RedirectResponse(url="/admin/inventory", status_code=303)
 
 
@@ -832,6 +959,13 @@ async def update_settings(
     notify_new_registration: str | None = Form(None),
     notify_payment_received: str | None = Form(None),
     notify_insurance_uploaded: str | None = Form(None),
+    payment_deadline_days: str = Form("7"),
+    reminder_1_days: str = Form("2"),
+    reminder_2_days: str = Form("5"),
+    reminder_1_subject: str = Form(""),
+    reminder_1_body: str = Form(""),
+    reminder_2_subject: str = Form(""),
+    reminder_2_body: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -868,6 +1002,44 @@ async def update_settings(
             settings.notify_new_registration = notify_new_registration is not None
             settings.notify_payment_received = notify_payment_received is not None
             settings.notify_insurance_uploaded = notify_insurance_uploaded is not None
+
+            # Payment deadline settings
+            try:
+                pdd = int(payment_deadline_days)
+                pdd = max(1, min(pdd, 90))
+            except (ValueError, TypeError):
+                pdd = 7
+            settings.payment_deadline_days = pdd
+
+            try:
+                r1d = int(reminder_1_days)
+                r1d = max(1, min(r1d, 89))
+            except (ValueError, TypeError):
+                r1d = 2
+            settings.reminder_1_days = r1d
+
+            try:
+                r2d = int(reminder_2_days)
+                r2d = max(1, min(r2d, 89))
+            except (ValueError, TypeError):
+                r2d = 5
+            settings.reminder_2_days = r2d
+
+            # Validate reminder day constraints
+            reminder_errors = settings.validate_reminder_days()
+            if reminder_errors:
+                flash = [{"category": "error", "text": e} for e in reminder_errors]
+                return _template(request, "admin/settings.html", {
+                    "settings": settings,
+                    "admin_emails": ADMIN_EMAILS,
+                    "get_flashed_messages": lambda: flash,
+                }, session=session)
+
+            settings.reminder_1_subject = reminder_1_subject.strip() or "Payment Reminder — {event_name}"
+            settings.reminder_1_body = reminder_1_body
+            settings.reminder_2_subject = reminder_2_subject.strip() or "Urgent: Payment Deadline Approaching — {event_name}"
+            settings.reminder_2_body = reminder_2_body
+
             db.commit()
             request.app.state.event_name = settings.event_name
         except ValueError:

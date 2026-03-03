@@ -28,6 +28,11 @@
             <span class="status-badge pending" style="margin-right: 0.25rem;">Pending Review</span>
             {% endif %}
             {{ item.message }}
+            {% if item.deadline_date %}
+            <br><small style="color: {% if item.overdue %}#dc2626; font-weight: 600{% else %}var(--pico-muted-color){% endif %};">
+                {% if item.overdue %}Payment deadline passed: {{ item.deadline_date }}{% else %}Payment deadline: {{ item.deadline_date }}{% endif %}
+            </small>
+            {% endif %}
         </span>
         <a href="{{ item.link }}" role="button" class="outline" style="white-space: nowrap; padding: 0.25rem 0.75rem; font-size: 0.85em; margin-left: 1rem;">{{ item.link_text }}</a>
     </div>

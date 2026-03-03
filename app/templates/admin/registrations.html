@@ -4,6 +4,33 @@
 
 {% block extra_head %}
 <script src="/static/clickable-rows.js" defer></script>
+<style>
+.chart-container {
+    position: relative;
+    width: 100%;
+    overflow-x: auto;
+}
+.chart-container svg { display: block; width: 100%; }
+.chart-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+.chart-tab {
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border: 1px solid var(--pico-muted-border-color);
+    background: none;
+    color: var(--pico-color);
+}
+.chart-tab.active {
+    background: var(--pico-primary-background);
+    color: #fff;
+    border-color: var(--pico-primary-background);
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -55,8 +82,7 @@
         <thead>
             <tr>
                 <th>ID</th>
-                <th>Business</th>
-                <th>Contact</th>
+                <th>Vendor</th>
                 <th>Category</th>
                 <th>Booth</th>
                 <th>Status</th>
@@ -68,8 +94,7 @@
             {% for reg in registrations %}
             <tr data-href="/admin/registrations/{{ reg.registration_id }}" style="cursor: pointer;">
                 <td><code>{{ reg.registration_id }}</code></td>
-                <td>{{ reg.business_name }}</td>
-                <td>{{ reg.contact_name }}</td>
+                <td>{{ reg.business_name }}<br><small style="color: var(--pico-muted-color);">{{ reg.email }}</small></td>
                 <td>{{ CATEGORIES.get(reg.category, reg.category) }}</td>
                 <td>{{ booth_types[reg.booth_type_id].name if reg.booth_type_id in booth_types else 'N/A' }}</td>
                 <td><span class="status-badge {{ reg.status }}">{{ reg.status | title }}</span></td>
@@ -83,4 +108,25 @@
         </tbody>
     </table>
 </figure>
+
+<!-- Registration Activity Chart -->
+<article>
+    <header><strong>Registration Activity</strong></header>
+    <div class="chart-tabs">
+        <button class="chart-tab active" data-chart-tab="daily">Last 30 Days</button>
+        <button class="chart-tab" data-chart-tab="hourly">By Hour</button>
+    </div>
+    <div class="chart-container" id="chart-daily">
+        <canvas id="daily-chart" height="180"></canvas>
+    </div>
+    <div class="chart-container" id="chart-hourly" style="display:none;">
+        <canvas id="hourly-chart" height="180"></canvas>
+    </div>
+</article>
+
+<script id="chart-data" type="application/json">{
+    "dailyCounts": {{ daily_counts | tojson }},
+    "hourlyCounts": {{ hourly_counts | tojson }}
+}</script>
+<script src="/static/admin-charts.js"></script>
 {% endblock %}

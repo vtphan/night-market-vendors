@@ -2,35 +2,231 @@
 
 {% block title %}Booth Inventory - Admin{% endblock %}
 
+{% block extra_head %}
+<style>
+/* Capacity bars */
+.capacity-bar-wrap {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+}
+.capacity-bar-wrap:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.capacity-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.3rem;
+}
+.capacity-bar-header strong { font-size: 0.95rem; }
+.capacity-bar-header .capacity-text {
+    font-size: 0.8rem;
+    color: var(--pico-muted-color);
+}
+.capacity-bar {
+    width: 100%;
+    height: 22px;
+    background: #f3f4f6;
+    border-radius: 11px;
+    overflow: hidden;
+    position: relative;
+}
+.capacity-bar .segment {
+    height: 100%;
+    float: left;
+    transition: width 0.3s ease;
+}
+.segment-paid { background: #22c55e; }
+.segment-approved { background: #3b82f6; }
+.capacity-bar-legend {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--pico-muted-color);
+}
+.legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.25rem;
+    vertical-align: middle;
+}
+
+/* Revenue bars */
+.revenue-bar-wrap {
+    margin-bottom: 0.75rem;
+}
+.revenue-bar-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+}
+.revenue-bar {
+    width: 100%;
+    height: 18px;
+    background: #f3f4f6;
+    border-radius: 9px;
+    overflow: hidden;
+    position: relative;
+}
+.revenue-bar .segment {
+    height: 100%;
+    float: left;
+    transition: width 0.3s ease;
+}
+.segment-revenue { background: #22c55e; }
+.segment-refund { background: #ef4444; }
+
+/* Side-by-side viz cards on desktop */
+.viz-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    align-items: start;
+}
+@media (min-width: 992px) {
+    .viz-row { grid-template-columns: 1fr 1fr; }
+}
+.viz-row > article { margin-bottom: 0; }
+</style>
+{% endblock %}
+
 {% block content %}
 <h2>Booth Inventory</h2>
 
-{% for item in inventory %}
+<!-- Capacity + Revenue side by side on desktop -->
+<div class="viz-row">
+
+<!-- Booth Capacity -->
 <article>
-    <header><strong>{{ item.name }}</strong> — {{ item.available }} available of {{ item.total_quantity }} ({{ item.approved }} approved, {{ item.paid }} paid)</header>
-    <form method="post" action="/admin/inventory/{{ item.id }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <header><strong>Capacity</strong></header>
 
-        <div class="grid">
-            <div>
-                <label for="price_{{ item.id }}">Price ($)</label>
-                <input type="number" id="price_{{ item.id }}" name="price"
-                       value="{{ '%.2f' | format(item.price / 100) }}" min="0" step="0.01" required>
-            </div>
-            <div>
-                <label for="qty_{{ item.id }}">Total Quantity</label>
-                <input type="number" id="qty_{{ item.id }}" name="total_quantity"
-                       value="{{ item.total_quantity }}" min="0" required>
-            </div>
+    {% set max_qty = namespace(val=1) %}
+    {% for item in inventory %}
+        {% if item.total_quantity > max_qty.val %}
+            {% set max_qty.val = item.total_quantity %}
+        {% endif %}
+    {% endfor %}
+
+    <!-- Overall aggregate bar (always full width) -->
+    <div class="capacity-bar-wrap">
+        <div class="capacity-bar-header">
+            <strong>Overall</strong>
+            <span class="capacity-text">
+                {{ total_capacity - total_approved - total_paid }} available, {{ total_capacity }} total
+            </span>
         </div>
+        <div class="capacity-bar">
+            {% if total_capacity > 0 %}
+            <div class="segment segment-paid" style="width: {{ (total_paid / total_capacity * 100)|round(1) }}%"></div>
+            <div class="segment segment-approved" style="width: {{ (total_approved / total_capacity * 100)|round(1) }}%"></div>
+            {% endif %}
+        </div>
+    </div>
 
-        <label for="desc_{{ item.id }}">Description</label>
-        <textarea id="desc_{{ item.id }}" name="description" rows="2" placeholder="Shown to vendors on the homepage and registration form">{{ item.description or '' }}</textarea>
+    <!-- Per booth type bars (width proportional to inventory size) -->
+    {% for item in inventory %}
+    <div class="capacity-bar-wrap">
+        <div class="capacity-bar-header">
+            <strong>{{ item.name }}</strong>
+            <span class="capacity-text">
+                {{ item.available }} available, {{ item.total_quantity }} total
+            </span>
+        </div>
+        <div class="capacity-bar" style="width: {{ (item.total_quantity / max_qty.val * 100)|round(1) }}%;">
+            {% if item.total_quantity > 0 %}
+            <div class="segment segment-paid" style="width: {{ (item.paid / item.total_quantity * 100)|round(1) }}%"></div>
+            <div class="segment segment-approved" style="width: {{ (item.approved / item.total_quantity * 100)|round(1) }}%"></div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
 
+    <div class="capacity-bar-legend">
+        <span><span class="legend-dot" style="background:#22c55e;"></span>Paid</span>
+        <span><span class="legend-dot" style="background:#3b82f6;"></span>Approved</span>
+    </div>
+</article>
+
+<!-- Revenue -->
+<article>
+    <header><strong>Revenue</strong></header>
+
+    {% set max_possible = namespace(val=1) %}
+    {% for item in inventory %}
+        {% if item.total_quantity * item.price > max_possible.val %}
+            {% set max_possible.val = item.total_quantity * item.price %}
+        {% endif %}
+    {% endfor %}
+
+    {% for item in inventory %}
+    {% set possible = item.total_quantity * item.price %}
+    <div class="revenue-bar-wrap">
+        <div class="revenue-bar-label">
+            <span><strong>{{ item.name }}</strong></span>
+            <span>
+                <span style="color: #15803d;">${{ "%.2f"|format((item.revenue or 0) / 100) }}</span>
+                {% if (item.refund or 0) > 0 %}
+                / <span style="color: #dc2626;">${{ "%.2f"|format(item.refund / 100) }} refunded</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="revenue-bar" style="width: {{ (possible / max_possible.val * 100)|round(1) if max_possible.val > 0 else 100 }}%;">
+            {% if possible > 0 %}
+            <div class="segment segment-revenue" style="width: {{ ((item.revenue or 0) / possible * 100)|round(1) }}%"></div>
+            <div class="segment segment-refund" style="width: {{ ((item.refund or 0) / possible * 100)|round(1) }}%"></div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div style="border-top: 2px solid var(--pico-muted-border-color); margin-top: 0.75rem; padding-top: 0.75rem; font-size: 0.9rem;">
+        <div style="display: flex; justify-content: space-between;">
+            <span>Total Revenue</span>
+            <strong style="color: #15803d;">${{ "%.2f"|format(revenue_total / 100) }}</strong>
+        </div>
+        {% if refund_total > 0 %}
+        <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+            <span>Refunded</span>
+            <strong style="color: #dc2626;">${{ "%.2f"|format(refund_total / 100) }}</strong>
+        </div>
+        {% endif %}
+        <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+            <span>Net Revenue</span>
+            <strong>${{ "%.2f"|format((revenue_total - refund_total) / 100) }}</strong>
+        </div>
+    </div>
+</article>
+
+</div><!-- /.viz-row -->
+
+<!-- Booth Type Settings -->
+<article>
+    <header><strong>Pricing &amp; Inventory</strong></header>
+    <form method="post" action="/admin/inventory">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="grid">
+            {% for item in inventory %}
+            <div>
+                <strong style="display:block; margin-bottom:0.5rem;">{{ item.name }}</strong>
+                <label for="price_{{ item.id }}">Price ($)</label>
+                <input type="number" id="price_{{ item.id }}" name="bt_{{ item.id }}_price"
+                       value="{{ '%.2f' | format(item.price / 100) }}" min="0" step="0.01" required>
+                <label for="qty_{{ item.id }}">Quantity</label>
+                <input type="number" id="qty_{{ item.id }}" name="bt_{{ item.id }}_total_quantity"
+                       value="{{ item.total_quantity }}" min="0" required>
+                <label for="desc_{{ item.id }}">Description</label>
+                <textarea id="desc_{{ item.id }}" name="bt_{{ item.id }}_description"
+                          rows="3" placeholder="Shown to vendors">{{ item.description or '' }}</textarea>
+            </div>
+            {% endfor %}
+        </div>
         <button type="submit">Save</button>
     </form>
 </article>
-{% endfor %}
 
 <p><a href="/admin">&larr; Back to Dashboard</a></p>
 {% endblock %}

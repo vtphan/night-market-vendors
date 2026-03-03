@@ -118,6 +118,54 @@
 
     <article>
         <details>
+            <summary><strong>Payment Deadline</strong></summary>
+
+            <label for="payment_deadline_days">Payment Deadline (days after approval)</label>
+            <small>Vendors must pay within this many days of being approved. Deadline is set at 11:59 PM UTC on the target day.</small>
+            <input type="number" id="payment_deadline_days" name="payment_deadline_days"
+                   min="1" max="90" step="1"
+                   value="{{ settings.payment_deadline_days or 7 }}">
+
+            <div class="grid">
+                <div>
+                    <label for="reminder_1_days">Reminder 1 (days after approval)</label>
+                    <input type="number" id="reminder_1_days" name="reminder_1_days"
+                           min="1" max="89" step="1"
+                           value="{{ settings.reminder_1_days or 2 }}">
+                </div>
+                <div>
+                    <label for="reminder_2_days">Reminder 2 (days after approval)</label>
+                    <input type="number" id="reminder_2_days" name="reminder_2_days"
+                           min="1" max="89" step="1"
+                           value="{{ settings.reminder_2_days or 5 }}">
+                </div>
+            </div>
+            <small style="color: var(--pico-muted-color);">Reminder 1 &lt; Reminder 2 &lt; Deadline, each at least 1 day apart. These control when the dashboard urgency colors change and which email template is used.</small>
+
+            <hr style="margin: 1.5rem 0;">
+            <strong>Reminder Email Templates</strong>
+            <small style="display: block; margin-bottom: 1rem; color: var(--pico-muted-color);">
+                Available variables: <code>{registration_id}</code>, <code>{portal_domain}</code>, <code>{deadline_date}</code>, <code>{event_name}</code>, <code>{contact_email}</code>
+            </small>
+
+            <label for="reminder_1_subject">Reminder 1 Subject</label>
+            <input type="text" id="reminder_1_subject" name="reminder_1_subject"
+                   value="{{ settings.reminder_1_subject or '' }}">
+
+            <label for="reminder_1_body">Reminder 1 Body <small>(HTML supported)</small></label>
+            <textarea id="reminder_1_body" name="reminder_1_body" rows="5">{{ settings.reminder_1_body or '' }}</textarea>
+
+            <label for="reminder_2_subject">Reminder 2 Subject</label>
+            <input type="text" id="reminder_2_subject" name="reminder_2_subject"
+                   value="{{ settings.reminder_2_subject or '' }}">
+
+            <label for="reminder_2_body">Reminder 2 Body <small>(HTML supported)</small></label>
+            <textarea id="reminder_2_body" name="reminder_2_body" rows="5">{{ settings.reminder_2_body or '' }}</textarea>
+        </details>
+    </article>
+
+    <article>
+        <details>
             <summary><strong>Email Notifications</strong></summary>
             <p>Send email notifications to all admin addresses when these events occur:</p>
 

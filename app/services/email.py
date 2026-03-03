@@ -95,7 +95,10 @@ def send_submission_confirmation_email(to: str, registration_id: str, booth_type
     return send_email(to, f"Registration {registration_id} Received", html)
 
 
-def send_approval_email(to: str, registration_id: str, portal_domain: str, insurance_instructions: str = "") -> bool:
+def send_approval_email(
+    to: str, registration_id: str, portal_domain: str,
+    insurance_instructions: str = "", deadline_date: str | None = None,
+) -> bool:
     """Send registration approval notification directing vendor to the portal."""
     try:
         template = _env.get_template("approval.html")
@@ -103,11 +106,52 @@ def send_approval_email(to: str, registration_id: str, portal_domain: str, insur
             registration_id=registration_id,
             portal_domain=portal_domain,
             insurance_instructions=insurance_instructions,
+            deadline_date=deadline_date,
         )
     except Exception:
         logger.exception("Failed to render approval email template")
         return False
     return send_email(to, f"Registration {registration_id} - Status Update", html)
+
+
+def send_payment_reminder_email(
+    to: str,
+    registration_id: str,
+    portal_domain: str,
+    deadline_date: str,
+    subject_template: str,
+    body_template: str,
+    event_name: str = "",
+    contact_email: str = "",
+) -> bool:
+    """Send a payment reminder email using admin-customizable templates."""
+    if not event_name or not contact_email:
+        globals = _get_email_globals()
+        event_name = event_name or globals.get("event_name", "")
+        contact_email = contact_email or globals.get("contact_email", "")
+
+    fmt_vars = {
+        "registration_id": registration_id,
+        "portal_domain": portal_domain,
+        "deadline_date": deadline_date,
+        "event_name": event_name,
+        "contact_email": contact_email,
+    }
+    try:
+        subject = subject_template.format(**fmt_vars)
+        body_content = body_template.format(**fmt_vars)
+    except (KeyError, IndexError):
+        logger.exception("Failed to format payment reminder template")
+        return False
+
+    try:
+        template = _env.get_template("payment_reminder.html")
+        html_body = template.render(body_content=body_content)
+    except Exception:
+        logger.exception("Failed to render payment reminder template")
+        return False
+
+    return send_email(to, subject, html_body)
 
 
 def send_payment_confirmation_email(to: str, registration_id: str, booth_type_name: str, amount_cents: int) -> bool:

@@ -46,6 +46,9 @@ class Registration(Base):
     agreement_ip_address = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     admin_notes = Column(Text, nullable=True)
+    payment_deadline = Column(DateTime, nullable=True)
+    last_reminder_sent_at = Column(DateTime, nullable=True)
+    reminder_count = Column(Integer, default=0, server_default="0")
     updated_at = Column(
         DateTime, nullable=False,
         server_default=func.now(),
@@ -146,6 +149,50 @@ class EventSettings(Base):
     notify_new_registration = Column(Boolean, default=False, server_default="0")
     notify_payment_received = Column(Boolean, default=False, server_default="0")
     notify_insurance_uploaded = Column(Boolean, default=False, server_default="0")
+    payment_deadline_days = Column(Integer, default=7, server_default="7")
+    reminder_1_days = Column(Integer, default=2, server_default="2")
+    reminder_2_days = Column(Integer, default=5, server_default="5")
+    reminder_1_subject = Column(String, default="Payment Reminder — {event_name}")
+    reminder_1_body = Column(Text, default="")
+    reminder_2_subject = Column(String, default="Urgent: Payment Deadline Approaching — {event_name}")
+    reminder_2_body = Column(Text, default="")
+
+    @staticmethod
+    def derive_reminder_defaults(deadline_days: int) -> tuple[int, int]:
+        """Compute default reminder days from deadline.
+
+        R1 = roughly 1/3 of deadline, R2 = roughly 2/3 of deadline,
+        each clamped to at least 1 day apart from boundaries.
+        """
+        if deadline_days <= 2:
+            return (1, 1)
+        if deadline_days <= 3:
+            return (1, 2)
+        r1 = max(1, deadline_days // 3)
+        r2 = max(r1 + 1, (deadline_days * 2) // 3)
+        r2 = min(r2, deadline_days - 1)
+        return (r1, r2)
+
+    def validate_reminder_days(self) -> list[str]:
+        """Validate that 1 <= R1 < R2 < deadline with 1-day gaps."""
+        errors = []
+        d = self.payment_deadline_days
+        r1 = self.reminder_1_days
+        r2 = self.reminder_2_days
+        if d is None or d < 1:
+            errors.append("Payment deadline must be at least 1 day.")
+            return errors
+        if r1 < 1:
+            errors.append("Reminder 1 must be at least 1 day after approval.")
+        if r2 < 1:
+            errors.append("Reminder 2 must be at least 1 day after approval.")
+        if r1 >= r2:
+            errors.append("Reminder 1 must be earlier than Reminder 2.")
+        if r2 >= d:
+            errors.append("Reminder 2 must be before the payment deadline.")
+        if r1 >= 1 and r2 >= 1 and r2 - r1 < 1:
+            errors.append("There must be at least 1 day between Reminder 1 and Reminder 2.")
+        return errors
 
     @staticmethod
     def _ensure_utc(dt: datetime) -> datetime:

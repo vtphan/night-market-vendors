@@ -31,10 +31,12 @@ async def test_admin_dashboard_shows_counts(db):
         response = await client.get("/admin", cookies=admin_cookie())
         assert response.status_code == 200
         text = response.text
-        # Should show counts
-        assert "Pending" in text
-        assert "Approved" in text
-        assert "Rejected" in text
+        # Dashboard shows chart cards
+        assert "Registrations Overview" in text
+        assert "Pending Approval" in text
+        assert "Awaiting Payment" in text
+        assert "Capacity / Inventory" in text
+        assert "Insurance Coverage" in text
 
 
 @pytest.mark.anyio
@@ -504,8 +506,8 @@ async def test_inventory_reflects_approved_registrations(db):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/admin/inventory", cookies=admin_cookie())
         assert response.status_code == 200
-        # Premium booth: 20 total, 1 approved, 1 paid = 18 available of 20
-        assert "18 available of 20" in response.text
+        # Premium booth: 20 total, 1 approved, 1 paid = 18 available
+        assert "18 available, 20 total" in response.text
 
 
 # ========================================

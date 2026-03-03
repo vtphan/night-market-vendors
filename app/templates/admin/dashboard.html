@@ -4,52 +4,6 @@
 
 {% block extra_head %}
 <style>
-/* Dashboard layout */
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.25rem;
-    align-items: start;
-}
-@media (min-width: 992px) {
-    .dashboard-grid { grid-template-columns: 7fr 5fr; }
-}
-
-/* Summary strip */
-.summary-strip {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
-}
-@media (min-width: 768px) {
-    .summary-strip { grid-template-columns: repeat(4, 1fr); }
-}
-.summary-card {
-    background: var(--pico-card-background-color);
-    border: 1px solid var(--pico-muted-border-color);
-    border-radius: 8px;
-    padding: 1rem 1.25rem;
-    text-align: center;
-}
-.summary-card .big-number {
-    font-size: 2rem;
-    font-weight: 700;
-    line-height: 1.1;
-    margin: 0;
-}
-.summary-card .label {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--pico-muted-color);
-    margin-top: 0.25rem;
-}
-.summary-card.highlight-pending .big-number { color: #b45309; }
-.summary-card.highlight-revenue .big-number { color: #15803d; }
-.summary-card.highlight-paid .big-number { color: #1d4ed8; }
-.summary-card.highlight-fill .big-number { color: #7c3aed; }
-
 /* Meta line */
 .meta-line {
     font-size: 0.85rem;
@@ -59,148 +13,108 @@
 .meta-line .fresh { color: #15803d; font-weight: 500; }
 .meta-line .stale { color: #b45309; font-weight: 500; }
 
-/* Status table with badges */
-.status-table { width: 100%; border-collapse: collapse; }
-.status-table td { padding: 0.4rem 0; border: none; }
-.status-table td:last-child { text-align: right; }
-.status-table .badge {
-    display: inline-block;
-    min-width: 2rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 10px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-align: center;
+/* Dashboard grid */
+.dashboard-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
 }
-.badge-pending { background-color: #fef3c7; color: #92400e; }
-.badge-approved { background-color: #dbeafe; color: #1e40af; }
-.badge-paid { background-color: #d1fae5; color: #065f46; }
-.badge-rejected { background-color: #fee2e2; color: #991b1b; }
-.badge-cancelled { background-color: #e5e7eb; color: #374151; }
-.badge-total { background-color: #f3f4f6; color: #111827; }
+.dashboard-row > article { margin-bottom: 0; }
 
-/* Capacity bars */
-.capacity-bar-wrap {
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--pico-muted-border-color);
+@media (max-width: 768px) {
+    .dashboard-row { grid-template-columns: 1fr; }
 }
-.capacity-bar-wrap:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-.capacity-bar-header {
+
+/* Card header link */
+.card-header-link {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 0.3rem;
+    align-items: center;
 }
-.capacity-bar-header strong { font-size: 0.95rem; }
-.capacity-bar-header .capacity-text {
-    font-size: 0.8rem;
-    color: var(--pico-muted-color);
-}
-.capacity-bar {
-    width: 100%;
-    height: 22px;
-    background: #f3f4f6;
-    border-radius: 11px;
+.card-header-link a { font-size: 0.85rem; }
+
+/* Stacked bar */
+.stacked-bar {
+    display: flex;
+    height: 1.5rem;
+    border-radius: 0.375rem;
+    background: #e5e7eb;
     overflow: hidden;
-    position: relative;
 }
-.capacity-bar .segment {
-    height: 100%;
-    float: left;
+.stacked-bar .bar-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
     transition: width 0.3s ease;
 }
-.segment-paid { background: #22c55e; }
-.segment-approved { background: #3b82f6; }
-.segment-pending { background: #f59e0b; }
-.capacity-bar-legend {
+
+/* Bar legend */
+.bar-legend {
     display: flex;
-    gap: 0.75rem;
-    margin-top: 0.3rem;
-    font-size: 0.75rem;
-    color: var(--pico-muted-color);
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
 }
-.legend-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
+.bar-legend .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.bar-legend .legend-dot {
+    width: 0.6rem;
+    height: 0.6rem;
     border-radius: 50%;
-    margin-right: 0.25rem;
-    vertical-align: middle;
+    flex-shrink: 0;
 }
 
-/* Pending action items */
-.action-list { list-style: none; padding: 0; margin: 0; }
-.action-list li {
+/* Inventory utilization bars */
+.util-bar-wrap { margin-bottom: 0.75rem; }
+.util-bar-wrap:last-child { margin-bottom: 0; }
+.util-bar-label {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--pico-muted-border-color);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
 }
-.action-list li:last-child { border-bottom: none; }
-.action-list .business { font-weight: 500; }
-.action-list .meta {
-    font-size: 0.8rem;
-    color: var(--pico-muted-color);
+.util-bar-label .name { font-weight: 500; }
+.util-bar-label .count { color: var(--pico-muted-color); }
+.util-bar-track {
+    height: 1.25rem;
+    background: #e5e7eb;
+    border-radius: 0.375rem;
+    overflow: hidden;
 }
-.action-list .time-ago {
-    font-size: 0.78rem;
-    color: var(--pico-muted-color);
-    white-space: nowrap;
+.util-bar {
+    height: 100%;
+    border-radius: 0.375rem;
+    transition: width 0.3s ease;
 }
 
-/* Chart area */
-.chart-container {
-    position: relative;
-    width: 100%;
-    overflow-x: auto;
+/* Big number + context */
+.big-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 0.25rem;
 }
-.chart-container svg { display: block; width: 100%; }
-.chart-tabs {
-    display: flex;
-    gap: 0.5rem;
+.context-line {
+    color: var(--pico-muted-color);
+    font-size: 0.9rem;
     margin-bottom: 0.75rem;
 }
-.chart-tab {
-    padding: 0.25rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    border: 1px solid var(--pico-muted-border-color);
-    background: none;
-    color: var(--pico-color);
-}
-.chart-tab.active {
-    background: var(--pico-primary-background);
-    color: #fff;
-    border-color: var(--pico-primary-background);
-}
 
-/* Section headers inside articles */
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.section-header a { font-size: 0.85rem; }
-
-/* Compact cards on right */
-.compact-cards { display: flex; flex-direction: column; gap: 1.25rem; }
-
-/* Notes table */
-.notes-table { width: 100%; border-collapse: collapse; }
-.notes-table td { padding: 0.4rem 0.5rem; border: none; vertical-align: middle; font-size: 0.9rem; }
-.notes-table tr { border-bottom: 1px solid var(--pico-muted-border-color); }
-.notes-table tr:last-child { border-bottom: none; }
-.note-preview {
-    width: 100%;
-    max-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+/* Empty state */
+.empty-state {
     color: var(--pico-muted-color);
+    font-size: 0.9rem;
+    font-style: italic;
 }
 </style>
 {% endblock %}
@@ -208,7 +122,7 @@
 {% block content %}
 <h2>Admin Dashboard</h2>
 
-<!-- Meta line with last registration info -->
+<!-- Meta line -->
 <p class="meta-line">
     Welcome, {{ session.email }}.
     {% if last_registration_at %}
@@ -218,261 +132,240 @@
     {% endif %}
 </p>
 
-<!-- Summary strip -->
-<div class="summary-strip">
-    <a href="/admin/registrations?status=pending" style="text-decoration:none; color:inherit;">
-        <div class="summary-card highlight-pending">
-            <div class="big-number">{{ counts.pending }}</div>
-            <div class="label">Pending Review</div>
-        </div>
-    </a>
-    <div class="summary-card highlight-revenue">
-        <div class="big-number">${{ "%.0f"|format(revenue_total / 100) }}</div>
-        <div class="label">Revenue</div>
-    </div>
-    <a href="/admin/registrations?status=paid" style="text-decoration:none; color:inherit;">
-        <div class="summary-card highlight-paid">
-            <div class="big-number">{{ counts.paid }}</div>
-            <div class="label">Paid</div>
-        </div>
-    </a>
-    <div class="summary-card highlight-fill">
-        {% set total_capacity = inventory | sum(attribute='total_quantity') %}
-        {% set total_filled = inventory | sum(attribute='approved') + inventory | sum(attribute='paid') %}
-        <div class="big-number">{{ "%.0f"|format(total_filled / total_capacity * 100) if total_capacity > 0 else 0 }}%</div>
-        <div class="label">Booths Filled</div>
-    </div>
-</div>
+{% set status_colors = {
+    "pending": "#f59e0b",
+    "approved": "#3b82f6",
+    "paid": "#22c55e",
+    "rejected": "#6b7280",
+    "cancelled": "#ef4444",
+    "withdrawn": "#8b5cf6"
+} %}
 
-<div class="dashboard-grid">
-    <!-- Left column (primary) -->
-    <div>
-        <!-- Needs Attention -->
-        {% if recent_pending or pending_insurance or capacity_alerts %}
-        <article>
-            <header>
-                <div class="section-header">
-                    <strong>Needs Attention</strong>
-                    <a href="/admin/registrations?status=pending">View all &rarr;</a>
-                </div>
-            </header>
-            {% if capacity_alerts %}
-            <small><strong>Booth Capacity Alerts</strong></small>
-            <ul class="action-list">
-                {% for alert in capacity_alerts %}
-                <li>
-                    <div>
-                        <a href="/admin/registrations?status=pending&booth_type={{ alert.id }}" class="business">{{ alert.name }}</a>
-                        <div class="meta">
-                            {% if alert.available <= 0 %}
-                                <span style="color: #dc2626; font-weight: 600;">Full</span> &mdash;
-                                {{ alert.pending }} pending, {{ alert.overflow }} won't fit
-                            {% else %}
-                                <span style="color: #b45309; font-weight: 600;">{{ alert.available }} left</span> &mdash;
-                                {{ alert.pending }} pending will fill remaining slots
-                            {% endif %}
-                        </div>
-                    </div>
-                    <span style="font-size: 0.85em; white-space: nowrap; color: {% if alert.available <= 0 %}#dc2626{% else %}#b45309{% endif %};">
-                        {{ alert.reserved }}/{{ alert.total_quantity }} reserved
-                    </span>
-                </li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-            {% if recent_pending %}
-            <small><strong>Recent Pending Registrations</strong></small>
-            <ul class="action-list">
-                {% for reg in recent_pending %}
-                <li>
-                    <div>
-                        <a href="/admin/registrations/{{ reg.registration_id }}" class="business">{{ reg.business_name }}</a>
-                        <div class="meta">{{ reg.contact_name }} &middot; {{ reg.email }}</div>
-                    </div>
-                    <span class="time-ago" data-ts="{{ reg.created_at.isoformat() }}Z"></span>
-                </li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-            {% if pending_insurance %}
-            <small style="display:block; margin-top:1rem;"><strong>Insurance Pending Review</strong></small>
-            <ul class="action-list">
-                {% for item in pending_insurance %}
-                <li>
-                    <div>
-                        <a href="/admin/registrations/{{ item.registration.registration_id }}" class="business">{{ item.registration.business_name }}</a>
-                        <div class="meta">Uploaded {{ item.doc.uploaded_at.strftime("%b %d") }}</div>
-                    </div>
-                    <span class="time-ago" data-ts="{{ item.doc.uploaded_at.isoformat() }}Z"></span>
-                </li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-        </article>
-        {% endif %}
+{% set urgency_colors = {
+    "normal": "#3b82f6",
+    "reminder_1": "#f59e0b",
+    "reminder_2": "#ea580c",
+    "overdue": "#dc2626"
+} %}
 
-        <!-- Booth Overview -->
-        <article>
-            <header>
-                <div class="section-header">
-                    <strong>Booth Overview</strong>
-                    <a href="/admin/inventory">Manage &rarr;</a>
-                </div>
-            </header>
-            {% for item in inventory %}
-            <div class="capacity-bar-wrap">
-                <div class="capacity-bar-header">
-                    <strong>{{ item.name }}</strong>
-                    <span class="capacity-text">
-                        {{ item.available }} available, {{ item.total_quantity }} total
-                        {% if item.pending > 0 %}
-                        <span style="color: {% if item.available <= 0 %}#dc2626{% else %}#b45309{% endif %};">
-                            ({{ item.pending }} pending)
-                        </span>
-                        {% endif %}
-                    </span>
-                </div>
-                {% set visual_pending = [item.pending, [item.total_quantity - item.approved - item.paid, 0]|max]|min %}
-                <div class="capacity-bar">
-                    {% if item.total_quantity > 0 %}
-                    <div class="segment segment-paid" style="width: {{ (item.paid / item.total_quantity * 100)|round(1) }}%"></div>
-                    <div class="segment segment-approved" style="width: {{ (item.approved / item.total_quantity * 100)|round(1) }}%"></div>
-                    <div class="segment segment-pending" style="width: {{ (visual_pending / item.total_quantity * 100)|round(1) }}%"></div>
-                    {% endif %}
-                </div>
-                <div class="capacity-bar-legend">
-                    <span><span class="legend-dot" style="background:#22c55e;"></span>Paid {{ item.paid }}</span>
-                    <span><span class="legend-dot" style="background:#3b82f6;"></span>Approved {{ item.approved }}</span>
-                    <span><span class="legend-dot" style="background:#f59e0b;"></span>Pending {{ item.pending }}</span>
-                </div>
-                <div style="font-size: 0.8rem; color: var(--pico-muted-color); margin-top: 0.25rem;">
-                    Revenue: <strong style="color: #15803d;">${{ "%.2f"|format((item.revenue or 0) / 100) }}</strong>
-                </div>
-            </div>
-            {% endfor %}
-            <div style="border-top: 2px solid var(--pico-muted-border-color); margin-top: 0.5rem; padding-top: 0.75rem; font-size: 0.9rem;">
-                <div style="display: flex; justify-content: space-between;">
-                    <span>Total Revenue</span>
-                    <strong style="color: #15803d;">${{ "%.2f"|format(revenue_total / 100) }}</strong>
-                </div>
-                {% if refund_total > 0 %}
-                <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
-                    <span>Refunded</span>
-                    <strong style="color: #dc2626;">${{ "%.2f"|format(refund_total / 100) }}</strong>
-                </div>
-                {% endif %}
-                <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
-                    <span>Net Revenue</span>
-                    <strong>${{ "%.2f"|format((revenue_total - refund_total) / 100) }}</strong>
-                </div>
-            </div>
-        </article>
+{% set urgency_labels = {
+    "normal": "Approved but Unpaid",
+    "reminder_1": "Reminder 1",
+    "reminder_2": "Reminder 2",
+    "overdue": "Overdue"
+} %}
 
-    </div>
-
-    <!-- Right column (secondary) -->
-    <div class="compact-cards">
-        <!-- Registration counts -->
-        <article>
-            <header>
-                <div class="section-header">
-                    <strong>All Registrations</strong>
-                    <a href="/admin/export">Export CSV &darr;</a>
-                </div>
-            </header>
-            <table class="status-table">
-                <tr>
-                    <td><a href="/admin/registrations?status=pending">Pending</a></td>
-                    <td><span class="badge badge-pending">{{ counts.pending }}</span></td>
-                </tr>
-                <tr>
-                    <td><a href="/admin/registrations?status=approved">Approved</a></td>
-                    <td><span class="badge badge-approved">{{ counts.approved }}</span></td>
-                </tr>
-                <tr>
-                    <td><a href="/admin/registrations?status=paid">Paid</a></td>
-                    <td><span class="badge badge-paid">{{ counts.paid }}</span></td>
-                </tr>
-                <tr>
-                    <td><a href="/admin/registrations?status=rejected">Rejected</a></td>
-                    <td><span class="badge badge-rejected">{{ counts.rejected }}</span></td>
-                </tr>
-                <tr>
-                    <td><a href="/admin/registrations?status=cancelled">Cancelled</a></td>
-                    <td><span class="badge badge-cancelled">{{ counts.cancelled }}</span></td>
-                </tr>
-                <tr>
-                    <td><strong><a href="/admin/registrations">Total</a></strong></td>
-                    <td><span class="badge badge-total">{{ counts.total }}</span></td>
-                </tr>
-            </table>
-        </article>
-
-        <!-- Insurance -->
-        <article>
-            <header><strong>Insurance</strong></header>
-            <table class="status-table">
-                <tr>
-                    <td><a href="/admin/registrations?insurance=approved">Approved</a></td>
-                    <td><span class="badge badge-paid">{{ insurance_counts.approved }}</span></td>
-                </tr>
-                <tr>
-                    <td><a href="/admin/registrations?insurance=uploaded">Pending Review</a></td>
-                    <td><span class="badge badge-pending">{{ insurance_counts.uploaded }}</span></td>
-                </tr>
-                <tr>
-                    <td><a href="/admin/registrations?insurance=no">Not Uploaded</a></td>
-                    <td><span class="badge badge-rejected">{{ insurance_counts.none }}</span></td>
-                </tr>
-            </table>
-        </article>
-
-        <!-- Registration Timeline Chart -->
-        <article>
-            <header><strong>Registration Activity</strong></header>
-            <div class="chart-tabs">
-                <button class="chart-tab active" data-chart-tab="daily">Last 30 Days</button>
-                <button class="chart-tab" data-chart-tab="hourly">By Hour</button>
-            </div>
-            <div class="chart-container" id="chart-daily">
-                <canvas id="daily-chart" height="180"></canvas>
-            </div>
-            <div class="chart-container" id="chart-hourly" style="display:none;">
-                <canvas id="hourly-chart" height="180"></canvas>
-            </div>
-        </article>
-
-    </div>
-</div>
-
-<!-- Admin Notes (full width) -->
-{% if noted_registrations %}
+<!-- Row 1: Registrations Overview + Capacity / Inventory -->
+<div class="dashboard-row">
 <article>
     <header>
-        <div class="section-header">
-            <strong>Admin Notes</strong>
-            <a href="/admin/registrations?notes=yes">View all ({{ noted_registrations | length }}) &rarr;</a>
+        <div class="card-header-link">
+            <strong>Registrations Overview</strong>
+            <a href="/admin/registrations">View all &rarr;</a>
         </div>
     </header>
-    <table class="notes-table">
-        {% for reg in noted_registrations %}
-        <tr>
-            <td style="white-space: nowrap;">
-                <a href="/admin/registrations/{{ reg.registration_id }}">{{ reg.registration_id }}</a>
-            </td>
-            <td style="white-space: nowrap;">
-                <span class="badge badge-{{ reg.status }}">{{ reg.status | title }}</span>
-            </td>
-            <td class="note-preview">{{ reg.admin_notes.split('\n')[0] }}</td>
-        </tr>
+    <p class="context-line">{{ total_registrations }} registration{{ 's' if total_registrations != 1 }} from {{ total_vendors }} vendor{{ 's' if total_vendors != 1 }}</p>
+    {% if total_registrations > 0 %}
+    <div class="stacked-bar">
+        {% set status_order = ["pending", "approved", "paid", "rejected", "cancelled", "withdrawn"] %}
+        {% for s in status_order %}
+            {% set count = status_counts.get(s, 0) %}
+            {% if count > 0 %}
+                {% set pct = (count / total_registrations * 100) | round(1) %}
+                <div class="bar-seg" style="width: {{ pct }}%; background: {{ status_colors[s] }};">
+                    {% if pct > 10 %}{{ count }}{% endif %}
+                </div>
+            {% endif %}
         {% endfor %}
-    </table>
+    </div>
+    <div class="bar-legend">
+        {% for s in status_order %}
+            {% set count = status_counts.get(s, 0) %}
+            {% if count > 0 %}
+            <span class="legend-item">
+                <span class="legend-dot" style="background: {{ status_colors[s] }};"></span>
+                {{ s | capitalize }} ({{ count }})
+            </span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">No registrations yet</p>
+    {% endif %}
 </article>
-{% endif %}
 
-<script id="dashboard-chart-data" type="application/json">{
-    "dailyCounts": {{ daily_counts | tojson }},
-    "hourlyCounts": {{ hourly_counts | tojson }}
-}</script>
+<article>
+    <header>
+        <div class="card-header-link">
+            <strong>Capacity / Inventory</strong>
+            <a href="/admin/inventory">Manage &rarr;</a>
+        </div>
+    </header>
+    {% for item in inventory %}
+        {% set pct = ((item.reserved / item.total_quantity) * 100) | round(1) if item.total_quantity > 0 else 0 %}
+        {% if item.available <= 0 %}
+            {% set bar_color = "#dc2626" %}
+        {% elif item.available <= 3 %}
+            {% set bar_color = "#f59e0b" %}
+        {% else %}
+            {% set bar_color = "#22c55e" %}
+        {% endif %}
+        <div class="util-bar-wrap">
+            <div class="util-bar-label">
+                <span class="name">{{ item.name }}</span>
+                <span class="count">{{ item.reserved }} out of {{ item.total_quantity }} reserved</span>
+            </div>
+            <div class="util-bar-track">
+                <div class="util-bar" style="width: {{ pct }}%; background: {{ bar_color }};"></div>
+            </div>
+        </div>
+    {% endfor %}
+    {% if not inventory %}
+    <p class="empty-state">No booth types configured</p>
+    {% endif %}
+</article>
+</div>
+
+<!-- Row 2: Approve These + Urge Them Pay -->
+<div class="dashboard-row">
+<article>
+    <header>
+        <div class="card-header-link">
+            <strong>Pending Approval</strong>
+            <a href="/admin/registrations?status=pending">View all &rarr;</a>
+        </div>
+    </header>
+    <div class="big-number">{{ pending_count }}</div>
+    <p class="context-line">pending registration{{ 's' if pending_count != 1 }} awaiting review</p>
+    {% set approved_count = status_counts.get("approved", 0) %}
+    {% set rest = total_registrations - pending_count - approved_count %}
+    {% if total_registrations > 0 %}
+    <div class="stacked-bar">
+        {% set pct_pending = (pending_count / total_registrations * 100) | round(1) %}
+        {% set pct_approved = (approved_count / total_registrations * 100) | round(1) %}
+        {% set pct_rest = (rest / total_registrations * 100) | round(1) %}
+        {% if pending_count > 0 %}
+        <div class="bar-seg" style="width: {{ pct_pending }}%; background: {{ status_colors.pending }};">
+            {% if pct_pending > 10 %}{{ pending_count }}{% endif %}
+        </div>
+        {% endif %}
+        {% if approved_count > 0 %}
+        <div class="bar-seg" style="width: {{ pct_approved }}%; background: {{ status_colors.approved }};">
+            {% if pct_approved > 10 %}{{ approved_count }}{% endif %}
+        </div>
+        {% endif %}
+        {% if rest > 0 %}
+        <div class="bar-seg" style="width: {{ pct_rest }}%; background: #d1d5db;">
+            {% if pct_rest > 10 %}{{ rest }}{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="bar-legend">
+        {% if pending_count > 0 %}
+        <span class="legend-item"><span class="legend-dot" style="background: {{ status_colors.pending }};"></span> Pending ({{ pending_count }})</span>
+        {% endif %}
+        {% if approved_count > 0 %}
+        <span class="legend-item"><span class="legend-dot" style="background: {{ status_colors.approved }};"></span> Approved ({{ approved_count }})</span>
+        {% endif %}
+        {% if rest > 0 %}
+        <span class="legend-item"><span class="legend-dot" style="background: #d1d5db;"></span> Other ({{ rest }})</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</article>
+
+<article>
+    <header>
+        <div class="card-header-link">
+            <strong>Awaiting Payment</strong>
+            <a href="/admin/registrations?status=approved">View all &rarr;</a>
+        </div>
+    </header>
+    <div class="big-number">{{ unpaid_count }}</div>
+    <p class="context-line">
+        {% if unpaid_count > 0 %}
+        {{ unpaid_count }} approved but unpaid &middot; {{ paid_count }} paid
+        {% else %}
+        All approved vendors have paid
+        {% endif %}
+    </p>
+    {% set pay_total = unpaid_count + paid_count %}
+    {% if pay_total > 0 %}
+    <div class="stacked-bar">
+        {% for u in ["normal", "reminder_1", "reminder_2", "overdue"] %}
+            {% set uc = urgency_counts[u] %}
+            {% if uc > 0 %}
+                {% set pct = (uc / pay_total * 100) | round(1) %}
+                <div class="bar-seg" style="width: {{ pct }}%; background: {{ urgency_colors[u] }};">
+                    {% if pct > 10 %}{{ uc }}{% endif %}
+                </div>
+            {% endif %}
+        {% endfor %}
+        {% if paid_count > 0 %}
+            {% set pct_paid = (paid_count / pay_total * 100) | round(1) %}
+            <div class="bar-seg" style="width: {{ pct_paid }}%; background: #22c55e;">
+                {% if pct_paid > 10 %}{{ paid_count }}{% endif %}
+            </div>
+        {% endif %}
+    </div>
+    <div class="bar-legend">
+        {% for u in ["normal", "reminder_1", "reminder_2", "overdue"] %}
+            {% set uc = urgency_counts[u] %}
+            {% if uc > 0 %}
+            <span class="legend-item">
+                <span class="legend-dot" style="background: {{ urgency_colors[u] }};"></span>
+                {{ urgency_labels[u] }} ({{ uc }})
+            </span>
+            {% endif %}
+        {% endfor %}
+        {% if paid_count > 0 %}
+        <span class="legend-item">
+            <span class="legend-dot" style="background: #22c55e;"></span>
+            Paid ({{ paid_count }})
+        </span>
+        {% endif %}
+    </div>
+    {% endif %}
+</article>
+</div>
+
+<!-- Row 3: Insurance Coverage -->
+<div class="dashboard-row">
+<article>
+    <header>
+        <strong>Insurance Coverage</strong>
+    </header>
+    <p class="context-line">{{ active_without_approved_ins }} of {{ active_vendor_count }} active vendor{{ 's' if active_vendor_count != 1 }} without approved insurance <a href="/admin/registrations?insurance=no">view</a></p>
+    <p class="context-line">{{ vendors_with_pending_doc }} vendor{{ 's' if vendors_with_pending_doc != 1 }} need{{ '' if vendors_with_pending_doc != 1 else 's' }} insurance reviewed <a href="/admin/registrations?insurance=uploaded">view</a></p>
+    {% if active_vendor_count > 0 %}
+    <div class="stacked-bar">
+        {% set pct_no = (vendors_without_doc / active_vendor_count * 100) | round(1) %}
+        {% set pct_pend = (vendors_with_pending_doc / active_vendor_count * 100) | round(1) %}
+        {% set pct_appr = (vendors_with_approved_doc / active_vendor_count * 100) | round(1) %}
+        {% if vendors_without_doc > 0 %}
+        <div class="bar-seg" style="width: {{ pct_no }}%; background: #ef4444;">
+            {% if pct_no > 10 %}{{ vendors_without_doc }}{% endif %}
+        </div>
+        {% endif %}
+        {% if vendors_with_pending_doc > 0 %}
+        <div class="bar-seg" style="width: {{ pct_pend }}%; background: #f59e0b;">
+            {% if pct_pend > 10 %}{{ vendors_with_pending_doc }}{% endif %}
+        </div>
+        {% endif %}
+        {% if vendors_with_approved_doc > 0 %}
+        <div class="bar-seg" style="width: {{ pct_appr }}%; background: #22c55e;">
+            {% if pct_appr > 10 %}{{ vendors_with_approved_doc }}{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="bar-legend">
+        <span class="legend-item"><span class="legend-dot" style="background: #ef4444;"></span> Missing ({{ vendors_without_doc }})</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Need review ({{ vendors_with_pending_doc }})</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span> Approved ({{ vendors_with_approved_doc }})</span>
+    </div>
+    {% endif %}
+</article>
+</div>
+
 <script src="/static/admin-dashboard.js"></script>
 {% endblock %}
