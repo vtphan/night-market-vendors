@@ -119,7 +119,7 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 |------|-------|--------|-----------------|
 | 1 | User | Enters email on login page | Rate-limit check (≤ 20 OTP/IP/hour, ≤ 5 codes/email/hour); admin emails validated against `admin_users` |
 | 2 | System | Generates 6-digit code, HMAC-SHA256 hashes it, stores in `otp_codes` | All previous codes for that email invalidated |
-| 3 | User | Enters code within 10 minutes | Timing-safe comparison; max 5 failed attempts per code; marks `used` on success |
+| 3 | User | Enters code within 10 minutes | Timing-safe comparison; max 3 failed attempts per code; marks `used` on success |
 | 4 | System | Creates signed session cookie | Role determined by `admin_users` table membership |
 
 ---
@@ -319,10 +319,10 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 
 **Sequence:**
 1. Each wrong guess increments `attempts` counter on `otp_codes` record
-2. After 5 failed attempts: code permanently invalidated
+2. After 3 failed attempts: code permanently invalidated
 3. Attacker must request new code (rate-limited: 5 codes/email/hour, 20 codes/IP/hour)
 
-**Outcome:** At most 25 guesses per email per hour across 5 codes. Probability of guessing any single code: 5/1,000,000 = 0.0005%. Combined: ~0.00125% per hour. HMAC comparison is timing-safe.
+**Outcome:** At most 15 guesses per email per hour across 5 codes. Probability of guessing any single code: 3/1,000,000 = 0.0003%. Combined: ~0.0015% per hour. HMAC comparison is timing-safe.
 
 ---
 
@@ -532,7 +532,7 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 | E-B4 | Price change after approval | Medium | None | `approved_price` lock |
 | E-B5 | Fee change after PI created | Low | None | PI cancelled and recreated |
 | E-B6 | Invalid webhook signature | Low | None | Rejected with 400 |
-| E-C1 | OTP brute-force | Low | Low | 5 attempts/code, rate limits |
+| E-C1 | OTP brute-force | Low | Low | 3 attempts/code, rate limits |
 | E-C2 | OTP email failure | Low | Medium | Delete OTP, show retry message |
 | E-C3 | Session expiry mid-form | Medium | None | Draft persistence in DB |
 | E-C4 | Session theft | Very Low | High | HttpOnly, Secure, SameSite, signed |
