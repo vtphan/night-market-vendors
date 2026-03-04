@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Notes - Admin - Asian Night Market{% endblock %}
+
+{% block extra_head %}
+<script src="/static/clickable-rows.js" defer></script>
+{% endblock %}
+
+{% block content %}
+<h2>Notes</h2>
+<p><small style="color: var(--pico-muted-color);">{{ registrations | length }} registration{{ 's' if registrations | length != 1 }} with notes</small></p>
+
+<figure>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Vendor</th>
+                <th>Status</th>
+                <th>Latest Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for reg in registrations %}
+            <tr data-href="/admin/registrations/{{ reg.registration_id }}" style="cursor: pointer;">
+                <td><code>{{ reg.registration_id[-4:] }}</code></td>
+                <td>{{ reg.business_name }}<br><small style="color: var(--pico-muted-color);">{{ reg.email }}</small></td>
+                <td><span class="status-badge {{ reg.status }}">{{ reg.status | title }}</span></td>
+                <td><small>{{ reg.admin_notes.split('\n')[0] }}</small></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</figure>
+{% endblock %}

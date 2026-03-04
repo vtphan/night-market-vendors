@@ -296,6 +296,27 @@ async def registration_list(
     }, session=session)
 
 
+# --- Notes page ---
+
+@router.get("/notes", response_class=HTMLResponse)
+async def notes_page(
+    request: Request,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    registrations = (
+        db.query(Registration)
+        .filter(Registration.admin_notes != None, Registration.admin_notes != "")
+        .order_by(Registration.updated_at.desc())
+        .all()
+    )
+    booth_types = {bt.id: bt for bt in db.query(BoothType).all()}
+    return _template(request, "admin/notes.html", {
+        "registrations": registrations,
+        "booth_types": booth_types,
+    }, session=session)
+
+
 # --- Registration detail ---
 
 @router.get("/registrations/{reg_id}", response_class=HTMLResponse)

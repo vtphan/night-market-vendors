@@ -111,7 +111,10 @@
             {% for reg in registrations %}
             <tr data-href="/admin/registrations/{{ reg.registration_id }}" style="cursor: pointer;">
                 <td><code>{{ reg.registration_id[-4:] }}</code></td>
-                <td>{{ reg.business_name }}<br><small style="color: var(--pico-muted-color);">{{ reg.email }}</small></td>
+                <td>
+                    {{ reg.business_name }}{% if reg.admin_notes %} <small title="{{ reg.admin_notes.split('\n')[0] }}">&#x1F4DD;</small>{% endif %}<br>
+                    <small style="color: var(--pico-muted-color);">{{ reg.email }}</small>
+                </td>
                 <td>{{ CATEGORIES.get(reg.category, reg.category) }}</td>
                 <td>{{ booth_types[reg.booth_type_id].name | replace(' Booth', '') if reg.booth_type_id in booth_types else 'N/A' }}</td>
                 <td><span class="status-badge {{ reg.status }}">{{ reg.status | title }}</span></td>
