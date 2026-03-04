@@ -73,9 +73,26 @@
     </div>
 </form>
 
-<p>{{ registrations | length }} registration{{ 's' if registrations | length != 1 }} found.
-   <a href="/admin/export">Export CSV</a>
-</p>
+<!-- Registration Activity Chart -->
+<article>
+    <header>
+        <strong>Registration Activity</strong>
+        <span style="float: right; font-weight: normal; font-size: 0.9rem;">
+            {{ registrations | length }} registration{{ 's' if registrations | length != 1 }} found
+            &middot; <a href="/admin/export">Export CSV</a>
+        </span>
+    </header>
+    <div class="chart-tabs">
+        <button class="chart-tab active" data-chart-tab="daily">Last 30 Days</button>
+        <button class="chart-tab" data-chart-tab="hourly">By Hour</button>
+    </div>
+    <div class="chart-container" id="chart-daily">
+        <canvas id="daily-chart" height="180"></canvas>
+    </div>
+    <div class="chart-container" id="chart-hourly" style="display:none;">
+        <canvas id="hourly-chart" height="180"></canvas>
+    </div>
+</article>
 
 <figure>
     <table>
@@ -138,20 +155,7 @@
     </table>
 </figure>
 
-<!-- Registration Activity Chart -->
-<article>
-    <header><strong>Registration Activity</strong></header>
-    <div class="chart-tabs">
-        <button class="chart-tab active" data-chart-tab="daily">Last 30 Days</button>
-        <button class="chart-tab" data-chart-tab="hourly">By Hour</button>
-    </div>
-    <div class="chart-container" id="chart-daily">
-        <canvas id="daily-chart" height="180"></canvas>
-    </div>
-    <div class="chart-container" id="chart-hourly" style="display:none;">
-        <canvas id="hourly-chart" height="180"></canvas>
-    </div>
-</article>
+<div style="margin-bottom: 4rem;"></div>
 
 <script id="chart-data" type="application/json">{
     "dailyCounts": {{ daily_counts | tojson }},
