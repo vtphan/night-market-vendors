@@ -93,10 +93,10 @@
         <tbody>
             {% for reg in registrations %}
             <tr data-href="/admin/registrations/{{ reg.registration_id }}" style="cursor: pointer;">
-                <td><code>{{ reg.registration_id }}</code></td>
+                <td><code>{{ reg.registration_id[-4:] }}</code></td>
                 <td>{{ reg.business_name }}<br><small style="color: var(--pico-muted-color);">{{ reg.email }}</small></td>
                 <td>{{ CATEGORIES.get(reg.category, reg.category) }}</td>
-                <td>{{ booth_types[reg.booth_type_id].name if reg.booth_type_id in booth_types else 'N/A' }}</td>
+                <td>{{ booth_types[reg.booth_type_id].name | replace(' Booth', '') if reg.booth_type_id in booth_types else 'N/A' }}</td>
                 <td><span class="status-badge {{ reg.status }}">{{ reg.status | title }}</span></td>
                 <td>
                     {% if reg.status == 'approved' and reg.approved_at %}
