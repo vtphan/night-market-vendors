@@ -130,7 +130,7 @@
                 </td>
                 <td>
                     {% set ins_doc = insurance_docs.get(reg.email) %}
-                    {% if ins_doc and ins_doc.is_approved %}Approved{% elif ins_doc %}Uploaded{% else %}No{% endif %}
+                    {% if ins_doc and ins_doc.is_approved %}&#x2705;{% elif ins_doc %}&#x1F50D;{% else %}&#x2205;{% endif %}
                 </td>
             </tr>
             {% endfor %}
