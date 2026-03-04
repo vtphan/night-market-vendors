@@ -110,22 +110,22 @@
                         {% else %}
                             {% set urgency = '' %}
                         {% endif %}
-                        <span class="date-urgency {{ urgency }}">{{ days_ago }}d ago</span>
+                        <span class="date-urgency {{ urgency }}">{{ 'new' if days_ago == 0 else days_ago ~ 'd ago' }}</span>
                     {% elif reg.status == 'rejected' and reg.rejected_at %}
                         {% set days_ago = ((now - reg.rejected_at).total_seconds() / 86400) | int %}
-                        <span>{{ days_ago }}d ago</span>
+                        <span>{{ 'new' if days_ago == 0 else days_ago ~ 'd ago' }}</span>
                     {% elif reg.status == 'paid' and reg.updated_at %}
                         {% set days_ago = ((now - reg.updated_at).total_seconds() / 86400) | int %}
-                        <span>{{ days_ago }}d ago</span>
+                        <span>{{ 'new' if days_ago == 0 else days_ago ~ 'd ago' }}</span>
                     {% elif reg.status == 'cancelled' and reg.cancelled_at %}
                         {% set days_ago = ((now - reg.cancelled_at).total_seconds() / 86400) | int %}
-                        <span>{{ days_ago }}d ago</span>
+                        <span>{{ 'new' if days_ago == 0 else days_ago ~ 'd ago' }}</span>
                     {% elif reg.status == 'withdrawn' and reg.withdrawn_at %}
                         {% set days_ago = ((now - reg.withdrawn_at).total_seconds() / 86400) | int %}
-                        <span>{{ days_ago }}d ago</span>
+                        <span>{{ 'new' if days_ago == 0 else days_ago ~ 'd ago' }}</span>
                     {% elif reg.created_at %}
                         {% set days_ago = ((now - reg.created_at).total_seconds() / 86400) | int %}
-                        <span>{{ days_ago }}d ago</span>
+                        <span>{{ 'new' if days_ago == 0 else days_ago ~ 'd ago' }}</span>
                     {% endif %}
                 </td>
                 <td>
