@@ -78,10 +78,46 @@
     });
   });
 
+  // --- Reminder preview ---
+  var REMINDER_PREVIEW_URL = config.reminderPreviewUrl || "";
+
+  function openReminderDialog() {
+    var dialog = document.getElementById("reminder-dialog");
+    if (!dialog) return;
+    var subjectEl = document.getElementById("reminder-subject");
+    var bodyEl = document.getElementById("reminder-body");
+    var toEl = document.getElementById("reminder-to");
+    subjectEl.value = "";
+    bodyEl.value = "";
+    toEl.textContent = "Loading preview...";
+    dialog.showModal();
+
+    if (REMINDER_PREVIEW_URL) {
+      fetch(REMINDER_PREVIEW_URL)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.error) {
+            toEl.textContent = "Error: " + data.error;
+            return;
+          }
+          toEl.textContent = "To: " + data.to;
+          subjectEl.value = data.subject;
+          bodyEl.value = data.body;
+        })
+        .catch(function () {
+          toEl.textContent = "Failed to load preview.";
+        });
+    }
+  }
+
   // --- Dialog openers ---
   document.querySelectorAll("[data-open-dialog]").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      document.getElementById(btn.dataset.openDialog).showModal();
+      if (btn.dataset.openDialog === "reminder-dialog") {
+        openReminderDialog();
+      } else {
+        document.getElementById(btn.dataset.openDialog).showModal();
+      }
     });
   });
 

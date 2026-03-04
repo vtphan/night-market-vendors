@@ -38,10 +38,6 @@
     <article>
         <header><strong>Registration Details</strong></header>
         <table>
-            <tr>
-                <th>Status</th>
-                <td><span class="status-badge {{ registration.status }}">{{ registration.status | title }}</span></td>
-            </tr>
             <tr><th>Booth Type</th><td>{{ booth_type.name if booth_type else 'N/A' }} ({{ format_price(booth_type.price) if booth_type else 'N/A' }})</td></tr>
             {% if registration.approved_price is not none %}
             <tr>
@@ -95,18 +91,6 @@
             {% if registration.reversal_reason %}
             <tr><th>Reversal Reason</th><td>{{ registration.reversal_reason }}</td></tr>
             {% endif %}
-            <tr>
-                <th>Insurance</th>
-                <td>
-                    {% if insurance_doc and insurance_doc.is_approved %}
-                    <span class="status-badge paid">Approved</span>
-                    {% elif insurance_doc %}
-                    <span class="status-badge pending">Uploaded</span>
-                    {% else %}
-                    <span class="status-badge rejected">Not Uploaded</span>
-                    {% endif %}
-                </td>
-            </tr>
             {% if registration.amount_paid %}
             <tr><th>Amount Paid</th><td>{{ format_price(registration.amount_paid) }}</td></tr>
             {% endif %}
@@ -122,24 +106,14 @@
     </article>
 </div>
 
-<!-- Admin Notes -->
+<!-- Insurance Document -->
 <article>
-    <header><strong>Admin Notes</strong></header>
-    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/notes">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <small><strong>Format:</strong> Name MM/DD: note — one entry per line, newest first</small>
-        <textarea name="admin_notes" rows="3" placeholder="Julia 02/27: contacted vendor about menu options">{{ registration.admin_notes or '' }}</textarea>
-        <button type="submit" style="width: auto;">Save Notes</button>
-    </form>
-</article>
-
-<!-- Admin Actions -->
-<article>
-    <header><strong>Admin Actions</strong></header>
-
-    <!-- Row 1: Insurance Document -->
+    <header><strong>Insurance Document</strong></header>
     {% if insurance_doc %}
-    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0; flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <span class="status-badge {{ 'paid' if insurance_doc.is_approved else 'pending' }}">
+            {{ 'Approved' if insurance_doc.is_approved else 'Under Review' }}
+        </span>
         <a href="/admin/insurance/{{ insurance_doc.stored_filename }}" role="button" class="outline" style="width: auto; margin: 0;">
             View: {{ insurance_doc.original_filename }}
         </a>
@@ -149,7 +123,7 @@
               style="margin: 0;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="outline" style="width: auto; margin: 0;">
-                Revoke Insurance Approval
+                Revoke Approval
             </button>
         </form>
         {% else %}
@@ -157,17 +131,29 @@
               style="margin: 0;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;">
-                Approve Insurance Document
+                Approve Document
             </button>
         </form>
         {% endif %}
     </div>
     {% else %}
-    <p style="margin-bottom: 0;"><small style="color: var(--pico-muted-color);">No insurance document uploaded by this vendor.</small></p>
+    <p style="margin: 0;">
+        <span class="status-badge rejected">Not Uploaded</span>
+        <small style="color: var(--pico-muted-color); margin-left: 0.5rem;">No insurance document uploaded by this vendor.</small>
+    </p>
     {% endif %}
+</article>
+
+<!-- Registration Status -->
+<article>
+    <header>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <strong>Registration Status</strong>
+            <span class="status-badge {{ registration.status }}" style="font-size: 1rem;">{{ registration.status | title }}</span>
+        </div>
+    </header>
 
     {% if registration.status == 'pending' %}
-    <hr style="margin: 1rem 0;">
 
     {% if booth_availability is defined %}
     {% if booth_availability <= 0 %}
@@ -181,24 +167,21 @@
     {% endif %}
     {% endif %}
 
-    <!-- Row 2: Approve Registration -->
-    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/approve"
-          style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0;"
-          data-confirm-approve data-vendor-email="{{ registration.email }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" style="width: auto; margin: 0; background-color: #2e7d32; border-color: #2e7d32;"
-                {% if booth_availability is defined and booth_availability <= 0 %}disabled{% endif %}>
-            Approve Registration
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/approve"
+              style="margin: 0;"
+              data-confirm-approve data-vendor-email="{{ registration.email }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" style="width: auto; margin: 0; background-color: #2e7d32; border-color: #2e7d32;"
+                    {% if booth_availability is defined and booth_availability <= 0 %}disabled{% endif %}>
+                Approve
+            </button>
+        </form>
+        <button type="button" class="outline secondary" style="width: auto; margin: 0;"
+                data-open-dialog="reject-dialog">
+            Reject
         </button>
-    </form>
-
-    <hr style="margin: 1rem 0;">
-
-    <!-- Row 3: Reject Registration -->
-    <button type="button" class="outline secondary" style="width: auto; margin: 0;"
-            data-open-dialog="reject-dialog">
-        Reject Registration
-    </button>
+    </div>
 
     <dialog id="reject-dialog">
         <article style="max-width: 480px;">
@@ -230,29 +213,46 @@
     </dialog>
 
     {% elif registration.status == 'approved' %}
-    <hr style="margin: 1rem 0;">
 
-    <!-- Send Payment Reminder -->
-    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0; flex-wrap: wrap;">
-        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/remind" style="margin: 0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;">
-                Send Payment Reminder
-            </button>
-        </form>
-        {% if registration.reminder_count %}
-        <small style="color: var(--pico-muted-color);">{{ registration.reminder_count }} reminder{{ 's' if registration.reminder_count != 1 }} sent</small>
+    {% if registration.reminder_count %}
+    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;">
+        {{ registration.reminder_count }} reminder{{ 's' if registration.reminder_count != 1 }} sent
+        {% if registration.last_reminder_sent_at %}
+        (last: {{ registration.last_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})
         {% endif %}
+    </p>
+    {% endif %}
+
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <button type="button" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;"
+                data-open-dialog="reminder-dialog">
+            Send Payment Reminder
+        </button>
+        <button type="button" class="outline" style="width: auto; margin: 0;"
+                data-open-dialog="revoke-approval-dialog">
+            Revoke (move to Pending)
+        </button>
     </div>
 
-    <hr style="margin: 1rem 0;">
-
-    <!-- Revoke Approval -->
-    <button type="button" class="outline" style="width: auto; margin: 0;"
-            data-open-dialog="revoke-approval-dialog">
-        Revoke Approval
-    </button>
-    <small style="color: var(--pico-muted-color); margin-left: 0.5rem;">Returns to Pending for re-review</small>
+    <dialog id="reminder-dialog">
+        <article style="max-width: 560px;">
+            <header><strong>Send Payment Reminder</strong></header>
+            <form id="reminder-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/remind">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <p id="reminder-to" style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;"></p>
+                <label>Subject</label>
+                <input type="text" name="custom_subject" id="reminder-subject" required>
+                <label>Body</label>
+                <textarea name="custom_body" id="reminder-body" rows="8" required></textarea>
+                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="outline" data-close-dialog
+                            style="width: auto;">Cancel</button>
+                    <button type="submit" style="width: auto; background-color: #1565c0; border-color: #1565c0;">
+                        Send Reminder</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
 
     <dialog id="revoke-approval-dialog">
         <article style="max-width: 480px;">
@@ -284,14 +284,13 @@
     </dialog>
 
     {% elif registration.status == 'rejected' %}
-    <hr style="margin: 1rem 0;">
 
-    <!-- Row 2: Revoke Rejection -->
-    <button type="button" class="outline" style="width: auto; margin: 0;"
-            data-open-dialog="revoke-rejection-dialog">
-        Revoke Rejection
-    </button>
-    <small style="color: var(--pico-muted-color); margin-left: 0.5rem;">Returns to Pending for re-review</small>
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <button type="button" class="outline" style="width: auto; margin: 0;"
+                data-open-dialog="revoke-rejection-dialog">
+            Revoke (move to Pending)
+        </button>
+    </div>
 
     <dialog id="revoke-rejection-dialog">
         <article style="max-width: 480px;">
@@ -322,7 +321,6 @@
     </dialog>
 
     {% elif registration.status == 'paid' %}
-    <hr style="margin: 1rem 0;">
 
     {% set fee_cents = registration.processing_fee or 0 %}
     {% set booth_fee_cents = (registration.amount_paid or 0) - fee_cents %}
@@ -330,16 +328,18 @@
     {% if registration.amount_paid %}
     <p style="margin-bottom: 0.25rem;"><strong>Amount Paid:</strong> {{ format_price(registration.amount_paid) }}</p>
     {% if fee_cents > 0 %}
-    <p style="margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--pico-muted-color);">
+    <p style="margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--pico-muted-color);">
         Booth fee: {{ format_price(booth_fee_cents) }} + Processing fee: {{ format_price(fee_cents) }} (non-refundable)
     </p>
     {% endif %}
     {% endif %}
 
-    <button type="button" style="width: auto; margin: 0; background-color: #c62828; border-color: #c62828;"
-            data-open-dialog="cancel-dialog">
-        Cancel &amp; Refund
-    </button>
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <button type="button" style="width: auto; margin: 0; background-color: #c62828; border-color: #c62828;"
+                data-open-dialog="cancel-dialog">
+            Cancel &amp; Refund
+        </button>
+    </div>
 
     <dialog id="cancel-dialog">
         <article style="max-width: 480px;">
@@ -395,23 +395,33 @@
     </dialog>
 
     {% elif registration.status == 'cancelled' %}
-    <hr style="margin: 1rem 0;">
     <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin: 0;">
-        This registration has been cancelled and refunded. No further status changes are available.
+        This registration has been cancelled and refunded. No further actions available.
     </p>
 
     {% elif registration.status == 'withdrawn' %}
-    <hr style="margin: 1rem 0;">
     <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin: 0;">
-        This registration was withdrawn by the vendor. No further status changes are available.
+        This registration was withdrawn by the vendor. No further actions available.
     </p>
     {% endif %}
 
 </article>
 
+<!-- Admin Notes -->
+<article>
+    <header><strong>Admin Notes</strong></header>
+    <form method="post" action="/admin/registrations/{{ registration.registration_id }}/notes">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <small><strong>Format:</strong> Name MM/DD: note — one entry per line, newest first</small>
+        <textarea name="admin_notes" rows="3" placeholder="Julia 02/27: contacted vendor about menu options">{{ registration.admin_notes or '' }}</textarea>
+        <button type="submit" style="width: auto;">Save Notes</button>
+    </form>
+</article>
+
 <script id="admin-reg-config" type="application/json">{
     "adminEmail": {{ session.email | tojson }},
-    "boothFeeCents": {{ ((registration.amount_paid or 0) - (registration.processing_fee or 0)) }}
+    "boothFeeCents": {{ ((registration.amount_paid or 0) - (registration.processing_fee or 0)) }},
+    "reminderPreviewUrl": "/admin/registrations/{{ registration.registration_id }}/remind/preview"
 }</script>
 <script src="/static/admin-registration.js"></script>
 {% endblock %}

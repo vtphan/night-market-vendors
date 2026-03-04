@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Form, Query
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse, FileResponse
 from sqlalchemy import func as sa_func, extract
 from sqlalchemy.orm import Session
 
@@ -378,6 +378,66 @@ async def approve_registration(
 
 # --- Send payment reminder ---
 
+def _reminder_template_vars(registration, db):
+    """Build the subject, body, and format variables for a payment reminder."""
+    from urllib.parse import urlparse
+    from app.services.email import _get_email_globals
+
+    settings = db.query(EventSettings).first()
+    if (registration.reminder_count or 0) == 0 and settings:
+        subject_tpl = settings.reminder_1_subject or "Payment Reminder — {event_name}"
+        body_tpl = settings.reminder_1_body or ""
+    elif settings:
+        subject_tpl = settings.reminder_2_subject or "Urgent: Payment Deadline Approaching — {event_name}"
+        body_tpl = settings.reminder_2_body or ""
+    else:
+        subject_tpl = "Payment Reminder — {event_name}"
+        body_tpl = ""
+
+    portal_domain = urlparse(APP_URL).hostname or APP_URL
+    deadline_date = (
+        registration.payment_deadline.strftime("%b %d, %Y")
+        if registration.payment_deadline else "N/A"
+    )
+    globals = _get_email_globals()
+    fmt_vars = {
+        "registration_id": registration.registration_id,
+        "portal_domain": portal_domain,
+        "deadline_date": deadline_date,
+        "event_name": globals.get("event_name", ""),
+        "contact_email": globals.get("contact_email", ""),
+    }
+    # Normalize literal \n sequences to actual newlines (plain text templates)
+    body_tpl = body_tpl.replace('\\n', '\n')
+
+    try:
+        subject = subject_tpl.format(**fmt_vars)
+        body = body_tpl.format(**fmt_vars)
+    except (KeyError, IndexError):
+        subject = subject_tpl
+        body = body_tpl
+
+    return subject, body
+
+
+@router.get("/registrations/{reg_id}/remind/preview")
+async def remind_preview(
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration or registration.status != "approved":
+        return JSONResponse({"error": "Not found or not approved"}, status_code=400)
+
+    subject, body = _reminder_template_vars(registration, db)
+    return JSONResponse({"subject": subject, "body": body, "to": registration.email})
+
+
 @router.post("/registrations/{reg_id}/remind")
 async def send_reminder(
     request: Request,
@@ -386,6 +446,8 @@ async def send_reminder(
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
+    custom_subject: str = Form(""),
+    custom_body: str = Form(""),
 ):
     registration = (
         db.query(Registration)
@@ -413,17 +475,12 @@ async def send_reminder(
             ctx["get_flashed_messages"] = lambda: flash
             return _template(request, "admin/registration_detail.html", ctx, session=session)
 
-    settings = db.query(EventSettings).first()
-    # Select template: reminder_1 for first, reminder_2 for subsequent
-    if registration.reminder_count == 0 and settings:
-        subject_tpl = settings.reminder_1_subject or "Payment Reminder — {event_name}"
-        body_tpl = settings.reminder_1_body or ""
-    elif settings:
-        subject_tpl = settings.reminder_2_subject or "Urgent: Payment Deadline Approaching — {event_name}"
-        body_tpl = settings.reminder_2_body or ""
+    # Use admin-edited content if provided, otherwise fall back to templates
+    if custom_subject.strip() and custom_body.strip():
+        subject_tpl = custom_subject.strip()
+        body_tpl = custom_body.strip()
     else:
-        subject_tpl = "Payment Reminder — {event_name}"
-        body_tpl = ""
+        subject_tpl, body_tpl = _reminder_template_vars(registration, db)
 
     from urllib.parse import urlparse
     portal_domain = urlparse(APP_URL).hostname or APP_URL
