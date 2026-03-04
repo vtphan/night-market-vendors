@@ -4,6 +4,8 @@
 
 {% block extra_head %}
 <style>
+.context-line a { text-decoration: none; }
+
 /* Meta line */
 .meta-line {
     font-size: 0.85rem;
@@ -159,12 +161,9 @@
 <div class="dashboard-row">
 <article>
     <header>
-        <div class="card-header-link">
-            <strong>Registrations Overview</strong>
-            <a href="/admin/registrations">View all &rarr;</a>
-        </div>
+        <strong>Registrations Overview</strong>
     </header>
-    <p class="context-line">{{ total_registrations }} registration{{ 's' if total_registrations != 1 }} from {{ total_vendors }} vendor{{ 's' if total_vendors != 1 }}</p>
+    <p class="context-line">{{ total_registrations }} registration{{ 's' if total_registrations != 1 }} from {{ total_vendors }} vendor{{ 's' if total_vendors != 1 }} <a href="/admin/registrations">➤</a></p>
     {% if total_registrations > 0 %}
     <div class="stacked-bar">
         {% set status_order = ["pending", "approved", "paid", "rejected", "cancelled", "withdrawn"] %}
@@ -198,7 +197,7 @@
     <header>
         <div class="card-header-link">
             <strong>Capacity / Inventory</strong>
-            <a href="/admin/inventory">Manage &rarr;</a>
+            <a href="/admin/inventory">Manage ➤</a>
         </div>
     </header>
     {% for item in inventory %}
@@ -230,13 +229,10 @@
 <div class="dashboard-row">
 <article>
     <header>
-        <div class="card-header-link">
-            <strong>Pending Approval</strong>
-            <a href="/admin/registrations?status=pending">View all &rarr;</a>
-        </div>
+        <strong>Pending Approval</strong>
     </header>
     <div class="big-number">{{ pending_count }}</div>
-    <p class="context-line">pending registration{{ 's' if pending_count != 1 }} awaiting review</p>
+    <p class="context-line">pending registration{{ 's' if pending_count != 1 }} awaiting review <a href="/admin/registrations?status=pending">➤</a></p>
     {% set approved_count = status_counts.get("approved", 0) %}
     {% set rest = total_registrations - pending_count - approved_count %}
     {% if total_registrations > 0 %}
@@ -276,15 +272,12 @@
 
 <article>
     <header>
-        <div class="card-header-link">
-            <strong>Awaiting Payment</strong>
-            <a href="/admin/registrations?status=approved">View all &rarr;</a>
-        </div>
+        <strong>Awaiting Payment</strong>
     </header>
     <div class="big-number">{{ unpaid_count }}</div>
     <p class="context-line">
         {% if unpaid_count > 0 %}
-        {{ unpaid_count }} approved but unpaid &middot; {{ paid_count }} paid
+        {{ unpaid_count }} approved but unpaid <a href="/admin/registrations?status=approved">➤</a>
         {% else %}
         All approved vendors have paid
         {% endif %}
@@ -335,8 +328,8 @@
     <header>
         <strong>Insurance Coverage</strong>
     </header>
-    <p class="context-line">{{ active_without_approved_ins }} of {{ active_vendor_count }} active vendor{{ 's' if active_vendor_count != 1 }} without approved insurance <a href="/admin/registrations?insurance=no">view</a></p>
-    <p class="context-line">{{ vendors_with_pending_doc }} vendor{{ 's' if vendors_with_pending_doc != 1 }} need{{ '' if vendors_with_pending_doc != 1 else 's' }} insurance reviewed <a href="/admin/registrations?insurance=uploaded">view</a></p>
+    <p class="context-line">{{ active_without_approved_ins }} of {{ active_vendor_count }} active vendor{{ 's' if active_vendor_count != 1 }} without approved insurance <a href="/admin/registrations?insurance=no">➤</a></p>
+    <p class="context-line">{{ vendors_with_pending_doc }} vendor{{ 's' if vendors_with_pending_doc != 1 }} need{{ '' if vendors_with_pending_doc != 1 else 's' }} insurance reviewed <a href="/admin/registrations?insurance=uploaded">➤</a></p>
     {% if active_vendor_count > 0 %}
     <div class="stacked-bar">
         {% set pct_no = (vendors_without_doc / active_vendor_count * 100) | round(1) %}
