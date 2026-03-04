@@ -185,19 +185,19 @@ tr[data-href]:hover td {
     padding: 0.5rem 0.75rem;
 }
 
-/* Date urgency indicators (approved registrations) */
-.date-urgency.warning {
-    color: #856404;
+/* Date urgency indicators (approved registrations) — matches dashboard colors */
+.date-urgency.due-soon {
+    color: #f59e0b;
     font-weight: 600;
 }
 
 .date-urgency.urgent {
-    color: #c44900;
+    color: #ea580c;
     font-weight: 600;
 }
 
 .date-urgency.overdue {
-    color: #c00;
+    color: #dc2626;
     font-weight: 700;
 }
 

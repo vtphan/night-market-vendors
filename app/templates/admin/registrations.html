@@ -123,7 +123,7 @@
                         {% elif days_ago >= reminder_2_days %}
                             {% set urgency = 'urgent' %}
                         {% elif days_ago >= reminder_1_days %}
-                            {% set urgency = 'warning' %}
+                            {% set urgency = 'due-soon' %}
                         {% else %}
                             {% set urgency = '' %}
                         {% endif %}
