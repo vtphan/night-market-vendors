@@ -154,6 +154,44 @@ def send_payment_reminder_email(
     return send_email(to, subject, html_body)
 
 
+def send_insurance_reminder_email(
+    to: str,
+    registration_id: str,
+    portal_domain: str,
+    subject_text: str,
+    body_text: str,
+    event_name: str = "",
+    contact_email: str = "",
+) -> bool:
+    """Send an insurance document upload reminder email."""
+    if not event_name or not contact_email:
+        globals = _get_email_globals()
+        event_name = event_name or globals.get("event_name", "")
+        contact_email = contact_email or globals.get("contact_email", "")
+
+    fmt_vars = {
+        "registration_id": registration_id,
+        "portal_domain": portal_domain,
+        "event_name": event_name,
+        "contact_email": contact_email,
+    }
+    try:
+        subject = subject_text.format(**fmt_vars)
+        body_content = body_text.format(**fmt_vars)
+    except (KeyError, IndexError):
+        logger.exception("Failed to format insurance reminder template")
+        return False
+
+    try:
+        template = _env.get_template("insurance_reminder.html")
+        html_body = template.render(body_content=body_content)
+    except Exception:
+        logger.exception("Failed to render insurance reminder template")
+        return False
+
+    return send_email(to, subject, html_body)
+
+
 def send_payment_confirmation_email(to: str, registration_id: str, booth_type_name: str, amount_cents: int) -> bool:
     """Send payment confirmation email."""
     try:

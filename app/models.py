@@ -49,6 +49,8 @@ class Registration(Base):
     payment_deadline = Column(DateTime, nullable=True)
     last_reminder_sent_at = Column(DateTime, nullable=True)
     reminder_count = Column(Integer, default=0, server_default="0")
+    last_insurance_reminder_sent_at = Column(DateTime, nullable=True)
+    insurance_reminder_count = Column(Integer, default=0, server_default="0")
     updated_at = Column(
         DateTime, nullable=False,
         server_default=func.now(),

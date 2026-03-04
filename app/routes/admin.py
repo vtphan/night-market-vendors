@@ -28,6 +28,7 @@ from app.services.registration import (
 from app.services.email import (
     send_approval_email, send_approval_revoked_email, send_rejection_email,
     send_refund_email, send_admin_alert_email, send_payment_reminder_email,
+    send_insurance_reminder_email,
 )
 from app.services.payment import create_refund
 from app.config import APP_URL, ADMIN_EMAILS
@@ -873,6 +874,116 @@ async def revoke_insurance(
         doc.approved_by = None
         doc.approved_at = None
         db.commit()
+
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
+# --- Insurance reminder ---
+
+def _insurance_reminder_defaults(registration, db):
+    """Build default subject and body for an insurance reminder."""
+    from urllib.parse import urlparse
+    from app.services.email import _get_email_globals
+
+    portal_domain = urlparse(APP_URL).hostname or APP_URL
+    globals = _get_email_globals()
+    event_name = globals.get("event_name", "")
+
+    subject = f"Insurance Document Reminder — {event_name}"
+    body = (
+        f"Hi,\n\n"
+        f"This is a reminder that we still need your insurance document "
+        f"for registration {registration.registration_id}.\n\n"
+        f"Please log in to the vendor portal at {portal_domain} "
+        f"to view the insurance requirements and upload your document.\n\n"
+        f"Thank you!"
+    )
+    return subject, body
+
+
+@router.get("/registrations/{reg_id}/insurance-remind/preview")
+async def insurance_remind_preview(
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration:
+        return JSONResponse({"error": "Not found"}, status_code=400)
+
+    # Only allow if no insurance document uploaded yet
+    doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
+    if doc:
+        return JSONResponse({"error": "Insurance document already uploaded"}, status_code=400)
+
+    subject, body = _insurance_reminder_defaults(registration, db)
+    return JSONResponse({"subject": subject, "body": body, "to": registration.email})
+
+
+@router.post("/registrations/{reg_id}/insurance-remind")
+async def send_insurance_reminder(
+    request: Request,
+    reg_id: str,
+    background_tasks: BackgroundTasks,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+    custom_subject: str = Form(""),
+    custom_body: str = Form(""),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    # Only allow if no insurance document uploaded yet
+    doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
+    if doc:
+        flash = [{"category": "error", "text": "Insurance document already uploaded. No reminder needed."}]
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+    # Rate limit: 1 reminder per hour
+    now = datetime.now(timezone.utc)
+    if registration.last_insurance_reminder_sent_at:
+        last = registration.last_insurance_reminder_sent_at
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        if (now - last).total_seconds() < 3600:
+            flash = [{"category": "error", "text": "An insurance reminder was sent less than 1 hour ago. Please wait before sending another."}]
+            ctx = _detail_context(db, registration)
+            ctx["get_flashed_messages"] = lambda: flash
+            return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+    if custom_subject.strip() and custom_body.strip():
+        subject_text = custom_subject.strip()
+        body_text = custom_body.strip()
+    else:
+        subject_text, body_text = _insurance_reminder_defaults(registration, db)
+
+    from urllib.parse import urlparse
+    portal_domain = urlparse(APP_URL).hostname or APP_URL
+
+    background_tasks.add_task(
+        send_insurance_reminder_email,
+        registration.email,
+        reg_id,
+        portal_domain,
+        subject_text,
+        body_text,
+    )
+
+    registration.last_insurance_reminder_sent_at = now
+    registration.insurance_reminder_count = (registration.insurance_reminder_count or 0) + 1
+    db.commit()
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 

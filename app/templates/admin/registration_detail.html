@@ -108,12 +108,20 @@
 
 <!-- Insurance Document -->
 <article>
-    <header><strong>Insurance Document</strong></header>
+    <header>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <strong>Insurance Document</strong>
+            {% if insurance_doc %}
+            <span class="status-badge {{ 'paid' if insurance_doc.is_approved else 'pending' }}" style="font-size: 1rem;">
+                {{ 'Approved' if insurance_doc.is_approved else 'Under Review' }}
+            </span>
+            {% else %}
+            <span class="status-badge rejected" style="font-size: 1rem;">Not Uploaded</span>
+            {% endif %}
+        </div>
+    </header>
     {% if insurance_doc %}
     <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-        <span class="status-badge {{ 'paid' if insurance_doc.is_approved else 'pending' }}">
-            {{ 'Approved' if insurance_doc.is_approved else 'Under Review' }}
-        </span>
         <a href="/admin/insurance/{{ insurance_doc.stored_filename }}" role="button" class="outline" style="width: auto; margin: 0;">
             View: {{ insurance_doc.original_filename }}
         </a>
@@ -137,10 +145,44 @@
         {% endif %}
     </div>
     {% else %}
-    <p style="margin: 0;">
-        <span class="status-badge rejected">Not Uploaded</span>
-        <small style="color: var(--pico-muted-color); margin-left: 0.5rem;">No insurance document uploaded by this vendor.</small>
+    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;">
+        No insurance document uploaded by this vendor.
     </p>
+    {% if registration.insurance_reminder_count and registration.insurance_reminder_count > 0 %}
+    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;">
+        {{ registration.insurance_reminder_count }} insurance reminder{{ 's' if registration.insurance_reminder_count != 1 }} sent
+        {% if registration.last_insurance_reminder_sent_at %}
+        (last: {{ registration.last_insurance_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})
+        {% endif %}
+    </p>
+    {% endif %}
+
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <button type="button" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;"
+                data-open-dialog="insurance-reminder-dialog">
+            Send Insurance Reminder
+        </button>
+    </div>
+
+    <dialog id="insurance-reminder-dialog">
+        <article style="max-width: 560px;">
+            <header><strong>Send Insurance Reminder</strong></header>
+            <form id="insurance-reminder-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance-remind">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <p id="insurance-reminder-to" style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;"></p>
+                <label>Subject</label>
+                <input type="text" name="custom_subject" id="insurance-reminder-subject" required>
+                <label>Body</label>
+                <textarea name="custom_body" id="insurance-reminder-body" rows="8" required></textarea>
+                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="outline" data-close-dialog
+                            style="width: auto;">Cancel</button>
+                    <button type="submit" style="width: auto; background-color: #1565c0; border-color: #1565c0;">
+                        Send Reminder</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
     {% endif %}
 </article>
 
@@ -421,7 +463,8 @@
 <script id="admin-reg-config" type="application/json">{
     "adminEmail": {{ session.email | tojson }},
     "boothFeeCents": {{ ((registration.amount_paid or 0) - (registration.processing_fee or 0)) }},
-    "reminderPreviewUrl": "/admin/registrations/{{ registration.registration_id }}/remind/preview"
+    "reminderPreviewUrl": "/admin/registrations/{{ registration.registration_id }}/remind/preview",
+    "insuranceReminderPreviewUrl": "/admin/registrations/{{ registration.registration_id }}/insurance-remind/preview"
 }</script>
 <script src="/static/admin-registration.js"></script>
 {% endblock %}
