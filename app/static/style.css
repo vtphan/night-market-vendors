@@ -185,6 +185,22 @@ tr[data-href]:hover td {
     padding: 0.5rem 0.75rem;
 }
 
+/* Date urgency indicators (approved registrations) */
+.date-urgency.warning {
+    color: #856404;
+    font-weight: 600;
+}
+
+.date-urgency.urgent {
+    color: #c44900;
+    font-weight: 600;
+}
+
+.date-urgency.overdue {
+    color: #c00;
+    font-weight: 700;
+}
+
 /* Payment success button override */
 button.payment-success,
 button.payment-success:hover,

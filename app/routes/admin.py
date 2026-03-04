@@ -275,6 +275,8 @@ async def registration_list(
 
     daily_counts, hourly_counts = _compute_chart_data(db)
 
+    settings = db.query(EventSettings).first()
+
     return _template(request, "admin/registrations.html", {
         "registrations": registrations,
         "booth_types": booth_types,
@@ -286,6 +288,10 @@ async def registration_list(
         "filter_search": search,
         "daily_counts": daily_counts,
         "hourly_counts": hourly_counts,
+        "now": datetime.utcnow(),
+        "reminder_1_days": settings.reminder_1_days if settings else 2,
+        "reminder_2_days": settings.reminder_2_days if settings else 5,
+        "payment_deadline_days": settings.payment_deadline_days if settings else 7,
     }, session=session)
 
 
