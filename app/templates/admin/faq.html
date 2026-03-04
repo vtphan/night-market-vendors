@@ -12,7 +12,7 @@
 
     <details name="q-start">
         <summary>How do I log in as an admin?</summary>
-        <p>Go to the login page and enter your email. You'll receive a one-time passcode (OTP) — enter it to log in. There are no passwords. Your email must be listed in the admin users table to access the admin dashboard. The first set of admin emails is configured by the site developer via the <code>ADMIN_EMAILS</code> environment variable.</p>
+        <p>Go to the login page and enter your email. You'll receive a one-time passcode — enter it to log in. There are no passwords. Your email must be registered as an admin by the site developer.</p>
     </details>
 
     <details name="q-start">
@@ -22,12 +22,12 @@
                 <tr><th>Status</th><th>Meaning</th><th>Admin Action</th></tr>
             </thead>
             <tbody>
-                <tr><td><strong>Pending</strong></td><td>Vendor submitted a registration. Waiting for admin review.</td><td>Review and approve or reject promptly — especially as the event deadline approaches. Does not reserve a booth slot.</td></tr>
-                <tr><td><strong>Approved</strong></td><td>Admin approved the registration. Vendor can now pay.</td><td>Booth slot reserved immediately. Follow up with vendor if payment is not received — there is no auto-expiration.</td></tr>
-                <tr><td><strong>Rejected</strong></td><td>Admin rejected the registration.</td><td>No action needed. Can revert to Pending for re-review if circumstances change.</td></tr>
-                <tr><td><strong>Paid</strong></td><td>Vendor completed payment. Booth is confirmed.</td><td>Booth confirmed. No action needed unless cancellation is required (triggers refund).</td></tr>
-                <tr><td><strong>Cancelled</strong></td><td>Admin cancelled a paid registration.</td><td>Terminal state. Verify refund in Stripe Dashboard if needed. Booth slot has been freed.</td></tr>
-                <tr><td><strong>Withdrawn</strong></td><td>Vendor voluntarily withdrew their registration.</td><td>Terminal state. No admin action needed. If the vendor was approved, the booth slot has been freed.</td></tr>
+                <tr><td><strong>Pending</strong></td><td>Vendor submitted a registration. Waiting for review.</td><td>Approve or reject promptly. Does not reserve a booth slot.</td></tr>
+                <tr><td><strong>Approved</strong></td><td>Admin approved. Vendor can now pay.</td><td>Booth slot reserved. Follow up if payment is not received — there is no auto-expiration.</td></tr>
+                <tr><td><strong>Rejected</strong></td><td>Admin rejected the registration.</td><td>Can revert to Pending for re-review if needed.</td></tr>
+                <tr><td><strong>Paid</strong></td><td>Vendor completed payment. Booth confirmed.</td><td>No action needed unless cancellation is required.</td></tr>
+                <tr><td><strong>Cancelled</strong></td><td>Admin cancelled a paid registration.</td><td>Final. Booth slot freed. Verify refund in Stripe if needed.</td></tr>
+                <tr><td><strong>Withdrawn</strong></td><td>Vendor voluntarily withdrew.</td><td>Final. No action needed.</td></tr>
             </tbody>
         </table>
     </details>
@@ -56,39 +56,33 @@
 
     <details name="q-start">
         <summary>Can a vendor submit multiple registrations?</summary>
-        <p><strong>Yes.</strong> There is no limit on registrations per vendor. A single email address can have multiple registrations for the same or different booth types. Each registration is tracked independently — you must approve, reject, or cancel each one separately. If a vendor submits duplicates by accident, reject the extras manually.</p>
-    </details>
-
-    <details name="q-start">
-        <summary>What are the OTP and session limits?</summary>
-        <p>OTP codes expire after <strong>10 minutes</strong>. Each code allows a maximum of 3 wrong attempts before it is locked — the vendor or admin must request a new code. A maximum of 5 codes can be requested per email per hour.</p>
-        <p>Admin sessions expire after <strong>8 hours</strong> or <strong>1 hour of inactivity</strong>, whichever comes first. Vendor sessions last 24 hours or 4 hours of inactivity.</p>
+        <p><strong>Yes.</strong> A single email address can have multiple registrations for the same or different booth types. Each is tracked independently — you must approve, reject, or cancel each one separately. Reject any accidental duplicates manually.</p>
     </details>
 
     <details name="q-start">
         <summary>Is it safe for multiple admins to use the system at the same time?</summary>
-        <p><strong>Yes.</strong> Critical operations (approvals, cancellations, refunds) are protected against race conditions. If two admins try to approve the last available booth slot simultaneously, only one will succeed — the other will see an error message. It is safe to have multiple admins working concurrently.</p>
+        <p><strong>Yes.</strong> The system prevents conflicts automatically. If two admins try to approve the last booth slot at the same time, only one will succeed — the other will see an error message.</p>
     </details>
 </details>
 </article>
 
 <article>
 <details name="section">
-    <summary><strong>Inventory and Booth Management</strong> — Slot tracking, approvals, and capacity</summary>
+    <summary><strong>Booths and Status Changes</strong> — Inventory, approvals, undoing actions, and capacity</summary>
 
     <details name="q-inventory">
         <summary>Do Pending registrations take up booth inventory?</summary>
-        <p><strong>No.</strong> Only Approved and Paid registrations count toward inventory. This means a booth type can appear to have open spots even if many vendors are waiting in Pending. Review and act on Pending registrations promptly to avoid over-committing.</p>
+        <p><strong>No.</strong> Only Approved and Paid registrations count toward inventory. Review and act on Pending registrations promptly to avoid over-committing.</p>
     </details>
 
     <details name="q-inventory">
         <summary>What happens when I approve a vendor?</summary>
-        <p>Approving a vendor <strong>immediately reserves a booth slot</strong> for them — even before they pay. The available count for that booth type decreases by one. If this is the last available slot, no further approvals for that booth type are possible until a slot is freed (via rejection or cancellation).</p>
+        <p>Approving a vendor <strong>immediately reserves a booth slot</strong> for them — even before they pay. If this is the last available slot, no further approvals for that booth type are possible until a slot is freed (via rejection or cancellation).</p>
     </details>
 
     <details name="q-inventory">
         <summary>Can an approved vendor hold a spot without paying?</summary>
-        <p><strong>Yes, and this is the biggest operational risk.</strong> There is no automatic expiration on the Approved status. A vendor could sit in Approved indefinitely, taking up a booth slot without paying. Monitor approved-but-unpaid registrations and follow up or revoke approval if needed.</p>
+        <p><strong>Yes, and this is the biggest operational risk.</strong> There is no automatic expiration on the Approved status. A vendor could hold a booth slot indefinitely without paying. Monitor approved-but-unpaid registrations and follow up or revoke approval if needed.</p>
     </details>
 
     <details name="q-inventory">
@@ -98,129 +92,93 @@
 
     <details name="q-inventory">
         <summary>How do I change booth types, prices, or quantities?</summary>
-        <p>Go to <strong>Admin Settings</strong>. Each booth type can be edited for name, description, price, and total quantity. <strong>Price changes only affect future approvals.</strong> Already approved and paid registrations keep the price that was locked in at approval time. If you revoke an approval and re-approve, the new price will apply.</p>
+        <p>Go to <strong>Admin Settings</strong>. Each booth type can be edited for name, description, price, and total quantity. <strong>Price changes only affect future approvals.</strong> Already approved and paid registrations keep their original price.</p>
     </details>
 
     <details name="q-inventory">
         <summary>Can I change a vendor's category after they register?</summary>
-        <p><strong>Yes.</strong> Open the registration detail page and use the category dropdown to correct it. Categories (Food, Beverage, Merchandise, Entertainment, Non-Profit, Health &amp; Beauty, Promotion, Other) are available as filters on the registration list page for grouping vendors by type.</p>
+        <p><strong>Yes.</strong> Open the registration detail page and use the category dropdown to correct it.</p>
     </details>
-</details>
-</article>
 
-<article>
-<details name="section">
-    <summary><strong>Approvals, Rejections, and Status Changes</strong> — Undoing actions and allowed transitions</summary>
-
-    <details name="q-transitions">
+    <details name="q-inventory">
         <summary>Can I undo an approval?</summary>
-        <p>Yes. You can revert an Approved registration back to <strong>Pending</strong> for re-review. This immediately frees up the booth slot that was reserved. You can also move it directly to Rejected.</p>
+        <p>Yes. You can revert an Approved registration back to <strong>Pending</strong> for re-review (this frees the booth slot), or move it directly to Rejected.</p>
     </details>
 
-    <details name="q-transitions">
+    <details name="q-inventory">
         <summary>Can I undo a rejection?</summary>
         <p>Yes. You can revert a Rejected registration back to <strong>Pending</strong> for re-review.</p>
     </details>
 
-    <details name="q-transitions">
+    <details name="q-inventory">
         <summary>Can I undo a payment?</summary>
-        <p>No — you cannot directly reverse the Paid status. The only path from Paid is <strong>Cancelled</strong>, which triggers a refund through Stripe. See the Refunds section below.</p>
+        <p>Not directly. The only option for a Paid registration is to <strong>Cancel</strong> it, which triggers a refund through Stripe. See the Payments section below.</p>
     </details>
 
-    <details name="q-transitions">
-        <summary>What status transitions are allowed?</summary>
-        <pre>Pending  → Approved
-Pending  → Rejected
-Pending  → Withdrawn   (vendor withdraws)
-Approved → Paid        (vendor pays)
-Approved → Rejected
-Approved → Pending     (revoke for re-review)
-Approved → Withdrawn   (vendor withdraws)
-Rejected → Pending     (revoke for re-review)
-Paid     → Cancelled   (admin cancels + refund)</pre>
-        <p>Any transition not listed above is blocked by the system.</p>
-    </details>
-
-    <details name="q-transitions">
+    <details name="q-inventory">
         <summary>Can a vendor withdraw their own registration?</summary>
-        <p><strong>Yes.</strong> Vendors can withdraw registrations that are in Pending or Approved status from their registration detail page. Withdrawal is permanent — there is no undo. If the vendor was approved, the booth slot is freed immediately. The vendor and all admins receive email notifications. Vendors cannot withdraw after payment (Paid status); only an admin can cancel a paid registration.</p>
+        <p><strong>Yes.</strong> Vendors can withdraw Pending or Approved registrations from their registration page. Withdrawal is permanent. If the vendor was approved, the booth slot is freed immediately. Both the vendor and all admins are notified by email. Vendors cannot withdraw after payment — only an admin can cancel a paid registration.</p>
     </details>
 </details>
 </article>
 
 <article>
 <details name="section">
-    <summary><strong>Processing Fees</strong> — How vendor-facing fees work</summary>
-
-    <details name="q-fees">
-        <summary>How do processing fees work?</summary>
-        <p>The system can pass Stripe's processing fee through to vendors so the organization nets the full booth price. When enabled, the vendor sees and pays: booth fee + processing fee. The fee is calculated using a pass-through formula that accounts for Stripe's percentage and flat fee.</p>
-    </details>
-
-    <details name="q-fees">
-        <summary>How do I configure the processing fee?</summary>
-        <p>Go to <strong>Admin Settings</strong> under "Payment &amp; Fees." You can set the percentage (default 2.9%) and flat amount (default 30 cents) to match Stripe's rates. To absorb fees yourself instead of passing them to vendors, set both to 0.</p>
-    </details>
-
-    <details name="q-fees">
-        <summary>When does the processing fee get calculated?</summary>
-        <p>The processing fee is calculated when the vendor loads the payment page, using the <strong>current</strong> fee settings at that moment. Unlike the booth price (which is locked at approval time), the processing fee is not locked in advance. If you change the fee percentage, it affects any vendor who hasn't yet initiated payment.</p>
-    </details>
-
-    <details name="q-fees">
-        <summary>Is the processing fee refundable?</summary>
-        <p><strong>No.</strong> When you cancel a registration and issue a refund, the refund percentage applies only to the booth fee. The processing fee is never refunded to the vendor. This is shown clearly in the cancellation dialog.</p>
-    </details>
-</details>
-</article>
-
-<article>
-<details name="section">
-    <summary><strong>Payments and Refunds</strong> — Stripe payments, refunds, and cancellations</summary>
+    <summary><strong>Payments, Fees, and Refunds</strong> — How payments, processing fees, and refunds work</summary>
 
     <details name="q-payments">
         <summary>Do I need to collect payments manually?</summary>
-        <p>No. Payments are handled entirely through Stripe. When you approve a vendor, they receive an email with a link to pay online. Card information is entered directly on Stripe's secure form and never touches our server.</p>
+        <p>No. When you approve a vendor, they receive an email with a link to pay online via Stripe. All payments are handled automatically.</p>
     </details>
 
     <details name="q-payments">
         <summary>What happens when a vendor pays?</summary>
-        <p>Stripe sends a webhook notification to the system, which automatically transitions the registration from Approved to Paid. The vendor receives a payment confirmation email.</p>
+        <p>The system automatically updates the registration from Approved to Paid. The vendor receives a payment confirmation email.</p>
     </details>
 
     <details name="q-payments">
         <summary>A vendor says they paid but the status still shows Approved. What happened?</summary>
-        <p>There may be a short delay between Stripe processing the payment and the system receiving the webhook notification. Wait a few minutes and refresh. If the status still hasn't changed, check the Stripe Dashboard to confirm the payment succeeded, and contact the developer if reconciliation is needed.</p>
+        <p>There may be a short delay between Stripe processing the payment and the system updating. Wait a few minutes and refresh. If it still hasn't changed, check the Stripe Dashboard to confirm the payment succeeded, and contact the developer if needed.</p>
+    </details>
+
+    <details name="q-payments">
+        <summary>How do processing fees work?</summary>
+        <p>The system can pass Stripe's processing fee through to vendors so the organization nets the full booth price. When enabled, the vendor sees and pays: booth fee + processing fee. To configure, go to <strong>Admin Settings</strong> under "Payment &amp; Fees." To absorb fees yourself instead of passing them to vendors, set both the percentage and flat amount to 0.</p>
+    </details>
+
+    <details name="q-payments">
+        <summary>If I change the processing fee settings, who is affected?</summary>
+        <p>The fee is calculated when the vendor opens the payment page. If you change the fee settings, it affects any vendor who hasn't paid yet.</p>
     </details>
 
     <details name="q-payments">
         <summary>How do I issue a refund?</summary>
-        <p>Open the Paid registration and use the Cancel button. You will be prompted to select a refund percentage and a reason. The refund is processed through Stripe automatically. The <strong>refund percentage applies only to the booth fee</strong> — the processing fee (shown separately in the dialog) is not refunded.</p>
+        <p>Open the Paid registration and use the Cancel button. You will be prompted to select a refund percentage and a reason. The refund is processed through Stripe automatically. The <strong>refund percentage applies only to the booth fee</strong> — the processing fee is not refunded.</p>
     </details>
 
     <details name="q-payments">
         <summary>Can I customize the refund percentage options?</summary>
-        <p><strong>Yes.</strong> Go to <strong>Admin Settings</strong> and edit the "Refund Presets" field. The default is <code>100,75,50,25,0</code>. For example, if your policy only allows full or no refund, set it to <code>100,0</code>. You can also set a "Refund Policy" text that is shown to admins in the cancellation dialog and to vendors on their registration page.</p>
+        <p><strong>Yes.</strong> Go to <strong>Admin Settings</strong> and edit the "Refund Presets" field. The default is <code>100,75,50,25,0</code>. For example, if your policy only allows full or no refund, set it to <code>100,0</code>. You can also set a "Refund Policy" text shown in the cancellation dialog and on the vendor's registration page.</p>
     </details>
 
     <details name="q-payments">
         <summary>Is there a way to cancel without issuing a refund?</summary>
-        <p>Yes — select 0% when prompted for the refund percentage. The registration will be cancelled but no money is returned.</p>
+        <p>Yes — select 0% when prompted for the refund percentage.</p>
     </details>
 
     <details name="q-payments">
         <summary>Does a "100% refund" mean the vendor gets all their money back?</summary>
-        <p>The vendor receives 100% of the booth fee back. The processing fee is not refunded. Additionally, the Stripe processing fee (2.9% + 30 cents) on the original charge is non-recoverable on your end — that cost is absorbed by the organization.</p>
+        <p>The vendor receives 100% of the <strong>booth fee</strong> back. The processing fee is not refunded. Additionally, Stripe's own processing fee on the original charge is non-recoverable — that cost is absorbed by the organization.</p>
     </details>
 
     <details name="q-payments">
         <summary>Can I issue a refund directly in the Stripe Dashboard?</summary>
-        <p><strong>Yes, but use caution.</strong> Refunds made directly in Stripe are synced back to the app via webhook. A full refund in Stripe will automatically cancel the registration in the app. A partial refund updates the refund amount but does <strong>not</strong> change the registration status — it stays Paid. An alert email is sent to all admin addresses in either case.</p>
+        <p><strong>Yes, but we recommend using the app instead.</strong> If you refund directly in Stripe, the app will detect it — a full refund cancels the registration automatically, and admins are notified by email. A partial refund updates the refund amount but does <strong>not</strong> change the status.</p>
     </details>
 
     <details name="q-payments">
         <summary>What happens if a vendor files a chargeback?</summary>
-        <p>The system detects chargebacks via Stripe and sends an <strong>urgent alert email</strong> to all admin addresses with the dispute details. The registration status is not automatically changed. You must respond to the dispute directly in the Stripe Dashboard before the deadline (typically 7–21 days). Missing the deadline means you automatically lose the funds.</p>
+        <p>You will receive an <strong>urgent alert email</strong> with the dispute details. You must respond to the dispute in the Stripe Dashboard before the deadline (typically 7–21 days). Missing the deadline means you automatically lose the funds.</p>
     </details>
 </details>
 </article>
@@ -253,17 +211,17 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
             <li><strong>Payment received</strong> — notified when a vendor completes payment</li>
             <li><strong>Insurance uploaded</strong> — notified when a vendor uploads an insurance document</li>
         </ul>
-        <p>These are <strong>off by default</strong>. Notifications are sent to all admin email addresses simultaneously.</p>
+        <p>These are <strong>off by default</strong>. Notifications are sent to all admin email addresses.</p>
     </details>
 
     <details name="q-email">
         <summary>Can I prevent an email from being sent?</summary>
-        <p>No. Vendor-facing emails (confirmations, approvals, rejections, refunds) are sent automatically and cannot be suppressed. Admin notification emails can be toggled off in Settings.</p>
+        <p>No. Vendor-facing emails are sent automatically and cannot be suppressed. Admin notification emails can be toggled off in Settings.</p>
     </details>
 
     <details name="q-email">
-        <summary>A vendor says they didn't receive an email. What happened?</summary>
-        <p>Email delivery failures are logged on the server but not surfaced in the admin dashboard. The email may have failed to send, landed in spam, or been delayed. Verify the vendor's email address on their registration and ask them to check their spam folder.</p>
+        <summary>A vendor says they didn't receive an email. What should I do?</summary>
+        <p>Verify the vendor's email address on their registration and ask them to check their spam folder. If the problem persists, contact the developer.</p>
     </details>
 </details>
 </article>
@@ -284,14 +242,14 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
 
     <details name="q-insurance">
         <summary>Is insurance approval separate from registration approval?</summary>
-        <p><strong>Yes.</strong> Approving a registration does not verify or approve the vendor's insurance. These are independent workflows. A vendor can be Paid with no insurance on file — it is the admin's responsibility to follow up on insurance compliance separately.</p>
+        <p><strong>Yes.</strong> These are independent. A vendor can be Paid with no insurance on file — it is the admin's responsibility to follow up on insurance compliance separately.</p>
     </details>
 </details>
 </article>
 
 <article>
 <details name="section">
-    <summary><strong>Event Settings</strong> — Dates, content, configuration, and export</summary>
+    <summary><strong>Event Settings and Export</strong> — Dates, content, configuration, and data export</summary>
 
     <details name="q-settings">
         <summary>How do I update event dates, registration window, or page content?</summary>
@@ -300,23 +258,22 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
 
     <details name="q-settings">
         <summary>Do settings changes take effect immediately?</summary>
-        <p>Yes. Changes are saved and reflected on vendor-facing pages immediately.</p>
+        <p>Yes. Changes are reflected on vendor-facing pages immediately.</p>
     </details>
 
     <details name="q-settings">
         <summary>What happens when registration closes?</summary>
-        <p>Closing the registration window (past the close date) prevents new vendor registrations. However, <strong>vendors can still log in</strong> to check their existing registrations, and <strong>approved vendors can still pay</strong> after registration closes. Only new submissions are blocked.</p>
+        <p>New vendor registrations are blocked. However, <strong>vendors can still log in</strong> to check their existing registrations, and <strong>approved vendors can still pay</strong>. Only new submissions are blocked.</p>
     </details>
 
     <details name="q-settings">
         <summary>Where does the banner text appear?</summary>
-        <p>Banner text appears at the top of the <strong>homepage</strong> and the <strong>vendor dashboard</strong> only. It does not appear on admin pages, the registration form, or confirmation pages. Use it for time-sensitive announcements vendors will see when they visit or log in (e.g., "Payment deadline is March 15").</p>
+        <p>Banner text appears at the top of the <strong>homepage</strong> and the <strong>vendor dashboard</strong> only. Use it for time-sensitive announcements (e.g., "Payment deadline is March 15").</p>
     </details>
 
     <details name="q-settings">
         <summary>How do I export registration data?</summary>
-        <p>Go to <strong>/admin/export</strong> (or use the Export link on the dashboard). The CSV includes <strong>all registrations regardless of status</strong> — pending, approved, rejected, paid, and cancelled. Columns include business name, contact info, booth type, category, insurance status, payment amounts, Stripe IDs, timestamps, reversal reasons, and admin notes. The file is named <code>registrations_YYYYMMDD.csv</code>.</p>
-        <p>Be mindful that admin notes and reversal reasons are included — review before sharing externally.</p>
+        <p>Use the Export link on the dashboard. The CSV includes all registrations regardless of status, with contact info, booth details, payment info, and admin notes. Review before sharing externally, as admin notes and reversal reasons are included.</p>
     </details>
 </details>
 </article>
@@ -328,7 +285,7 @@ Paid     → Cancelled   (admin cancels + refund)</pre>
     <details name="q-support">
         <summary>How do I report a bug, request a feature, or give feedback?</summary>
         {% if developer_contact %}
-        <p>Contact the app developer at <a href="mailto:{{ developer_contact }}">{{ developer_contact }}</a>. Include a description of the issue or suggestion, along with any relevant screenshots or registration IDs to help with troubleshooting.</p>
+        <p>Contact the app developer at <a href="mailto:{{ developer_contact }}">{{ developer_contact }}</a>. Include a description of the issue or suggestion, along with any relevant screenshots or registration IDs.</p>
         {% else %}
         <p>Contact the app developer directly. The developer contact email can be configured in <a href="/admin/settings">Admin Settings</a>.</p>
         {% endif %}
