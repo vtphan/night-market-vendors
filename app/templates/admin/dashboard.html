@@ -94,13 +94,6 @@
     transition: width 0.3s ease;
 }
 
-/* Big number + context */
-.big-number {
-    font-size: 2.5rem;
-    font-weight: 700;
-    line-height: 1.1;
-    margin-bottom: 0.25rem;
-}
 .context-line {
     color: var(--pico-muted-color);
     font-size: 0.9rem;
@@ -226,8 +219,7 @@
     <header>
         <strong>Pending Approval</strong>
     </header>
-    <div class="big-number">{{ pending_count }}</div>
-    <p class="context-line">pending registration{{ 's' if pending_count != 1 }} awaiting review <a href="/admin/registrations?status=pending">➤</a></p>
+    <p class="context-line">{{ pending_count }} pending registration{{ 's' if pending_count != 1 }} awaiting review <a href="/admin/registrations?status=pending">➤</a></p>
     {% set approved_count = status_counts.get("approved", 0) %}
     {% set rest = total_registrations - pending_count - approved_count %}
     {% if total_registrations > 0 %}
@@ -269,7 +261,6 @@
     <header>
         <strong>Awaiting Payment</strong>
     </header>
-    <div class="big-number">{{ unpaid_count }}</div>
     <p class="context-line">
         {% if unpaid_count > 0 %}
         {{ unpaid_count }} approved but unpaid <a href="/admin/registrations?status=approved">➤</a>
