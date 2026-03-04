@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 import stripe
 from fastapi import APIRouter, BackgroundTasks, Request, Depends
@@ -104,7 +105,6 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
         )
         registration.status = "paid"
         registration.amount_paid = amount
-        from datetime import datetime, timezone
         note_date = datetime.now(timezone.utc).strftime("%m/%d")
         system_note = (
             f"[System {note_date}] Payment completed while status was '{old_status}'. "
@@ -243,7 +243,6 @@ def _handle_charge_refunded(db: Session, charge: dict, background_tasks: Backgro
                 reversal_reason="Fully refunded via Stripe Dashboard",
                 _commit=False,
             )
-            from datetime import datetime, timezone
             note_date = datetime.now(timezone.utc).strftime("%m/%d")
             system_note = (
                 f"[System {note_date}] Full refund (${stripe_refunded / 100:.2f}) "
@@ -274,7 +273,6 @@ def _handle_charge_refunded(db: Session, charge: dict, background_tasks: Backgro
             logger.exception("Failed to auto-cancel registration %s after full refund", registration.registration_id)
     elif stripe_refunded > local_refunded:
         # Partial refund via Stripe Dashboard — note it for admin visibility
-        from datetime import datetime, timezone
         note_date = datetime.now(timezone.utc).strftime("%m/%d")
         system_note = (
             f"[System {note_date}] Partial refund (${stripe_refunded / 100:.2f} total) "

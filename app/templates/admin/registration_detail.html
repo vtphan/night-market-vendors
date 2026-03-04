@@ -2,6 +2,26 @@
 
 {% block title %}{{ registration.registration_id }} - Admin - Asian Night Market{% endblock %}
 
+{% macro dialog_footer(submit_text, submit_class="") %}
+<footer class="dialog-footer">
+    <button type="button" class="outline btn-inline" data-close-dialog>Cancel</button>
+    <button type="submit" class="btn-inline {{ submit_class }}">{{ submit_text }}</button>
+</footer>
+{% endmacro %}
+
+{% macro equip_display(registration) %}
+{% set parts = [] %}
+{% if registration.electrical_equipment %}
+    {% for item in registration.electrical_equipment.split(',') %}
+        {% if item.strip() %}{% set _ = parts.append(EQUIP_LABELS.get(item.strip(), item.strip())) %}{% endif %}
+    {% endfor %}
+{% endif %}
+{% if registration.electrical_other %}
+    {% set _ = parts.append(registration.electrical_other) %}
+{% endif %}
+{{ parts | join(', ') if parts else 'None' }}
+{% endmacro %}
+
 {% block content %}
 <p><a href="/admin/registrations">&larr; Back to Registrations</a></p>
 
@@ -19,18 +39,7 @@
             <tr><th>Description</th><td>{{ registration.description }}</td></tr>
             <tr>
                 <th>Electrical Equipment</th>
-                <td>
-                    {% set parts = [] %}
-                    {% if registration.electrical_equipment %}
-                        {% for item in registration.electrical_equipment.split(',') %}
-                            {% if item.strip() %}{% set _ = parts.append(EQUIP_LABELS.get(item.strip(), item.strip())) %}{% endif %}
-                        {% endfor %}
-                    {% endif %}
-                    {% if registration.electrical_other %}
-                        {% set _ = parts.append(registration.electrical_other) %}
-                    {% endif %}
-                    {{ parts | join(', ') if parts else 'None' }}
-                </td>
+                <td>{{ equip_display(registration) }}</td>
             </tr>
         </table>
     </article>
@@ -121,8 +130,8 @@
         </div>
     </header>
     {% if insurance_doc %}
-    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-        <a href="/admin/insurance/{{ insurance_doc.stored_filename }}" role="button" class="outline" style="width: auto; margin: 0;">
+    <div class="action-bar">
+        <a href="/admin/insurance/{{ insurance_doc.stored_filename }}" role="button" class="outline btn-inline">
             View: {{ insurance_doc.original_filename }}
         </a>
         <small style="color: var(--pico-muted-color);">{{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB</small>
@@ -130,7 +139,7 @@
         <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/revoke"
               style="margin: 0;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="outline" style="width: auto; margin: 0;">
+            <button type="submit" class="outline btn-inline">
                 Revoke Approval
             </button>
         </form>
@@ -138,18 +147,18 @@
         <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/approve"
               style="margin: 0;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;">
+            <button type="submit" class="btn-inline btn-blue">
                 Approve Document
             </button>
         </form>
         {% endif %}
     </div>
     {% else %}
-    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;">
+    <p class="helper-text">
         No insurance document uploaded by this vendor.
     </p>
     {% if registration.insurance_reminder_count and registration.insurance_reminder_count > 0 %}
-    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;">
+    <p class="helper-text">
         {{ registration.insurance_reminder_count }} insurance reminder{{ 's' if registration.insurance_reminder_count != 1 }} sent
         {% if registration.last_insurance_reminder_sent_at %}
         (last: {{ registration.last_insurance_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})
@@ -157,29 +166,24 @@
     </p>
     {% endif %}
 
-    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-        <button type="button" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;"
+    <div class="action-bar">
+        <button type="button" class="btn-inline btn-blue"
                 data-open-dialog="insurance-reminder-dialog">
             Send Insurance Reminder
         </button>
     </div>
 
     <dialog id="insurance-reminder-dialog">
-        <article style="max-width: 560px;">
+        <article class="dialog-md">
             <header><strong>Send Insurance Reminder</strong></header>
             <form id="insurance-reminder-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance-remind">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <p id="insurance-reminder-to" style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;"></p>
+                <p id="insurance-reminder-to" class="helper-text"></p>
                 <label>Subject</label>
                 <input type="text" name="custom_subject" id="insurance-reminder-subject" required>
                 <label>Body</label>
                 <textarea name="custom_body" id="insurance-reminder-body" rows="8" required></textarea>
-                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="outline" data-close-dialog
-                            style="width: auto;">Cancel</button>
-                    <button type="submit" style="width: auto; background-color: #1565c0; border-color: #1565c0;">
-                        Send Reminder</button>
-                </footer>
+                {{ dialog_footer("Send Reminder", "btn-blue") }}
             </form>
         </article>
     </dialog>
@@ -209,24 +213,24 @@
     {% endif %}
     {% endif %}
 
-    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+    <div class="action-bar">
         <form method="post" action="/admin/registrations/{{ registration.registration_id }}/approve"
               style="margin: 0;"
               data-confirm-approve data-vendor-email="{{ registration.email }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" style="width: auto; margin: 0; background-color: #2e7d32; border-color: #2e7d32;"
+            <button type="submit" class="btn-inline btn-green"
                     {% if booth_availability is defined and booth_availability <= 0 %}disabled{% endif %}>
                 Approve
             </button>
         </form>
-        <button type="button" class="outline secondary" style="width: auto; margin: 0;"
+        <button type="button" class="outline secondary btn-inline"
                 data-open-dialog="reject-dialog">
             Reject
         </button>
     </div>
 
     <dialog id="reject-dialog">
-        <article style="max-width: 480px;">
+        <article class="dialog-sm">
             <header><strong>Reject Registration</strong></header>
             <form id="reject-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/reject"
                   data-reversal-prefix="reject">
@@ -244,12 +248,7 @@
                 <label>Your name</label>
                 <input type="text" id="reject-admin-name" placeholder="e.g. Julia" required>
                 <input type="hidden" name="reversal_reason" id="reject-reason-hidden" value="">
-                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="outline" data-close-dialog
-                            style="width: auto;">Cancel</button>
-                    <button type="submit" style="width: auto; background-color: #c62828; border-color: #c62828;">
-                        Confirm Rejection</button>
-                </footer>
+                {{ dialog_footer("Confirm Rejection", "btn-red") }}
             </form>
         </article>
     </dialog>
@@ -257,7 +256,7 @@
     {% elif registration.status == 'approved' %}
 
     {% if registration.reminder_count %}
-    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;">
+    <p class="helper-text">
         {{ registration.reminder_count }} reminder{{ 's' if registration.reminder_count != 1 }} sent
         {% if registration.last_reminder_sent_at %}
         (last: {{ registration.last_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})
@@ -265,39 +264,34 @@
     </p>
     {% endif %}
 
-    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-        <button type="button" style="width: auto; margin: 0; background-color: #1565c0; border-color: #1565c0;"
+    <div class="action-bar">
+        <button type="button" class="btn-inline btn-blue"
                 data-open-dialog="reminder-dialog">
             Send Payment Reminder
         </button>
-        <button type="button" class="outline" style="width: auto; margin: 0;"
+        <button type="button" class="outline btn-inline"
                 data-open-dialog="revoke-approval-dialog">
             Revoke (move to Pending)
         </button>
     </div>
 
     <dialog id="reminder-dialog">
-        <article style="max-width: 560px;">
+        <article class="dialog-md">
             <header><strong>Send Payment Reminder</strong></header>
             <form id="reminder-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/remind">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <p id="reminder-to" style="font-size: 0.9rem; color: var(--pico-muted-color); margin-bottom: 0.75rem;"></p>
+                <p id="reminder-to" class="helper-text"></p>
                 <label>Subject</label>
                 <input type="text" name="custom_subject" id="reminder-subject" required>
                 <label>Body</label>
                 <textarea name="custom_body" id="reminder-body" rows="8" required></textarea>
-                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="outline" data-close-dialog
-                            style="width: auto;">Cancel</button>
-                    <button type="submit" style="width: auto; background-color: #1565c0; border-color: #1565c0;">
-                        Send Reminder</button>
-                </footer>
+                {{ dialog_footer("Send Reminder", "btn-blue") }}
             </form>
         </article>
     </dialog>
 
     <dialog id="revoke-approval-dialog">
-        <article style="max-width: 480px;">
+        <article class="dialog-sm">
             <header><strong>Revoke Approval</strong></header>
             <form id="revoke-approval-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/unreject"
                   data-reversal-prefix="revoke-approval">
@@ -316,26 +310,22 @@
                 <label>Your name</label>
                 <input type="text" id="revoke-approval-admin-name" placeholder="e.g. Julia" required>
                 <input type="hidden" name="reversal_reason" id="revoke-approval-reason-hidden" value="">
-                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="outline" data-close-dialog
-                            style="width: auto;">Cancel</button>
-                    <button type="submit" style="width: auto;">Confirm Revoke</button>
-                </footer>
+                {{ dialog_footer("Confirm Revoke") }}
             </form>
         </article>
     </dialog>
 
     {% elif registration.status == 'rejected' %}
 
-    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-        <button type="button" class="outline" style="width: auto; margin: 0;"
+    <div class="action-bar">
+        <button type="button" class="outline btn-inline"
                 data-open-dialog="revoke-rejection-dialog">
             Revoke (move to Pending)
         </button>
     </div>
 
     <dialog id="revoke-rejection-dialog">
-        <article style="max-width: 480px;">
+        <article class="dialog-sm">
             <header><strong>Revoke Rejection</strong></header>
             <form id="revoke-rejection-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/unreject"
                   data-reversal-prefix="revoke-rejection">
@@ -353,11 +343,7 @@
                 <label>Your name</label>
                 <input type="text" id="revoke-rejection-admin-name" placeholder="e.g. Julia" required>
                 <input type="hidden" name="reversal_reason" id="revoke-rejection-reason-hidden" value="">
-                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="outline" data-close-dialog
-                            style="width: auto;">Cancel</button>
-                    <button type="submit" style="width: auto;">Confirm Revoke</button>
-                </footer>
+                {{ dialog_footer("Confirm Revoke") }}
             </form>
         </article>
     </dialog>
@@ -376,15 +362,15 @@
     {% endif %}
     {% endif %}
 
-    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-        <button type="button" style="width: auto; margin: 0; background-color: #c62828; border-color: #c62828;"
+    <div class="action-bar">
+        <button type="button" class="btn-inline btn-red"
                 data-open-dialog="cancel-dialog">
             Cancel &amp; Refund
         </button>
     </div>
 
     <dialog id="cancel-dialog">
-        <article style="max-width: 480px;">
+        <article class="dialog-sm">
             <header><strong>Cancel &amp; Refund</strong></header>
             <form id="cancel-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/cancel"
                   data-reversal-prefix="cancel">
@@ -423,26 +409,21 @@
                     <option value="{{ p.strip() }}" {{ 'selected' if loop.first }}>{{ p.strip() }}%</option>
                     {% endfor %}
                 </select>
-                <p id="refund-calc-display" style="font-size: 0.9rem; margin: 0.25rem 0 0.5rem; color: var(--pico-muted-color);"></p>
+                <p id="refund-calc-display" class="helper-text" style="margin: 0.25rem 0 0.5rem;"></p>
                 <input type="hidden" name="refund_amount" id="refund-amount-hidden" value="">
 
-                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="outline" data-close-dialog
-                            style="width: auto;">Cancel</button>
-                    <button type="submit" style="width: auto; background-color: #c62828; border-color: #c62828;">
-                        Confirm Cancel &amp; Refund</button>
-                </footer>
+                {{ dialog_footer("Confirm Cancel &amp; Refund", "btn-red") }}
             </form>
         </article>
     </dialog>
 
     {% elif registration.status == 'cancelled' %}
-    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin: 0;">
+    <p class="helper-text" style="margin: 0;">
         This registration has been cancelled and refunded. No further actions available.
     </p>
 
     {% elif registration.status == 'withdrawn' %}
-    <p style="font-size: 0.9rem; color: var(--pico-muted-color); margin: 0;">
+    <p class="helper-text" style="margin: 0;">
         This registration was withdrawn by the vendor. No further actions available.
     </p>
     {% endif %}
@@ -456,7 +437,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <small><strong>Format:</strong> Name MM/DD: note — one entry per line, newest first</small>
         <textarea name="admin_notes" rows="3" placeholder="Julia 02/27: contacted vendor about menu options">{{ registration.admin_notes or '' }}</textarea>
-        <button type="submit" style="width: auto;">Save Notes</button>
+        <button type="submit" class="btn-inline">Save Notes</button>
     </form>
 </article>
 

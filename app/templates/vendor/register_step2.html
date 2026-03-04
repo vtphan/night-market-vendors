@@ -2,6 +2,20 @@
 
 {% block title %}Vendor Registration - Review - Asian Night Market{% endblock %}
 
+{% macro equip_display_draft(draft) %}
+{% set equip_str = draft.get('electrical_equipment', '') %}
+{% set parts = [] %}
+{% if equip_str %}
+    {% for item in equip_str.split(',') %}
+        {% if item.strip() %}{% set _ = parts.append(EQUIP_LABELS.get(item.strip(), item.strip())) %}{% endif %}
+    {% endfor %}
+{% endif %}
+{% if draft.get('electrical_other') %}
+    {% set _ = parts.append(draft.get('electrical_other')) %}
+{% endif %}
+{{ parts | join(', ') if parts else 'None' }}
+{% endmacro %}
+
 {% block content %}
 <h2>Vendor Registration</h2>
 <div class="step-progress">
@@ -22,19 +36,7 @@
             <tr><th>Description</th><td>{{ draft.get('description', '') }}</td></tr>
             <tr>
                 <th>Electrical Equipment</th>
-                <td>
-                    {% set equip_str = draft.get('electrical_equipment', '') %}
-                    {% set parts = [] %}
-                    {% if equip_str %}
-                        {% for item in equip_str.split(',') %}
-                            {% if item.strip() %}{% set _ = parts.append(EQUIP_LABELS.get(item.strip(), item.strip())) %}{% endif %}
-                        {% endfor %}
-                    {% endif %}
-                    {% if draft.get('electrical_other') %}
-                        {% set _ = parts.append(draft.get('electrical_other')) %}
-                    {% endif %}
-                    {{ parts | join(', ') if parts else 'None' }}
-                </td>
+                <td>{{ equip_display_draft(draft) }}</td>
             </tr>
             <tr>
                 <th>Booth Type</th>

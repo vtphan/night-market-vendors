@@ -81,19 +81,19 @@
   // --- Reminder preview ---
   var REMINDER_PREVIEW_URL = config.reminderPreviewUrl || "";
 
-  function openReminderDialog() {
-    var dialog = document.getElementById("reminder-dialog");
+  function loadReminderPreview(dialogId, previewUrl, prefix) {
+    var dialog = document.getElementById(dialogId);
     if (!dialog) return;
-    var subjectEl = document.getElementById("reminder-subject");
-    var bodyEl = document.getElementById("reminder-body");
-    var toEl = document.getElementById("reminder-to");
+    var subjectEl = document.getElementById(prefix + "-subject");
+    var bodyEl = document.getElementById(prefix + "-body");
+    var toEl = document.getElementById(prefix + "-to");
     subjectEl.value = "";
     bodyEl.value = "";
     toEl.textContent = "Loading preview...";
     dialog.showModal();
 
-    if (REMINDER_PREVIEW_URL) {
-      fetch(REMINDER_PREVIEW_URL)
+    if (previewUrl) {
+      fetch(previewUrl)
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.error) {
@@ -110,47 +110,19 @@
     }
   }
 
-  // --- Insurance reminder preview ---
+  // --- Dialog openers (with special handling for reminder dialogs) ---
   var INSURANCE_REMINDER_PREVIEW_URL = config.insuranceReminderPreviewUrl || "";
 
-  function openInsuranceReminderDialog() {
-    var dialog = document.getElementById("insurance-reminder-dialog");
-    if (!dialog) return;
-    var subjectEl = document.getElementById("insurance-reminder-subject");
-    var bodyEl = document.getElementById("insurance-reminder-body");
-    var toEl = document.getElementById("insurance-reminder-to");
-    subjectEl.value = "";
-    bodyEl.value = "";
-    toEl.textContent = "Loading preview...";
-    dialog.showModal();
-
-    if (INSURANCE_REMINDER_PREVIEW_URL) {
-      fetch(INSURANCE_REMINDER_PREVIEW_URL)
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          if (data.error) {
-            toEl.textContent = "Error: " + data.error;
-            return;
-          }
-          toEl.textContent = "To: " + data.to;
-          subjectEl.value = data.subject;
-          bodyEl.value = data.body;
-        })
-        .catch(function () {
-          toEl.textContent = "Failed to load preview.";
-        });
-    }
-  }
-
-  // --- Dialog openers ---
   document.querySelectorAll("[data-open-dialog]").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      if (btn.dataset.openDialog === "reminder-dialog") {
-        openReminderDialog();
-      } else if (btn.dataset.openDialog === "insurance-reminder-dialog") {
-        openInsuranceReminderDialog();
+      var target = btn.dataset.openDialog;
+      if (target === "reminder-dialog") {
+        loadReminderPreview("reminder-dialog", REMINDER_PREVIEW_URL, "reminder");
+      } else if (target === "insurance-reminder-dialog") {
+        loadReminderPreview("insurance-reminder-dialog", INSURANCE_REMINDER_PREVIEW_URL, "insurance-reminder");
       } else {
-        document.getElementById(btn.dataset.openDialog).showModal();
+        var dialog = document.getElementById(target);
+        if (dialog) dialog.showModal();
       }
     });
   });

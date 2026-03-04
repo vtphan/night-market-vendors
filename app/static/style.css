@@ -220,3 +220,63 @@ button.payment-success:focus {
     color: #004085;
     font-weight: 500;
 }
+
+/* --- Admin detail page reusable classes --- */
+
+/* Action bar: flex row with wrapped items */
+.action-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Dialog footer: right-aligned button row */
+.dialog-footer {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+
+/* Dialog widths */
+.dialog-sm { max-width: 480px; }
+.dialog-md { max-width: 560px; }
+
+/* Inline button sizing (auto width, no margin) */
+.btn-inline {
+    width: auto;
+    margin: 0;
+}
+
+/* Button color variants */
+.btn-blue {
+    background-color: #1565c0;
+    border-color: #1565c0;
+}
+
+.btn-red {
+    background-color: #c62828;
+    border-color: #c62828;
+}
+
+.btn-green {
+    background-color: #2e7d32;
+    border-color: #2e7d32;
+}
+
+/* Muted helper text */
+.helper-text {
+    font-size: 0.9rem;
+    color: var(--pico-muted-color);
+    margin-bottom: 0.75rem;
+}
+
+/* Legend dot (charts/bars) */
+.legend-dot {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    vertical-align: middle;
+    flex-shrink: 0;
+}

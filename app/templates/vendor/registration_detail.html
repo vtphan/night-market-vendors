@@ -8,6 +8,19 @@
 {% endif %}
 {% endblock %}
 
+{% macro equip_display(registration) %}
+{% set parts = [] %}
+{% if registration.electrical_equipment %}
+    {% for item in registration.electrical_equipment.split(',') %}
+        {% if item.strip() %}{% set _ = parts.append(EQUIP_LABELS.get(item.strip(), item.strip())) %}{% endif %}
+    {% endfor %}
+{% endif %}
+{% if registration.electrical_other %}
+    {% set _ = parts.append(registration.electrical_other) %}
+{% endif %}
+{{ parts | join(", ") if parts else "None" }}
+{% endmacro %}
+
 {% block content %}
 <p><a href="/vendor/dashboard">&larr; Back to My Registrations</a></p>
 
@@ -72,18 +85,7 @@
         <dt>Price</dt>
         <dd>${{ "%.2f" | format(booth_price / 100) if booth_price else 'N/A' }}</dd>
         <dt>Electrical Equipment</dt>
-        <dd>
-            {% set parts = [] %}
-            {% if registration.electrical_equipment %}
-                {% for item in registration.electrical_equipment.split(',') %}
-                    {% if item.strip() %}{% set _ = parts.append(EQUIP_LABELS.get(item.strip(), item.strip())) %}{% endif %}
-                {% endfor %}
-            {% endif %}
-            {% if registration.electrical_other %}
-                {% set _ = parts.append(registration.electrical_other) %}
-            {% endif %}
-            {{ parts | join(", ") if parts else "None" }}
-        </dd>
+        <dd>{{ equip_display(registration) }}</dd>
     </dl>
 </article>
 
@@ -104,18 +106,18 @@
 <article>
     <header>Withdraw Registration</header>
     <p>If you no longer wish to participate, you can withdraw this registration. <strong>This action is permanent and cannot be undone.</strong></p>
-    <button type="button" class="secondary outline" style="width: auto;" data-open-dialog="withdraw-dialog">Withdraw Registration</button>
+    <button type="button" class="secondary outline btn-inline" data-open-dialog="withdraw-dialog">Withdraw Registration</button>
     <dialog id="withdraw-dialog">
-        <article style="max-width: 480px;">
+        <article class="dialog-sm">
             <header><strong>Withdraw Registration</strong></header>
             <form method="post" action="/vendor/registration/{{ registration.registration_id }}/withdraw">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <label>Reason (optional)</label>
                 <input type="text" name="reason" placeholder="e.g. Unable to attend" maxlength="500">
                 <p style="font-size: 0.85rem; color: var(--pico-muted-color);">This action is permanent. Your registration will be cancelled and cannot be restored.</p>
-                <footer style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="outline" style="width: auto;" data-close-dialog>Cancel</button>
-                    <button type="submit" style="width: auto; background-color: #c62828; border-color: #c62828;">Confirm Withdrawal</button>
+                <footer class="dialog-footer">
+                    <button type="button" class="outline btn-inline" data-close-dialog>Cancel</button>
+                    <button type="submit" class="btn-inline btn-red">Confirm Withdrawal</button>
                 </footer>
             </form>
         </article>

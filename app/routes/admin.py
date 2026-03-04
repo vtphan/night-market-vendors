@@ -2,9 +2,9 @@ import csv
 import io
 import logging
 import math
-from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Form, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse, FileResponse
@@ -36,6 +36,17 @@ from app.config import APP_URL, ADMIN_EMAILS
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _parse_price_cents(price_str: str) -> int | None:
+    """Parse a price string (dollars) into cents. Returns None on invalid input."""
+    try:
+        price_dec = Decimal(str(price_str))
+        if not price_dec.is_finite() or price_dec < 0:
+            return None
+        return int((price_dec * 100).to_integral_value())
+    except (InvalidOperation, ValueError, TypeError):
+        return None
 
 
 def _template(request, name, ctx, session=None):
@@ -381,7 +392,6 @@ async def approve_registration(
 
     # Extract just the domain so the email tells vendors where to log in
     # without embedding a direct link (reduces spam-filter risk).
-    from urllib.parse import urlparse
     portal_domain = urlparse(APP_URL).hostname or APP_URL
     settings = db.query(EventSettings).first()
     deadline_date = (
@@ -402,7 +412,6 @@ async def approve_registration(
 
 def _reminder_template_vars(registration, db):
     """Build the subject, body, and format variables for a payment reminder."""
-    from urllib.parse import urlparse
     from app.services.email import _get_email_globals
 
     settings = db.query(EventSettings).first()
@@ -504,7 +513,6 @@ async def send_reminder(
     else:
         subject_tpl, body_tpl = _reminder_template_vars(registration, db)
 
-    from urllib.parse import urlparse
     portal_domain = urlparse(APP_URL).hostname or APP_URL
     deadline_date = (
         registration.payment_deadline.strftime("%b %d, %Y")
@@ -903,7 +911,6 @@ async def revoke_insurance(
 
 def _insurance_reminder_defaults(registration, db):
     """Build default subject and body for an insurance reminder."""
-    from urllib.parse import urlparse
     from app.services.email import _get_email_globals
 
     portal_domain = urlparse(APP_URL).hostname or APP_URL
@@ -990,7 +997,6 @@ async def send_insurance_reminder(
     else:
         subject_text, body_text = _insurance_reminder_defaults(registration, db)
 
-    from urllib.parse import urlparse
     portal_domain = urlparse(APP_URL).hostname or APP_URL
 
     background_tasks.add_task(
@@ -1051,14 +1057,9 @@ async def update_inventory(
             return _template(request, "admin/inventory.html", ctx, session=session)
         booth_type.total_quantity = total_quantity
         booth_type.description = description.strip()
-        try:
-            price_dec = Decimal(price)
-            if price_dec.is_finite():
-                price_cents = int((price_dec * 100).to_integral_value())
-                if price_cents >= 0:
-                    booth_type.price = price_cents
-        except (InvalidOperation, ValueError, TypeError):
-            pass
+        parsed = _parse_price_cents(price)
+        if parsed is not None:
+            booth_type.price = parsed
         db.commit()
     return RedirectResponse(url="/admin/inventory", status_code=303)
 
@@ -1099,14 +1100,9 @@ async def update_inventory_bulk(
             continue
         bt.total_quantity = qty
         bt.description = str(raw_desc).strip()
-        try:
-            price_dec = Decimal(str(raw_price))
-            if price_dec.is_finite():
-                price_cents = int((price_dec * 100).to_integral_value())
-                if price_cents >= 0:
-                    bt.price = price_cents
-        except (InvalidOperation, ValueError, TypeError):
-            pass
+        parsed = _parse_price_cents(raw_price)
+        if parsed is not None:
+            bt.price = parsed
     if errors:
         db.rollback()
         flash = [{"category": "error", "text": e} for e in errors]
