@@ -2,12 +2,14 @@
 """Seed the database with test registrations from 4 vendors.
 
 Usage:
-    python scripts/seed_registrations.py          # fresh seed (deletes existing registrations first)
-    python scripts/seed_registrations.py --append  # add to existing data
+    python scripts/seed_registrations.py small      # 10 registrations
+    python scripts/seed_registrations.py medium     # 20 registrations
+    python scripts/seed_registrations.py large      # 40 registrations
 
-Vendors get multiple registrations across booth types with a mix of
-pending and approved statuses.  Approved counts never exceed booth
-inventory (derived from booth_types.total_quantity).
+    Add --append to keep existing registrations.
+
+Registrations use only pending and approved statuses.
+Approved counts never exceed booth inventory (10 per type).
 """
 
 import sys
@@ -65,44 +67,136 @@ VENDORS = [
 ]
 
 # ---------------------------------------------------------------------------
-# Registration plan
+# Registration plans — (vendor_index, booth_type_name, status)
 #
-# Each tuple: (vendor_index, booth_type_name, status)
-#
-# Inventory: Premium=1, Regular=2, Compact=1
-# Approved caps:  Premium ≤1, Regular ≤2, Compact ≤1
+# Inventory: Premium=10, Regular=10, Compact=10
+# Approved counts per type must stay ≤ 10.
 # ---------------------------------------------------------------------------
 
-REGISTRATIONS = [
-    # Vendor 0 — vphan@memphis.edu
-    (0, "Regular Booth", "approved"),
-    (0, "Compact Booth", "pending"),
+PLANS = {
+    # ------------------------------------------------------------------
+    # SMALL — 10 registrations, 4 approved
+    # Approved: Premium=1, Regular=2, Compact=1
+    # ------------------------------------------------------------------
+    "small": [
+        # Vendor 0 — vphan@memphis.edu (3 regs)
+        (0, "Regular Booth", "approved"),
+        (0, "Compact Booth", "pending"),
+        (0, "Premium Booth", "pending"),
+        # Vendor 1 — thuyadiobooks@gmail.com (3 regs)
+        (1, "Premium Booth", "approved"),
+        (1, "Regular Booth", "pending"),
+        (1, "Compact Booth", "pending"),
+        # Vendor 2 — aidangphieu@gmail.com (2 regs)
+        (2, "Regular Booth", "approved"),
+        (2, "Premium Booth", "pending"),
+        # Vendor 3 — moodandmelody1975@gmail.com (2 regs)
+        (3, "Compact Booth", "approved"),
+        (3, "Regular Booth", "pending"),
+    ],
 
-    # Vendor 1 — thuyadiobooks@gmail.com
-    (1, "Premium Booth", "pending"),
-    (1, "Regular Booth", "approved"),
-    (1, "Compact Booth", "pending"),
+    # ------------------------------------------------------------------
+    # MEDIUM — 20 registrations, 8 approved
+    # Approved: Premium=3, Regular=3, Compact=2
+    # ------------------------------------------------------------------
+    "medium": [
+        # Vendor 0 (5 regs)
+        (0, "Premium Booth", "approved"),
+        (0, "Regular Booth", "approved"),
+        (0, "Compact Booth", "pending"),
+        (0, "Premium Booth", "pending"),
+        (0, "Regular Booth", "pending"),
+        # Vendor 1 (5 regs)
+        (1, "Premium Booth", "approved"),
+        (1, "Regular Booth", "pending"),
+        (1, "Compact Booth", "approved"),
+        (1, "Premium Booth", "pending"),
+        (1, "Compact Booth", "pending"),
+        # Vendor 2 (5 regs)
+        (2, "Premium Booth", "approved"),
+        (2, "Regular Booth", "approved"),
+        (2, "Compact Booth", "pending"),
+        (2, "Regular Booth", "pending"),
+        (2, "Compact Booth", "pending"),
+        # Vendor 3 (5 regs)
+        (3, "Compact Booth", "approved"),
+        (3, "Regular Booth", "approved"),
+        (3, "Premium Booth", "pending"),
+        (3, "Regular Booth", "pending"),
+        (3, "Premium Booth", "pending"),
+    ],
 
-    # Vendor 2 — aidangphieu@gmail.com
-    (2, "Premium Booth", "approved"),
-    (2, "Regular Booth", "pending"),
+    # ------------------------------------------------------------------
+    # LARGE — 40 registrations, 15 approved
+    # Approved: Premium=5, Regular=5, Compact=5
+    # ------------------------------------------------------------------
+    "large": [
+        # Vendor 0 (10 regs) — approved: P=2, R=1, C=1
+        (0, "Premium Booth", "approved"),
+        (0, "Premium Booth", "approved"),
+        (0, "Regular Booth", "approved"),
+        (0, "Compact Booth", "approved"),
+        (0, "Regular Booth", "pending"),
+        (0, "Compact Booth", "pending"),
+        (0, "Premium Booth", "pending"),
+        (0, "Regular Booth", "pending"),
+        (0, "Compact Booth", "pending"),
+        (0, "Premium Booth", "pending"),
+        # Vendor 1 (10 regs) — approved: P=1, R=2, C=1
+        (1, "Premium Booth", "approved"),
+        (1, "Regular Booth", "approved"),
+        (1, "Regular Booth", "approved"),
+        (1, "Compact Booth", "approved"),
+        (1, "Compact Booth", "pending"),
+        (1, "Premium Booth", "pending"),
+        (1, "Regular Booth", "pending"),
+        (1, "Compact Booth", "pending"),
+        (1, "Premium Booth", "pending"),
+        (1, "Regular Booth", "pending"),
+        # Vendor 2 (10 regs) — approved: P=1, R=1, C=2
+        (2, "Premium Booth", "approved"),
+        (2, "Regular Booth", "approved"),
+        (2, "Compact Booth", "approved"),
+        (2, "Compact Booth", "approved"),
+        (2, "Premium Booth", "pending"),
+        (2, "Regular Booth", "pending"),
+        (2, "Compact Booth", "pending"),
+        (2, "Premium Booth", "pending"),
+        (2, "Regular Booth", "pending"),
+        (2, "Regular Booth", "pending"),
+        # Vendor 3 (10 regs) — approved: P=1, R=1, C=1
+        (3, "Premium Booth", "approved"),
+        (3, "Regular Booth", "approved"),
+        (3, "Compact Booth", "approved"),
+        (3, "Regular Booth", "pending"),
+        (3, "Compact Booth", "pending"),
+        (3, "Premium Booth", "pending"),
+        (3, "Regular Booth", "pending"),
+        (3, "Premium Booth", "pending"),
+        (3, "Compact Booth", "pending"),
+        (3, "Regular Booth", "pending"),
+    ],
+}
 
-    # Vendor 3 — moodandmelody1975@gmail.com
-    (3, "Compact Booth", "approved"),
-    (3, "Regular Booth", "pending"),
-    (3, "Premium Booth", "pending"),
-]
 
-# Sanity check: approved counts must not exceed inventory
-# Premium: 1 approved (vendor 2)   ≤ 1 ✓
-# Regular: 2 approved (vendor 0,1) ≤ 2 ✓
-# Compact: 1 approved (vendor 3)   ≤ 1 ✓
+def validate_plan(plan, label):
+    """Verify approved counts don't exceed inventory (10 per type)."""
+    from collections import Counter
+    approved = Counter(
+        booth for _, booth, status in plan if status == "approved"
+    )
+    for booth_name, count in approved.items():
+        if count > 10:
+            print(f"ERROR: {label} plan has {count} approved {booth_name} (max 10)")
+            sys.exit(1)
 
 
-def seed(append: bool = False):
+def seed(size: str, append: bool = False):
+    plan = PLANS[size]
+    validate_plan(plan, size)
+
     db = SessionLocal()
     try:
-        # Look up booth types
         booth_types = {bt.name: bt for bt in db.query(BoothType).all()}
         if not booth_types:
             print("ERROR: No booth types found. Run the app once first to seed event data.")
@@ -120,7 +214,9 @@ def seed(append: bool = False):
         now = datetime.now(timezone.utc)
         created = []
 
-        for i, (vendor_idx, booth_name, status) in enumerate(REGISTRATIONS):
+        print(f"\nSeeding {size} dataset ({len(plan)} registrations):\n")
+
+        for i, (vendor_idx, booth_name, status) in enumerate(plan):
             vendor = VENDORS[vendor_idx]
             bt = booth_types.get(booth_name)
             if not bt:
@@ -130,7 +226,7 @@ def seed(append: bool = False):
             reg_id = generate_registration_id(db)
 
             # Stagger created_at so they look realistic
-            created_at = now - timedelta(days=len(REGISTRATIONS) - i, hours=i * 2)
+            created_at = now - timedelta(days=len(plan) - i, hours=i * 2)
 
             reg = Registration(
                 registration_id=reg_id,
@@ -175,5 +271,13 @@ def seed(append: bool = False):
 
 
 if __name__ == "__main__":
-    append = "--append" in sys.argv
-    seed(append=append)
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = [a for a in sys.argv[1:] if a.startswith("--")]
+
+    if not args or args[0] not in PLANS:
+        print("Usage: python scripts/seed_registrations.py <small|medium|large> [--append]")
+        sys.exit(1)
+
+    size = args[0]
+    append = "--append" in flags
+    seed(size, append)
