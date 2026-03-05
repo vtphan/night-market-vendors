@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import STRIPE_WEBHOOK_SECRET, APP_URL
 from app.database import get_db
-from app.models import Registration, BoothType, StripeEvent, EventSettings
+from app.models import Registration, BoothType, StripeEvent, EventSettings, AdminNote
 from app.services.registration import transition_status
 from app.services.email import send_payment_confirmation_email, send_admin_notification_email, send_admin_alert_email
 
@@ -105,14 +105,17 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
         )
         registration.status = "paid"
         registration.amount_paid = amount
-        note_date = datetime.now(timezone.utc).strftime("%m/%d")
-        system_note = (
-            f"[System {note_date}] Payment completed while status was '{old_status}'. "
-            f"Vendor payment was already in progress when approval was revoked. "
-            f"Review and cancel if needed."
+        system_note = AdminNote(
+            registration_id=registration.registration_id,
+            admin_email="[System]",
+            text=(
+                f"Payment completed while status was '{old_status}'. "
+                f"Vendor payment was already in progress when approval was revoked. "
+                f"Review and cancel if needed."
+            ),
         )
-        existing_notes = registration.admin_notes or ""
-        registration.admin_notes = f"{system_note}\n{existing_notes}".strip()
+        db.add(system_note)
+        registration.concern_status = "yes"
 
         background_tasks.add_task(
             send_admin_alert_email,
@@ -243,13 +246,15 @@ def _handle_charge_refunded(db: Session, charge: dict, background_tasks: Backgro
                 reversal_reason="Fully refunded via Stripe Dashboard",
                 _commit=False,
             )
-            note_date = datetime.now(timezone.utc).strftime("%m/%d")
-            system_note = (
-                f"[System {note_date}] Full refund (${stripe_refunded / 100:.2f}) "
-                f"detected via Stripe Dashboard. Registration auto-cancelled."
-            )
-            existing_notes = registration.admin_notes or ""
-            registration.admin_notes = f"{system_note}\n{existing_notes}".strip()
+            db.add(AdminNote(
+                registration_id=registration.registration_id,
+                admin_email="[System]",
+                text=(
+                    f"Full refund (${stripe_refunded / 100:.2f}) "
+                    f"detected via Stripe Dashboard. Registration auto-cancelled."
+                ),
+            ))
+            registration.concern_status = "yes"
             logger.info(
                 "Registration %s auto-cancelled after full refund via Stripe Dashboard",
                 registration.registration_id,
@@ -273,13 +278,15 @@ def _handle_charge_refunded(db: Session, charge: dict, background_tasks: Backgro
             logger.exception("Failed to auto-cancel registration %s after full refund", registration.registration_id)
     elif stripe_refunded > local_refunded:
         # Partial refund via Stripe Dashboard — note it for admin visibility
-        note_date = datetime.now(timezone.utc).strftime("%m/%d")
-        system_note = (
-            f"[System {note_date}] Partial refund (${stripe_refunded / 100:.2f} total) "
-            f"detected via Stripe Dashboard."
-        )
-        existing_notes = registration.admin_notes or ""
-        registration.admin_notes = f"{system_note}\n{existing_notes}".strip()
+        db.add(AdminNote(
+            registration_id=registration.registration_id,
+            admin_email="[System]",
+            text=(
+                f"Partial refund (${stripe_refunded / 100:.2f} total) "
+                f"detected via Stripe Dashboard."
+            ),
+        ))
+        registration.concern_status = "yes"
         background_tasks.add_task(
             send_admin_alert_email,
             f"UNEXPECTED: Partial refund issued via Stripe Dashboard — {registration.registration_id}",

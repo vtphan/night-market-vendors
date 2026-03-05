@@ -32,6 +32,42 @@ async def lifespan(app: FastAPI):
     logger.info("Creating database tables...")
     Base.metadata.create_all(bind=engine)
 
+    # Add concern_status column if missing (added after initial schema)
+    from sqlalchemy import inspect, text
+    with engine.connect() as conn:
+        columns = [c["name"] for c in inspect(engine).get_columns("registrations")]
+        if "concern_status" not in columns:
+            conn.execute(text(
+                "ALTER TABLE registrations ADD COLUMN concern_status VARCHAR(10) NOT NULL DEFAULT 'none'"
+            ))
+            conn.commit()
+            logger.info("Added concern_status column to registrations")
+
+    # Migrate legacy admin_notes text to admin_notes table
+    from app.models import Registration, AdminNote
+    migrate_db = SessionLocal()
+    try:
+        legacy = (
+            migrate_db.query(Registration)
+            .filter(Registration.admin_notes != None, Registration.admin_notes != "")
+            .all()
+        )
+        for reg in legacy:
+            existing = migrate_db.query(AdminNote).filter(
+                AdminNote.registration_id == reg.registration_id
+            ).first()
+            if not existing:
+                migrate_db.add(AdminNote(
+                    registration_id=reg.registration_id,
+                    admin_email="[Migrated]",
+                    text=reg.admin_notes.strip(),
+                ))
+        if legacy:
+            migrate_db.commit()
+            logger.info("Migrated %d legacy admin_notes to admin_notes table", len(legacy))
+    finally:
+        migrate_db.close()
+
     logger.info("Running seed data...")
     db = SessionLocal()
     try:

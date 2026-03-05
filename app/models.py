@@ -45,7 +45,8 @@ class Registration(Base):
     agreement_accepted_at = Column(DateTime, nullable=False)
     agreement_ip_address = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
-    admin_notes = Column(Text, nullable=True)
+    admin_notes = Column(Text, nullable=True)  # legacy — migrated to admin_notes table
+    concern_status = Column(String(10), nullable=False, default="none", server_default="none")
     payment_deadline = Column(DateTime, nullable=True)
     last_reminder_sent_at = Column(DateTime, nullable=True)
     reminder_count = Column(Integer, default=0, server_default="0")
@@ -113,6 +114,16 @@ class InsuranceDocument(Base):
     approved_by = Column(String, nullable=True)
     approved_at = Column(DateTime, nullable=True)
     uploaded_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class AdminNote(Base):
+    __tablename__ = "admin_notes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    registration_id = Column(String(20), ForeignKey("registrations.registration_id"), nullable=False, index=True)
+    admin_email = Column(String, nullable=False)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
 
 
 class RegistrationDraft(Base):

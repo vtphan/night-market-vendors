@@ -6,6 +6,18 @@
 <script src="/static/clickable-rows.js" defer></script>
 {% endblock %}
 
+{% macro sort_link(col, label) %}
+{% if current_sort == col %}
+    {% set next_order = 'asc' if current_order == 'desc' else 'desc' %}
+    {% set arrow = '▲' if current_order == 'asc' else '▼' %}
+    <a href="?sort={{ col }}&order={{ next_order }}" style="text-decoration: none; color: inherit;">
+        {{ label }} {{ arrow }}
+    </a>
+{% else %}
+    <a href="?sort={{ col }}&order=desc" style="text-decoration: none; color: inherit;">{{ label }}</a>
+{% endif %}
+{% endmacro %}
+
 {% block content %}
 <h2>Notes</h2>
 <p><small style="color: var(--pico-muted-color);">{{ registrations | length }} registration{{ 's' if registrations | length != 1 }} with notes</small></p>
@@ -14,9 +26,11 @@
     <table>
         <thead>
             <tr>
-                <th>ID</th>
+                <th>{{ sort_link('id', 'ID') }}</th>
                 <th>Vendor</th>
                 <th>Status</th>
+                <th>{{ sort_link('flag', 'Flag') }}</th>
+                <th>{{ sort_link('date', 'Date') }}</th>
                 <th>Latest Note</th>
             </tr>
         </thead>
@@ -26,7 +40,15 @@
                 <td><code>{{ reg.registration_id[-4:] }}</code></td>
                 <td>{{ reg.business_name }}<br><small style="color: var(--pico-muted-color);">{{ reg.email }}</small></td>
                 <td><span class="status-badge {{ reg.status }}">{{ reg.status | title }}</span></td>
-                <td><small>{{ reg.admin_notes.split('\n')[0] }}</small></td>
+                <td>
+                    {% if reg.concern_status == 'yes' %}
+                    <span class="status-badge rejected">&#x26A0;</span>
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td><small>{{ latest_note_dates.get(reg.registration_id).strftime('%m/%d') if latest_note_dates.get(reg.registration_id) else '' }}</small></td>
+                <td><small>{{ latest_notes.get(reg.registration_id, '') }}</small></td>
             </tr>
             {% endfor %}
         </tbody>

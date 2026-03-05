@@ -112,7 +112,7 @@
             <tr data-href="/admin/registrations/{{ reg.registration_id }}" style="cursor: pointer;">
                 <td><code>{{ reg.registration_id[-4:] }}</code></td>
                 <td>
-                    {{ reg.business_name }}{% if reg.admin_notes %} <small title="{{ reg.admin_notes.split('\n')[0] }}">&#x1F4DD;</small>{% endif %}<br>
+                    {{ reg.business_name }}{% if reg.concern_status == 'yes' %} <span class="status-badge rejected" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; vertical-align: middle;">&#x26A0;</span>{% endif %}{% if reg.registration_id in regs_with_notes %} <small>&#x1F4DD;</small>{% endif %}<br>
                     <small style="color: var(--pico-muted-color);">{{ reg.email }}</small>
                 </td>
                 <td>{{ CATEGORIES.get(reg.category, reg.category) }}</td>

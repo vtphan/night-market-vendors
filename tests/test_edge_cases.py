@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.exc import OperationalError
 
 from app.models import (
-    BoothType, EventSettings, InsuranceDocument, OTPCode,
+    AdminNote, BoothType, EventSettings, InsuranceDocument, OTPCode,
     Registration, RegistrationDraft, StripeEvent,
 )
 from app.session import _serializer
@@ -57,8 +57,9 @@ async def test_story38_payment_while_revoked_to_pending(client, db):
     db.refresh(reg)
     assert reg.status == "paid"
     assert reg.amount_paid == 15000
-    assert "[System" in (reg.admin_notes or "")
-    assert "pending" in reg.admin_notes
+    note = db.query(AdminNote).filter(AdminNote.registration_id == reg.registration_id).first()
+    assert note is not None
+    assert "pending" in note.text
 
 
 async def test_story38_payment_while_revoked_to_rejected(client, db):
@@ -82,7 +83,9 @@ async def test_story38_payment_while_revoked_to_rejected(client, db):
     assert resp.status_code == 200
     db.refresh(reg)
     assert reg.status == "paid"
-    assert "rejected" in reg.admin_notes
+    note = db.query(AdminNote).filter(AdminNote.registration_id == reg.registration_id).first()
+    assert note is not None
+    assert "rejected" in note.text
 
 
 async def test_story39_payment_intent_reuse(client, db):
@@ -296,8 +299,9 @@ async def test_story42_full_refund_via_dashboard(client, db):
     db.refresh(reg)
     assert reg.status == "cancelled"
     assert reg.refund_amount == amount_paid
-    assert "[System" in (reg.admin_notes or "")
-    assert "auto-cancelled" in reg.admin_notes.lower()
+    note = db.query(AdminNote).filter(AdminNote.registration_id == reg.registration_id).first()
+    assert note is not None
+    assert "auto-cancelled" in note.text.lower()
 
 
 async def test_story43_partial_refund_via_dashboard(client, db):
@@ -323,7 +327,8 @@ async def test_story43_partial_refund_via_dashboard(client, db):
     db.refresh(reg)
     assert reg.status == "paid"
     assert reg.refund_amount == partial
-    assert "[System" in (reg.admin_notes or "")
+    note = db.query(AdminNote).filter(AdminNote.registration_id == reg.registration_id).first()
+    assert note is not None
 
 
 async def test_story44_chargeback_alerts_admin(client, db):

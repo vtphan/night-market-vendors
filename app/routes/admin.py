@@ -6,7 +6,10 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request, Form, Query
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Form, Query, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse, FileResponse
 from sqlalchemy import func as sa_func, extract
 from sqlalchemy.orm import Session
@@ -14,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.csrf import generate_csrf_token, require_csrf
 from app.session import require_admin
-from app.models import Registration, BoothType, EventSettings, InsuranceDocument
+from app.models import Registration, BoothType, EventSettings, InsuranceDocument, AdminNote
 from app.services.registration import (
     transition_status,
     approve_with_inventory_check,
@@ -34,6 +37,10 @@ from app.services.payment import create_refund
 from app.config import APP_URL, ADMIN_EMAILS
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
+ALLOWED_CONTENT_TYPES = {"application/pdf", "image/png", "image/jpeg"}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -266,7 +273,10 @@ async def registration_list(
         emails_with_doc = db.query(InsuranceDocument.email).subquery()
         query = query.filter(~Registration.email.in_(emails_with_doc))
     if notes == "yes":
-        query = query.filter(sa_func.length(sa_func.trim(Registration.admin_notes)) > 0)
+        has_notes = db.query(AdminNote.registration_id).distinct().subquery()
+        query = query.filter(Registration.registration_id.in_(has_notes))
+    elif notes == "flagged":
+        query = query.filter(Registration.concern_status == "yes")
     if search:
         # Escape SQL LIKE wildcards in user input to prevent unintended matching
         escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -287,12 +297,17 @@ async def registration_list(
 
     daily_counts, hourly_counts = _compute_chart_data(db)
 
+    regs_with_notes = set(
+        r[0] for r in db.query(AdminNote.registration_id).distinct().all()
+    )
+
     settings = db.query(EventSettings).first()
 
     return _template(request, "admin/registrations.html", {
         "registrations": registrations,
         "booth_types": booth_types,
         "insurance_docs": insurance_docs,
+        "regs_with_notes": regs_with_notes,
         "filter_status": status,
         "filter_category": category,
         "filter_booth_type": booth_type,
@@ -314,17 +329,51 @@ async def notes_page(
     request: Request,
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
+    sort: str = Query("date", alias="sort"),
+    order: str = Query("desc", alias="order"),
 ):
+    # Registrations that have at least one note
+    reg_ids_with_notes = db.query(AdminNote.registration_id).distinct().subquery()
     registrations = (
         db.query(Registration)
-        .filter(Registration.admin_notes != None, Registration.admin_notes != "")
-        .order_by(Registration.updated_at.desc())
+        .filter(Registration.registration_id.in_(reg_ids_with_notes))
         .all()
     )
+
+    # Build latest note lookup
+    latest_notes = {}
+    latest_note_dates = {}
+    for reg in registrations:
+        note = (
+            db.query(AdminNote)
+            .filter(AdminNote.registration_id == reg.registration_id)
+            .order_by(AdminNote.created_at.desc())
+            .first()
+        )
+        if note:
+            latest_notes[reg.registration_id] = note.text
+            latest_note_dates[reg.registration_id] = note.created_at
+
+    # Sort
+    reverse = order == "desc"
+    if sort == "id":
+        registrations.sort(key=lambda r: r.registration_id, reverse=reverse)
+    elif sort == "flag":
+        registrations.sort(key=lambda r: (r.concern_status == "yes", r.registration_id), reverse=reverse)
+    else:  # date (default)
+        registrations.sort(
+            key=lambda r: latest_note_dates.get(r.registration_id, datetime.min),
+            reverse=reverse,
+        )
+
     booth_types = {bt.id: bt for bt in db.query(BoothType).all()}
     return _template(request, "admin/notes.html", {
         "registrations": registrations,
+        "latest_notes": latest_notes,
+        "latest_note_dates": latest_note_dates,
         "booth_types": booth_types,
+        "current_sort": sort,
+        "current_order": order,
     }, session=session)
 
 
@@ -349,6 +398,12 @@ async def registration_detail(
     available = get_booth_availability(db, registration.booth_type_id)
     insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
     settings = db.query(EventSettings).first()
+    notes = (
+        db.query(AdminNote)
+        .filter(AdminNote.registration_id == reg_id)
+        .order_by(AdminNote.created_at.desc())
+        .all()
+    )
 
     return _template(request, "admin/registration_detail.html", {
         "registration": registration,
@@ -358,6 +413,7 @@ async def registration_detail(
         "insurance_doc": insurance_doc,
         "settings": settings,
         "now": datetime.now(timezone.utc),
+        "notes": notes,
     }, session=session)
 
 
@@ -806,10 +862,10 @@ async def update_registration(
 # --- Admin Notes ---
 
 @router.post("/registrations/{reg_id}/notes")
-async def update_notes(
+async def add_note(
     request: Request,
     reg_id: str,
-    admin_notes: str = Form(""),
+    note_text: str = Form(""),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -822,7 +878,35 @@ async def update_notes(
     if not registration:
         return RedirectResponse(url="/admin/registrations", status_code=303)
 
-    registration.admin_notes = (admin_notes.strip()[:5000]) or None
+    text = note_text.strip()[:500]
+    if text:
+        note = AdminNote(
+            registration_id=reg_id,
+            admin_email=session["email"],
+            text=text,
+        )
+        db.add(note)
+        db.commit()
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
+@router.post("/registrations/{reg_id}/flag")
+async def toggle_flag(
+    request: Request,
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    registration.concern_status = "none" if registration.concern_status == "yes" else "yes"
     db.commit()
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -903,6 +987,97 @@ async def revoke_insurance(
         doc.approved_by = None
         doc.approved_at = None
         db.commit()
+
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
+@router.post("/registrations/{reg_id}/insurance/upload")
+async def admin_insurance_upload(
+    request: Request,
+    reg_id: str,
+    file: UploadFile = File(...),
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    email = registration.email
+    uploads_dir: Path = request.app.state.uploads_dir
+
+    def _error_response(msg):
+        flash = [{"category": "error", "text": msg}]
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+    # Validate extension
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return _error_response("File type not allowed. Please upload a PDF, PNG, or JPG file.")
+
+    # Validate content type
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        return _error_response("File type not allowed. Please upload a PDF, PNG, or JPG file.")
+
+    # Read file in chunks
+    chunks = []
+    total_size = 0
+    while True:
+        chunk = await file.read(64 * 1024)
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > MAX_FILE_SIZE:
+            break
+        chunks.append(chunk)
+    contents = b"".join(chunks)
+
+    if total_size > MAX_FILE_SIZE:
+        return _error_response("File is too large. Maximum size is 10 MB.")
+
+    stored_filename = f"{uuid4().hex}{ext}"
+    file_path = uploads_dir / stored_filename
+
+    # Create or replace existing document
+    existing = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
+    old_stored_filename = None
+    if existing:
+        old_stored_filename = existing.stored_filename
+        existing.original_filename = file.filename or "unknown"
+        existing.stored_filename = stored_filename
+        existing.content_type = file.content_type
+        existing.file_size = len(contents)
+        existing.is_approved = False
+        existing.approved_by = None
+        existing.approved_at = None
+        existing.uploaded_at = datetime.now(timezone.utc)
+    else:
+        doc = InsuranceDocument(
+            email=email,
+            original_filename=file.filename or "unknown",
+            stored_filename=stored_filename,
+            content_type=file.content_type,
+            file_size=len(contents),
+        )
+        db.add(doc)
+
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    try:
+        db.commit()
+    except Exception:
+        if file_path.exists():
+            file_path.unlink()
+        raise
+
+    if old_stored_filename:
+        old_path = uploads_dir / old_stored_filename
+        if old_path.exists():
+            old_path.unlink()
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -1267,6 +1442,12 @@ async def export_csv(
     registrations = db.query(Registration).order_by(Registration.created_at.desc()).all()
     booth_types = {bt.id: bt.name for bt in db.query(BoothType).all()}
     insurance_docs = {doc.email: doc for doc in db.query(InsuranceDocument).all()}
+    all_notes = db.query(AdminNote).order_by(AdminNote.created_at.asc()).all()
+    notes_by_reg: dict[str, list[str]] = {}
+    for n in all_notes:
+        notes_by_reg.setdefault(n.registration_id, []).append(
+            f"{n.admin_email} {n.created_at.strftime('%m/%d')}: {n.text}"
+        )
 
     def _sanitize_csv(value: str) -> str:
         """Prevent CSV formula injection by prefixing dangerous characters."""
@@ -1282,7 +1463,8 @@ async def export_csv(
         "Booth Type", "Electrical Equipment", "Electrical Other",
         "Insurance", "Amount Paid", "Processing Fee", "Refund Amount",
         "Stripe Payment Intent ID", "Created At", "Approved At",
-        "Rejected At", "Cancelled At", "Withdrawn At", "Reversal Reason", "Admin Notes",
+        "Rejected At", "Cancelled At", "Withdrawn At", "Reversal Reason",
+        "Concern Status", "Admin Notes",
     ])
 
     for reg in registrations:
@@ -1317,7 +1499,8 @@ async def export_csv(
             reg.cancelled_at.strftime("%Y-%m-%d %H:%M") if reg.cancelled_at else "",
             reg.withdrawn_at.strftime("%Y-%m-%d %H:%M") if reg.withdrawn_at else "",
             _sanitize_csv(reg.reversal_reason or ""),
-            _sanitize_csv(reg.admin_notes or ""),
+            reg.concern_status or "none",
+            _sanitize_csv(" | ".join(notes_by_reg.get(reg.registration_id, []))),
         ])
 
     output.seek(0)

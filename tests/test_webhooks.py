@@ -117,7 +117,10 @@ async def test_webhook_payment_succeeded_non_approved_accepts_payment(
     db.refresh(reg)
     assert reg.status == "paid"
     assert reg.amount_paid == 15000
-    assert "Payment completed while status was 'rejected'" in (reg.admin_notes or "")
+    from app.models import AdminNote
+    note = db.query(AdminNote).filter(AdminNote.registration_id == reg.registration_id).first()
+    assert note is not None
+    assert "Payment completed while status was 'rejected'" in note.text
     mock_payment_email.assert_called_once()
     mock_alert_email.assert_called_once()
 
