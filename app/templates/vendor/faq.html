@@ -2,6 +2,10 @@
 {% block title %}Vendor FAQ{% endblock %}
 {% block content %}
 <h1>Vendor FAQ</h1>
+
+<p><strong>How it works:</strong> Register for a booth → wait for organizer approval → pay online → upload your insurance document. That's it!</p>
+<p>Need help purchasing insurance or have questions about it? {% if settings and settings.contact_email %}<a href="mailto:{{ settings.contact_email }}">Contact us</a> — we're happy to help.{% else %}Reach out to the organizers — we're happy to help.{% endif %}</p>
+
 <p>Click a topic to expand it, then click any question to see the answer.</p>
 
 <div class="faq-sections">
