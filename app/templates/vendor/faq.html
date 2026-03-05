@@ -12,17 +12,17 @@
 
     <details name="q-reg">
         <summary>How do I register as a vendor?</summary>
-        <p>Click <strong>Vendor Login</strong> on the homepage and enter your email address. You'll receive a one-time verification code — enter it to log in. Once logged in, click <strong>Register</strong> to start your application. Fill out the form with your business information, select a booth type, accept the vendor agreement, and review your submission before submitting.</p>
+        <p>Log in with your email, click <strong>Register</strong>, fill out the form, and submit. You'll receive a one-time verification code to log in — no password needed.</p>
     </details>
 
     <details name="q-reg">
         <summary>Can I edit my registration after submitting?</summary>
-        <p>No. Once submitted, your registration cannot be edited. If you need to make changes, contact the organizers with your registration ID.</p>
+        <p>No. If you need to make changes, contact the organizers with your registration ID.</p>
     </details>
 
     <details name="q-reg">
         <summary>How do I register multiple booths?</summary>
-        <p>Each booth requires a separate registration. After submitting your first registration, you can start a new one from the <a href="/vendor/dashboard">vendor dashboard</a>. Each registration is reviewed independently by the organizers.</p>
+        <p>Each booth requires a separate registration. After submitting one, start a new one from your <a href="/vendor/dashboard">dashboard</a>.</p>
     </details>
 </details>
 </article>
@@ -33,24 +33,25 @@
 
     <details name="q-approval">
         <summary>What happens after I submit my registration?</summary>
-        <p>Your registration is placed in <strong>Pending Review</strong> status. The event organizers will review your application and either approve or decline it. You'll receive an email notification when a decision is made. You can check your status anytime on your <a href="/vendor/dashboard">vendor dashboard</a>.</p>
+        <p>Your registration goes to <strong>Pending Review</strong>. The organizers will review it and you'll be notified by email when a decision is made. You can check your status anytime on your <a href="/vendor/dashboard">dashboard</a>.</p>
+        <p><small>Not seeing the email? Check your spam folder. You can always log in to check your status directly.</small></p>
     </details>
 
     <details name="q-approval">
         <summary>How do I pay after being approved?</summary>
-        <p>Once approved, visit your registration detail page from the <a href="/vendor/dashboard">vendor dashboard</a>. You'll see a payment section with the amount due and a secure card payment form. Payment is processed through Stripe — your card information never touches our server.</p>
+        <p>Visit your registration from the <a href="/vendor/dashboard">dashboard</a>. You'll see a payment form with the amount due. Payment is processed securely through Stripe — your card information never touches our server.</p>
     </details>
 
     <details name="q-approval">
-        <summary>How urgently should I pay after being approved?</summary>
-        <p>You should pay as soon as possible. Your booth slot is reserved when you're approved, but the organizers may revoke your approval if payment is not received in a reasonable time frame. Your registration is only fully confirmed once payment is complete.</p>
+        <summary>How urgently should I pay?</summary>
+        <p>Pay as soon as possible. The organizers may revoke your approval if payment is delayed.</p>
     </details>
 
     {% if settings and settings.refund_policy %}
     <details name="q-approval">
         <summary>What is the refund policy?</summary>
         <p>{{ settings.refund_policy | sanitize_html }}</p>
-        <p>Refunds can only be issued by the event organizers after a paid registration is cancelled. If you haven't paid yet, you can <a href="/vendor/faq#withdrawal">withdraw your registration</a> instead.</p>
+        <p>Refunds can only be issued by the organizers after a paid registration is cancelled.</p>
     </details>
     {% endif %}
 </details>
@@ -62,12 +63,12 @@
 
     <details name="q-insurance">
         <summary>Do I need insurance to participate?</summary>
-        <p>Yes. All vendors are required to provide proof of liability insurance. You can upload your insurance certificate through the <a href="/vendor/insurance">insurance page</a> on your vendor dashboard.</p>
+        <p>Yes. All vendors must provide proof of liability insurance. Upload your certificate through the <a href="/vendor/insurance">insurance page</a> on your dashboard.</p>
     </details>
 
     <details name="q-insurance">
         <summary>When should I upload my insurance document?</summary>
-        <p>Upload your insurance document as soon as possible, ideally when you submit your registration or shortly after. The organizers review insurance separately from your registration.</p>
+        <p>As soon as possible, ideally when you submit your registration or shortly after.</p>
     </details>
 
     {% if settings and settings.insurance_instructions %}
@@ -81,7 +82,7 @@
 
 <article>
 <details name="section">
-    <summary><strong>Understanding Your Status</strong> — What each status means</summary>
+    <summary><strong>Status & Withdrawal</strong> — What each status means and how to withdraw</summary>
 
     <details name="q-status">
         <summary>What do the different statuses mean?</summary>
@@ -90,63 +91,28 @@
                 <tr><th>Status</th><th>What It Means</th><th>What To Do</th></tr>
             </thead>
             <tbody>
-                <tr><td><strong>Pending Review</strong></td><td>Your registration has been submitted and is waiting for organizer review.</td><td>No action needed. You'll be notified by email when a decision is made.</td></tr>
-                <tr><td><strong>Approved</strong></td><td>Your registration has been approved. A booth slot is reserved for you.</td><td>Complete payment as soon as possible to confirm your spot.</td></tr>
-                <tr><td><strong>Paid</strong></td><td>Payment is complete. Your booth is confirmed.</td><td>No further action needed. Make sure your insurance document is uploaded.</td></tr>
-                <tr><td><strong>Declined</strong></td><td>The organizers were unable to approve your registration.</td><td>Check the reason provided. Contact the organizers if you have questions.</td></tr>
-                <tr><td><strong>Cancelled</strong></td><td>Your paid registration has been cancelled by the organizers.</td><td>Check your email for refund details.</td></tr>
-                <tr><td><strong>Withdrawn</strong></td><td>You voluntarily withdrew your registration.</td><td>This is permanent. Submit a new registration if you change your mind.</td></tr>
+                <tr><td><strong>Pending Review</strong></td><td>Submitted, waiting for organizer review.</td><td>No action needed.</td></tr>
+                <tr><td><strong>Approved</strong></td><td>Approved — a booth slot is reserved for you.</td><td>Pay as soon as possible.</td></tr>
+                <tr><td><strong>Paid</strong></td><td>Payment complete. Your booth is confirmed.</td><td>Make sure your insurance is uploaded.</td></tr>
+                <tr><td><strong>Declined</strong></td><td>The organizers were unable to approve your registration.</td><td>Check the reason provided.</td></tr>
+                <tr><td><strong>Cancelled</strong></td><td>Your paid registration was cancelled.</td><td>Check your email for refund details.</td></tr>
+                <tr><td><strong>Withdrawn</strong></td><td>You voluntarily withdrew.</td><td>Submit a new registration if you change your mind.</td></tr>
             </tbody>
         </table>
     </details>
-</details>
-</article>
 
-<article>
-<details name="section">
-    <summary><strong>Withdrawal</strong> — How to withdraw your registration</summary>
-
-    <details name="q-withdraw">
+    <details name="q-status">
         <summary>How do I withdraw my registration?</summary>
-        <p>Open your registration from the <a href="/vendor/dashboard">vendor dashboard</a> and scroll down to the <strong>Withdraw Registration</strong> section. Click the button, optionally provide a reason, and confirm. You'll receive an email confirmation.</p>
-    </details>
-
-    <details name="q-withdraw">
-        <summary>When can I withdraw?</summary>
-        <p>You can withdraw while your registration is in <strong>Pending Review</strong> or <strong>Approved</strong> status. Once you've paid, only the event organizers can cancel your registration.</p>
-    </details>
-
-    <details name="q-withdraw">
-        <summary>Can I undo a withdrawal?</summary>
-        <p><strong>No.</strong> Withdrawal is permanent and cannot be undone. If you change your mind, you'll need to submit a new registration (if registration is still open).</p>
-    </details>
-
-    <details name="q-withdraw">
-        <summary>What happens to my booth slot if I withdraw after being approved?</summary>
-        <p>Your reserved booth slot is freed immediately and becomes available for other vendors.</p>
-    </details>
-</details>
-</article>
-
-<article>
-<details name="section">
-    <summary><strong>Contact & Support</strong> — How to reach the organizers</summary>
-
-    <details name="q-contact">
-        <summary>How do I contact the event organizers?</summary>
-        {% if settings and settings.contact_email %}
-        <p>Email us at <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>. Include your registration ID if you have one — it helps us locate your application quickly.</p>
-        {% else %}
-        <p>Contact information will be provided by the event organizers.</p>
-        {% endif %}
-    </details>
-
-    <details name="q-contact">
-        <summary>I didn't receive an email notification. What should I do?</summary>
-        <p>Check your spam or junk folder first. Email notifications are sent automatically but may be delayed or filtered. You can always check your current status by logging in to your <a href="/vendor/dashboard">vendor dashboard</a>.</p>
+        <p>Open your registration from the <a href="/vendor/dashboard">dashboard</a>, scroll to <strong>Withdraw Registration</strong>, and confirm. You can withdraw while in <strong>Pending Review</strong> or <strong>Approved</strong> status. Once you've paid, only the organizers can cancel.</p>
+        <p><strong>Withdrawal is permanent.</strong> If you change your mind, you'll need to submit a new registration.</p>
     </details>
 </details>
 </article>
 
 </div>
+
+{% if settings and settings.contact_email %}
+<hr>
+<p>Questions? Email us at <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>. Include your registration ID if you have one.</p>
+{% endif %}
 {% endblock %}
