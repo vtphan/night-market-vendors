@@ -38,11 +38,6 @@
     </div>
     {% endfor %}
 </article>
-{% elif registrations | length > 0 and insurance_doc and insurance_doc.is_approved %}
-<article style="padding: 0.75rem 1rem; margin-bottom: 1rem;">
-    <span class="status-badge paid">Approved</span> Insurance document on file.
-    <a href="/vendor/insurance">View</a>
-</article>
 {% endif %}
 
 {% if registrations %}
@@ -76,6 +71,46 @@
 {% if registration_open %}
 <p><a href="/vendor/register?new=1" role="button" class="outline">Register for Another Booth</a></p>
 {% endif %}
+
+{% set has_active = registrations | selectattr('registration.status', 'in', ['pending', 'approved', 'paid']) | list | length > 0 %}
+{% if has_active %}
+<h3>Insurance Document</h3>
+{% if insurance_doc %}
+<article style="padding: 0.75rem 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            {% if insurance_doc.is_approved %}
+            <span class="status-badge paid">Approved</span>
+            {% else %}
+            <span class="status-badge pending">Pending Review</span>
+            {% endif %}
+            <strong>{{ insurance_doc.original_filename }}</strong>
+            <br><small style="color: var(--pico-muted-color);">
+                Uploaded {{ insurance_doc.uploaded_at.strftime('%b %d, %Y') }}
+                {% if insurance_doc.is_approved and insurance_doc.approved_at %}
+                · Approved {{ insurance_doc.approved_at.strftime('%b %d, %Y') }}
+                {% endif %}
+            </small>
+        </div>
+        <a href="/vendor/insurance" role="button" class="outline" style="white-space: nowrap; padding: 0.25rem 0.75rem; font-size: 0.85em;">
+            {% if insurance_doc.is_approved %}View{% else %}Manage{% endif %}
+        </a>
+    </div>
+</article>
+{% else %}
+<article style="padding: 0.75rem 1rem; border-left: 4px solid #b45309;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <span class="status-badge pending">Missing</span>
+            <strong>No insurance document uploaded</strong>
+            <br><small style="color: var(--pico-muted-color);">A certificate of liability insurance is required for all vendors.</small>
+        </div>
+        <a href="/vendor/insurance" role="button" class="outline" style="white-space: nowrap; padding: 0.25rem 0.75rem; font-size: 0.85em;">Upload</a>
+    </div>
+</article>
+{% endif %}
+{% endif %}
+
 {% else %}
 <p>You don't have any registrations yet.</p>
 {% if registration_open %}

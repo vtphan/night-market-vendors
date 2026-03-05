@@ -315,4 +315,4 @@ async def test_vendor_dashboard_shows_upload_required(db):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/vendor/dashboard", cookies=vendor_cookie())
         assert response.status_code == 200
-        assert "Insurance document required" in response.text
+        assert "No insurance document uploaded" in response.text
