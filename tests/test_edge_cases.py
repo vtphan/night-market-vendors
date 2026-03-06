@@ -533,6 +533,8 @@ async def test_story48_session_expiry_preserves_draft(client, db):
         "business_name": "Draft Survivor",
         "category": "food",
         "description": "Persisted draft",
+        "address": "123 Main St",
+        "city_state_zip": "Memphis, TN 38134",
         "booth_type_id": str(booths[0].id),
         "agreement_accepted": "yes",
     }, cookies=vcook)
@@ -808,7 +810,8 @@ async def test_story54_email_failure_doesnt_block(client, db, caplog):
     resp = await client.post("/vendor/register/step1", data={
         "csrf_token": csrf, "contact_name": "Test Vendor", "email": email,
         "phone": "555-0054", "business_name": "Story54 Biz", "category": "food",
-        "description": "Testing email resilience", "booth_type_id": str(booths[0].id),
+        "description": "Testing email resilience", "address": "123 Main St",
+        "city_state_zip": "Memphis, TN 38134", "booth_type_id": str(booths[0].id),
         "agreement_accepted": "yes",
     }, cookies=vcook)
     assert resp.status_code == 303

@@ -34,6 +34,9 @@
             <tr><th>Business Name</th><td>{{ draft.get('business_name', '') }}</td></tr>
             <tr><th>Category</th><td>{{ CATEGORIES.get(draft.get('category', ''), draft.get('category', '')) }}</td></tr>
             <tr><th>Description</th><td>{{ draft.get('description', '') }}</td></tr>
+            {% if draft.get('address') %}
+            <tr><th>Address</th><td>{{ draft.get('address', '') }}, {{ draft.get('city_state_zip', '') }}</td></tr>
+            {% endif %}
             <tr>
                 <th>Electrical Equipment</th>
                 <td>{{ equip_display_draft(draft) }}</td>

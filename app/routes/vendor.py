@@ -152,6 +152,8 @@ async def register_step1(
     category: str = Form(...),
     description: str = Form(...),
     booth_type_id: int | None = Form(None),
+    address: str = Form(""),
+    city_state_zip: str = Form(""),
     electrical_equipment: list[str] = Form([]),
     electrical_other: str = Form(""),
     agreement_accepted: str = Form(""),
@@ -196,6 +198,17 @@ async def register_step1(
     if len(electrical_other) > MAX_LENGTHS["electrical_other"]:
         errors.append(f"Electrical other must be {MAX_LENGTHS['electrical_other']} characters or less.")
 
+    # Address required for food/beverage (food permit)
+    if category in ("food", "beverage"):
+        if not address.strip():
+            errors.append("Street address is required for food/beverage vendors (needed for food permit).")
+        elif len(address) > 300:
+            errors.append("Street address must be 300 characters or less.")
+        if not city_state_zip.strip():
+            errors.append("City, State, ZIP is required for food/beverage vendors (needed for food permit).")
+        elif len(city_state_zip) > 200:
+            errors.append("City, State, ZIP must be 200 characters or less.")
+
     # Validate booth type
     booth_type = None
     if booth_type_id is None:
@@ -218,6 +231,8 @@ async def register_step1(
             "business_name": business_name,
             "category": category,
             "description": description,
+            "address": address,
+            "city_state_zip": city_state_zip,
             "electrical_equipment": electrical_equipment,
             "electrical_other": electrical_other,
             "booth_type_id": booth_type_id,
@@ -242,6 +257,8 @@ async def register_step1(
         "business_name": business_name.strip(),
         "category": category,
         "description": description.strip(),
+        "address": address.strip(),
+        "city_state_zip": city_state_zip.strip(),
         "electrical_equipment": ",".join(electrical_equipment) if electrical_equipment else "",
         "electrical_other": electrical_other.strip(),
         "booth_type_id": booth_type.id,
@@ -310,6 +327,8 @@ async def register_submit(
         "phone": draft["phone"],
         "category": draft["category"],
         "description": draft["description"],
+        "address": draft.get("address") or None,
+        "city_state_zip": draft.get("city_state_zip") or None,
         "electrical_equipment": draft.get("electrical_equipment") or None,
         "electrical_other": draft.get("electrical_other") or None,
         "booth_type_id": draft["booth_type_id"],

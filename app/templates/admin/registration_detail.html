@@ -37,6 +37,9 @@
             <tr><th>Phone</th><td>{{ registration.phone }}</td></tr>
             <tr><th>Category</th><td>{{ CATEGORIES.get(registration.category, registration.category) }}</td></tr>
             <tr><th>Description</th><td>{{ registration.description }}</td></tr>
+            {% if registration.address %}
+            <tr><th>Address</th><td>{{ registration.address }}, {{ registration.city_state_zip or '' }}</td></tr>
+            {% endif %}
             <tr>
                 <th>Electrical Equipment</th>
                 <td>{{ equip_display(registration) }}</td>
@@ -115,11 +118,11 @@
     </article>
 </div>
 
-<!-- Insurance Document -->
+<!-- Insurance and Permit -->
 <article>
     <header>
         <div style="display: flex; align-items: center; justify-content: space-between;">
-            <strong>Insurance Document</strong>
+            <strong>Insurance and Permit</strong>
             {% if insurance_doc %}
             <span class="status-badge {{ 'paid' if insurance_doc.is_approved else 'pending' }}" style="font-size: 1rem;">
                 {{ 'Approved' if insurance_doc.is_approved else 'Under Review' }}
@@ -130,29 +133,12 @@
         </div>
     </header>
     {% if insurance_doc %}
-    <div class="action-bar">
-        <a href="/admin/insurance/{{ insurance_doc.stored_filename }}" role="button" class="outline btn-inline">
-            View: {{ insurance_doc.original_filename }}
+    <p>
+        <a href="/admin/insurance/{{ insurance_doc.stored_filename }}">
+            Insurance: {{ insurance_doc.original_filename }}
         </a>
-        <small style="color: var(--pico-muted-color);">{{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB</small>
-        {% if insurance_doc.is_approved %}
-        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/revoke"
-              style="margin: 0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="outline btn-inline">
-                Revoke Approval
-            </button>
-        </form>
-        {% else %}
-        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/approve"
-              style="margin: 0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="btn-inline btn-blue">
-                Approve Document
-            </button>
-        </form>
-        {% endif %}
-    </div>
+        <small style="color: var(--pico-muted-color);">({{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB)</small>
+    </p>
     {% else %}
     <p class="helper-text">
         No insurance document uploaded by this vendor.
@@ -165,18 +151,51 @@
         {% endif %}
     </p>
     {% endif %}
+    {% endif %}
+
+    {% if registration.category in ('food', 'beverage') and food_permit_available %}
+    <p>
+        <a href="/admin/registrations/{{ registration.registration_id }}/food-permit">
+            Food Permit: food_permit_{{ registration.registration_id }}.pdf
+        </a>
+    </p>
+    {% endif %}
 
     <div class="action-bar">
-        <button type="button" class="btn-inline btn-blue"
-                data-open-dialog="insurance-reminder-dialog">
-            Send Insurance Reminder
-        </button>
-        <button type="button" class="outline btn-inline"
-                data-open-dialog="admin-insurance-upload-dialog">
-            Upload on Behalf of Vendor
-        </button>
+        {% if insurance_doc %}
+            {% if insurance_doc.is_approved %}
+            <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/revoke"
+                  style="margin: 0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="outline btn-inline">Revoke Approval</button>
+            </form>
+            {% else %}
+            <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/approve"
+                  style="margin: 0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn-inline btn-blue">Approve Document</button>
+            </form>
+            {% endif %}
+        {% else %}
+            <button type="button" class="btn-inline btn-blue"
+                    data-open-dialog="insurance-reminder-dialog">
+                Send Insurance Reminder
+            </button>
+            <button type="button" class="outline btn-inline"
+                    data-open-dialog="admin-insurance-upload-dialog">
+                Upload Insurance Document
+            </button>
+        {% endif %}
+        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/food-permit/generate" style="margin: 0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="outline btn-inline"
+                    {% if registration.category not in ('food', 'beverage') %}disabled{% endif %}>
+                {{ 'Regenerate Food Permit' if food_permit_available else 'Generate Food Permit' }}
+            </button>
+        </form>
     </div>
 
+    {% if not insurance_doc %}
     <dialog id="admin-insurance-upload-dialog">
         <article class="dialog-sm">
             <header><strong>Upload Insurance Document</strong></header>
@@ -205,6 +224,7 @@
         </article>
     </dialog>
     {% endif %}
+
 </article>
 
 <!-- Registration Status -->

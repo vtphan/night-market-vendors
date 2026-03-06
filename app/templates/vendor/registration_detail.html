@@ -73,6 +73,10 @@
             <dd>{{ registration.email }}</dd>
             <dt>Phone</dt>
             <dd>{{ registration.phone }}</dd>
+            {% if registration.address %}
+            <dt>Address</dt>
+            <dd>{{ registration.address }}, {{ registration.city_state_zip or '' }}</dd>
+            {% endif %}
         </dl>
     </article>
 </div>

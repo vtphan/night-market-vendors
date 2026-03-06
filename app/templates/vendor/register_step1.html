@@ -27,6 +27,16 @@
         <input type="tel" id="phone" name="phone" required
                value="{{ draft.get('phone', '') }}" placeholder="(555) 123-4567">
 
+        <div id="address-fields" style="{% if draft.get('category') not in ('food', 'beverage') %}display:none{% endif %}">
+            <label for="address">Street Address <small>(required for food permit)</small></label>
+            <input type="text" id="address" name="address"
+                   value="{{ draft.get('address', '') }}" placeholder="1234 Main St">
+
+            <label for="city_state_zip">City, State, ZIP <small>(required for food permit)</small></label>
+            <input type="text" id="city_state_zip" name="city_state_zip"
+                   value="{{ draft.get('city_state_zip', '') }}" placeholder="Memphis, TN 38134">
+        </div>
+
         <h3>Business Information</h3>
 
         <label for="business_name">Business Name</label>
@@ -113,5 +123,22 @@
         {% endif %}
     </form>
 </article>
+
+<script>
+(function() {
+    var cat = document.getElementById('category');
+    var addrDiv = document.getElementById('address-fields');
+    var addrInput = document.getElementById('address');
+    var cszInput = document.getElementById('city_state_zip');
+    function toggle() {
+        var need = (cat.value === 'food' || cat.value === 'beverage');
+        addrDiv.style.display = need ? '' : 'none';
+        addrInput.required = need;
+        cszInput.required = need;
+    }
+    cat.addEventListener('change', toggle);
+    toggle();
+})();
+</script>
 
 {% endblock %}

@@ -274,6 +274,8 @@ def create_registration(db: Session, data: dict) -> Registration:
             phone=data["phone"],
             category=data["category"],
             description=data["description"],
+            address=data.get("address"),
+            city_state_zip=data.get("city_state_zip"),
             electrical_equipment=data.get("electrical_equipment"),
             electrical_other=data.get("electrical_other"),
             booth_type_id=data["booth_type_id"],

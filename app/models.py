@@ -42,6 +42,8 @@ class Registration(Base):
     cancelled_at = Column(DateTime, nullable=True)
     withdrawn_at = Column(DateTime, nullable=True)
     reversal_reason = Column(String, nullable=True)
+    address = Column(String, nullable=True)
+    city_state_zip = Column(String, nullable=True)
     agreement_accepted_at = Column(DateTime, nullable=False)
     agreement_ip_address = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())

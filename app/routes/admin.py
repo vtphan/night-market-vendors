@@ -34,6 +34,7 @@ from app.services.email import (
     send_insurance_reminder_email,
 )
 from app.services.payment import create_refund
+from app.services.food_permit import generate_food_permit, FOOD_CATEGORIES
 from app.config import APP_URL, ADMIN_EMAILS
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,9 @@ def _inventory_context(db):
 
 def _detail_context(db, registration):
     """Build full context for registration_detail.html re-renders."""
+    from app.services.food_permit import PERMITS_DIR
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
+    permit_path = PERMITS_DIR / f"{registration.registration_id}.pdf"
     return {
         "registration": registration,
         "booth_type": booth_type,
@@ -148,6 +151,7 @@ def _detail_context(db, registration):
         "insurance_doc": db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first(),
         "settings": db.query(EventSettings).first(),
         "now": datetime.now(timezone.utc),
+        "food_permit_available": permit_path.exists(),
     }
 
 
@@ -405,6 +409,9 @@ async def registration_detail(
         .all()
     )
 
+    from app.services.food_permit import PERMITS_DIR
+    permit_path = PERMITS_DIR / f"{reg_id}.pdf"
+
     return _template(request, "admin/registration_detail.html", {
         "registration": registration,
         "booth_type": booth_type,
@@ -414,6 +421,7 @@ async def registration_detail(
         "settings": settings,
         "now": datetime.now(timezone.utc),
         "notes": notes,
+        "food_permit_available": permit_path.exists(),
     }, session=session)
 
 
@@ -939,6 +947,67 @@ async def admin_insurance_file(
         media_type=doc.content_type,
         filename=doc.original_filename,
     )
+
+
+# --- Food permit download ---
+
+@router.get("/registrations/{reg_id}/food-permit")
+async def download_food_permit(
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    from app.services.food_permit import PERMITS_DIR
+    registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    permit_path = PERMITS_DIR / f"{reg_id}.pdf"
+    if not permit_path.exists():
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+    return FileResponse(
+        path=str(permit_path),
+        media_type="application/pdf",
+        filename=f"food_permit_{reg_id}.pdf",
+    )
+
+
+@router.post("/registrations/{reg_id}/food-permit/generate")
+async def generate_food_permit_route(
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
+    if not registration or registration.category not in FOOD_CATEGORIES:
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+    settings = db.query(EventSettings).first()
+    event_location = "Agricenter Outdoor, 7777 Walnut Grove Rd, Memphis, TN"
+    event_dates = ""
+    if settings:
+        start = settings.event_start_date.strftime("%b %d")
+        end = settings.event_end_date.strftime("%b %d, %Y")
+        event_dates = f"{start}-{end}"
+
+    generate_food_permit(
+        registration_id=reg_id,
+        category=registration.category,
+        business_name=registration.business_name,
+        contact_name=registration.contact_name,
+        address=registration.address,
+        city_state_zip=registration.city_state_zip,
+        phone=registration.phone,
+        email=registration.email,
+        description=registration.description,
+        event_name=settings.event_name if settings else "Asian Night Market",
+        event_location=event_location,
+        event_dates=event_dates,
+    )
+
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
 
 @router.post("/registrations/{reg_id}/insurance/approve")

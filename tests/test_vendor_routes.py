@@ -47,6 +47,8 @@ def _step1_form_data(csrf, booth_type_id, **overrides):
         "business_name": "Test Biz",
         "category": "food",
         "description": "Authentic Thai cuisine",
+        "address": "123 Main St",
+        "city_state_zip": "Memphis, TN 38134",
         "booth_type_id": str(booth_type_id),
         "agreement_accepted": "yes",
     }
