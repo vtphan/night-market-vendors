@@ -702,6 +702,28 @@ async def vendor_dashboard(
                 "overdue": overdue,
             })
 
+    # Insurance alerts for vendors with active registrations
+    has_active = any(item["registration"].status in ("pending", "approved", "paid") for item in reg_data)
+    if has_active:
+        if not insurance_doc:
+            needs_attention.append({
+                "type": "insurance",
+                "message": "Liability insurance document not yet uploaded",
+                "link": "/vendor/insurance",
+                "link_text": "Upload",
+                "deadline_date": None,
+                "overdue": False,
+            })
+        elif not insurance_doc.is_approved:
+            needs_attention.append({
+                "type": "insurance_pending",
+                "message": "Insurance document uploaded — pending admin review",
+                "link": "/vendor/insurance",
+                "link_text": "View",
+                "deadline_date": None,
+                "overdue": False,
+            })
+
     return _template(request, "vendor/dashboard.html", {
         "registrations": reg_data,
         "registration_open": registration_open,

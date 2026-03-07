@@ -20,7 +20,7 @@
 | 8 | W4 | ~~No downloadable receipt/invoice in app~~ | High | Medium | **Addressed** |
 | 9 | W4 | Processing fee may surprise vendors at payment time | Medium | Low | Non-technical |
 | 10 | W5 | Cancelled registrations don't notify waitlisted vendors | Low | Low | Non-technical |
-| 11 | W6 | No deadline or enforcement mechanism for insurance | High | High | Non-technical policy |
+| 11 | W6 | No deadline or enforcement mechanism for insurance | High | High | **Partly addressed** |
 | 12 | W6 | No "reject insurance with reason" flow | Medium | Medium | Non-technical |
 | 13 | W8 | Price changes don't notify approved-but-unpaid vendors | Low | Low | Non-technical |
 | 14 | W9 | Email deliverability issues may lock out vendors | Medium | High | Mixed |
@@ -128,17 +128,15 @@
 
 ### W6. Vendor Insurance Upload
 
-#### Issue 11: No deadline or enforcement mechanism for insurance
+#### Issue 11: No deadline or enforcement mechanism for insurance — PARTLY ADDRESSED
 
 - **What:** Insurance is required but there's no deadline and no consequence in the system for not uploading it. A vendor can be "Paid" with no insurance document.
-- **Likelihood:** High — vendors procrastinate. Insurance is often one of the last things vendors arrange.
-- **Severity:** High — if vendors show up to the event without insurance, the organizer faces liability risk. The system doesn't block event participation based on insurance status.
-- **Recommendation:** Non-technical primarily. Organizers should:
+- **Partial fix:** The vendor dashboard now shows insurance status in the "Needs Attention" banner — "Missing" with an Upload link if no document is uploaded, or "Pending Review" if uploaded but not yet approved. This provides a persistent visual nudge every time the vendor visits their dashboard.
+- **Remaining (non-technical):** Organizers should still:
   1. Set a firm insurance deadline (communicated in approval and payment confirmation emails).
   2. Use the dashboard insurance stats to chase non-compliant vendors regularly.
   3. Use the "Send Insurance Reminder" button (W14) for individual follow-up.
-  4. Consider adding a warning banner on the vendor dashboard for missing insurance (lightweight technical fix).
-  5. Enforcement should remain manual — organizer decides policy (e.g., deny entry on event day without valid insurance).
+  4. Enforcement remains manual — organizer decides policy (e.g., deny entry on event day without valid insurance).
 
 #### Issue 12: No "reject insurance with reason" flow
 
