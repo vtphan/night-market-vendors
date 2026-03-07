@@ -15,10 +15,10 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Stre
 from sqlalchemy import func as sa_func, extract
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_event_settings, invalidate_event_settings_cache
 from app.csrf import generate_csrf_token, require_csrf
 from app.session import require_admin
-from app.models import Registration, BoothType, EventSettings, InsuranceDocument, AdminNote
+from app.models import Registration, BoothType, InsuranceDocument, AdminNote
 from app.services.registration import (
     transition_status,
     approve_with_inventory_check,
@@ -37,12 +37,9 @@ from app.services.email import (
 from app.services.payment import create_refund
 from app.services.food_permit import generate_food_permit, FOOD_CATEGORIES, PERMITS_DIR
 from app.config import APP_URL, ADMIN_EMAILS
+from app.upload_constants import ALLOWED_EXTENSIONS, ALLOWED_CONTENT_TYPES, MAX_FILE_SIZE
 
 logger = logging.getLogger(__name__)
-
-ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
-ALLOWED_CONTENT_TYPES = {"application/pdf", "image/png", "image/jpeg"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -149,7 +146,7 @@ def _detail_context(db, registration):
         "booth_availability": get_booth_availability(db, registration.booth_type_id),
         "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
         "insurance_doc": db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first(),
-        "settings": db.query(EventSettings).first(),
+        "settings": get_event_settings(db),
         "now": datetime.now(timezone.utc),
         "food_permit_available": permit_path.exists(),
     }
@@ -181,7 +178,7 @@ async def admin_dashboard(
     pending_count = status_counts.get("pending", 0)
 
     # Unpaid registrations + urgency counts
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     unpaid_registrations = get_unpaid_registrations(db, settings) if settings else []
     unpaid_count = len(unpaid_registrations)
     urgency_counts = {"normal": 0, "reminder_1": 0, "reminder_2": 0, "overdue": 0}
@@ -335,8 +332,12 @@ async def registration_list(
 
     booth_types = {bt.id: bt for bt in db.query(BoothType).all()}
 
-    # Build insurance doc lookup by email
-    insurance_docs = {doc.email: doc for doc in db.query(InsuranceDocument).all()}
+    # Build insurance doc lookup by email (scoped to displayed registrations)
+    relevant_emails = {r.email for r in registrations}
+    insurance_docs = {
+        doc.email: doc
+        for doc in db.query(InsuranceDocument).filter(InsuranceDocument.email.in_(relevant_emails)).all()
+    } if relevant_emails else {}
 
     # Build permit status lookup (only for food/bev registrations)
     permit_status = {}
@@ -351,7 +352,7 @@ async def registration_list(
         r[0] for r in db.query(AdminNote.registration_id).distinct().all()
     )
 
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
 
     return _template(request, "admin/registrations.html", {
         "registrations": registrations,
@@ -392,19 +393,23 @@ async def notes_page(
         .all()
     )
 
-    # Build latest note lookup
-    latest_notes = {}
-    latest_note_dates = {}
-    for reg in registrations:
-        note = (
-            db.query(AdminNote)
-            .filter(AdminNote.registration_id == reg.registration_id)
-            .order_by(AdminNote.created_at.desc())
-            .first()
+    # Build latest note lookup in a single query
+    latest_subq = (
+        db.query(
+            AdminNote.registration_id,
+            sa_func.max(AdminNote.created_at).label("max_date"),
         )
-        if note:
-            latest_notes[reg.registration_id] = note.text
-            latest_note_dates[reg.registration_id] = note.created_at
+        .group_by(AdminNote.registration_id)
+        .subquery()
+    )
+    latest_note_rows = (
+        db.query(AdminNote)
+        .join(latest_subq, (AdminNote.registration_id == latest_subq.c.registration_id)
+              & (AdminNote.created_at == latest_subq.c.max_date))
+        .all()
+    )
+    latest_notes = {n.registration_id: n.text for n in latest_note_rows}
+    latest_note_dates = {n.registration_id: n.created_at for n in latest_note_rows}
 
     # Sort
     reverse = order == "desc"
@@ -449,7 +454,7 @@ async def registration_detail(
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
     available = get_booth_availability(db, registration.booth_type_id)
     insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     notes = (
         db.query(AdminNote)
         .filter(AdminNote.registration_id == reg_id)
@@ -504,7 +509,7 @@ async def approve_registration(
     # Extract just the domain so the email tells vendors where to log in
     # without embedding a direct link (reduces spam-filter risk).
     portal_domain = urlparse(APP_URL).hostname or APP_URL
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     deadline_date = (
         registration.payment_deadline.strftime("%b %d, %Y")
         if registration.payment_deadline else None
@@ -550,7 +555,7 @@ def _reminder_template_vars(registration, db):
     """Build the subject, body, and format variables for a payment reminder."""
     from app.services.email import _get_email_globals
 
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     if (registration.reminder_count or 0) == 0 and settings:
         subject_tpl = settings.reminder_1_subject or "Payment Reminder — {event_name}"
         body_tpl = settings.reminder_1_body or ""
@@ -1055,7 +1060,7 @@ async def generate_food_permit_route(
     if not registration or registration.category not in FOOD_CATEGORIES:
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     event_location = "Agricenter Outdoor, 7777 Walnut Grove Rd, Memphis, TN"
     event_dates = ""
     if settings:
@@ -1498,7 +1503,7 @@ async def settings_page(
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     return _template(request, "admin/settings.html", {
         "settings": settings,
         "admin_emails": ADMIN_EMAILS,
@@ -1538,7 +1543,7 @@ async def update_settings(
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
 ):
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     if settings:
         try:
             settings.event_name = event_name.strip()
@@ -1609,6 +1614,7 @@ async def update_settings(
             settings.reminder_2_body = reminder_2_body
 
             db.commit()
+            invalidate_event_settings_cache(db)
             request.app.state.event_name = settings.event_name
         except ValueError:
             flash = [{"category": "error", "text": "Invalid date format. Please use YYYY-MM-DD."}]
@@ -1628,7 +1634,7 @@ async def faq_page(
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     return _template(request, "admin/faq.html", {
         "developer_contact": settings.developer_contact if settings else "",
     }, session=session)

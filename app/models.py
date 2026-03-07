@@ -19,6 +19,7 @@ class Registration(Base):
         CheckConstraint("processing_fee IS NULL OR processing_fee >= 0", name="ck_processing_fee_non_negative"),
         CheckConstraint("refund_amount >= 0", name="ck_refund_amount_non_negative"),
         Index("ix_registrations_status_category", "status", "category"),
+        Index("ix_registrations_ip_created", "agreement_ip_address", "created_at"),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -31,9 +32,9 @@ class Registration(Base):
     description = Column(Text, nullable=False)
     electrical_equipment = Column(String, nullable=True)
     electrical_other = Column(Text, nullable=True)
-    booth_type_id = Column(Integer, ForeignKey("booth_types.id"), nullable=False)
+    booth_type_id = Column(Integer, ForeignKey("booth_types.id"), nullable=False, index=True)
     status = Column(String(50), nullable=False, default="pending", index=True)
-    stripe_payment_intent_id = Column(String, nullable=True)
+    stripe_payment_intent_id = Column(String, nullable=True, index=True)
     approved_price = Column(Integer, nullable=True)
     amount_paid = Column(Integer, nullable=True)
     processing_fee = Column(Integer, nullable=True)
@@ -48,7 +49,6 @@ class Registration(Base):
     agreement_accepted_at = Column(DateTime, nullable=False)
     agreement_ip_address = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
-    admin_notes = Column(Text, nullable=True)  # legacy — migrated to admin_notes table
     concern_status = Column(String(10), nullable=False, default="none", server_default="none")
     payment_deadline = Column(DateTime, nullable=True)
     last_reminder_sent_at = Column(DateTime, nullable=True)

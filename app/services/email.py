@@ -18,12 +18,11 @@ _env = Environment(loader=FileSystemLoader(str(_template_dir)), autoescape=True)
 
 def _get_email_globals() -> dict:
     """Load event_name and contact_email from EventSettings for email templates."""
-    from app.database import SessionLocal
-    from app.models import EventSettings
+    from app.database import SessionLocal, get_event_settings
 
     db = SessionLocal()
     try:
-        settings = db.query(EventSettings).first()
+        settings = get_event_settings(db)
         if settings:
             return {
                 "event_name": settings.event_name,

@@ -8,10 +8,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request, Form, UploadFi
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_event_settings
 from app.csrf import generate_csrf_token, require_csrf
 from app.session import read_session, require_vendor, get_client_ip
-from app.models import Registration, BoothType, EventSettings, InsuranceDocument, RegistrationDraft
+from app.models import Registration, BoothType, InsuranceDocument, RegistrationDraft
 from app.services.registration import (
     create_registration,
     check_submission_rate_limit,
@@ -30,14 +30,11 @@ from app.services.email import (
 )
 from app.services.payment import create_payment_intent, calculate_processing_fee
 from app.config import STRIPE_PUBLISHABLE_KEY, APP_URL
+from app.upload_constants import ALLOWED_EXTENSIONS, ALLOWED_CONTENT_TYPES, MAX_FILE_SIZE
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vendor", tags=["vendor"])
-
-ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
-ALLOWED_CONTENT_TYPES = {"application/pdf", "image/png", "image/jpeg"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 def _template(request, name, ctx):
@@ -80,7 +77,7 @@ def _delete_draft(db: Session, email: str) -> None:
 
 @router.get("/register", response_class=HTMLResponse)
 async def register_gateway(request: Request, edit: str = "", new: str = "", db: Session = Depends(get_db)):
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     now = datetime.now(timezone.utc)
 
     # Check if registration is open
@@ -166,7 +163,7 @@ async def register_step1(
         return RedirectResponse(url="/auth/login", status_code=303)
 
     # Block submissions if registration is closed
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     if settings and not settings.is_registration_open():
         return RedirectResponse(url="/vendor/register", status_code=303)
 
@@ -221,7 +218,7 @@ async def register_step1(
 
     if errors:
         flash = [{"category": "error", "text": e} for e in errors]
-        settings = db.query(EventSettings).first()
+        settings = get_event_settings(db)
         booth_types = db.query(BoothType).filter(BoothType.is_active == True).order_by(BoothType.sort_order).all()
         inventory = get_inventory(db)
         booth_availability = {item["id"]: item["available"] for item in inventory}
@@ -287,7 +284,7 @@ async def register_submit(
         return RedirectResponse(url="/vendor/register", status_code=303)
 
     # Block submissions if registration is closed
-    settings_check = db.query(EventSettings).first()
+    settings_check = get_event_settings(db)
     if settings_check and not settings_check.is_registration_open():
         return RedirectResponse(url="/vendor/register", status_code=303)
 
@@ -349,7 +346,7 @@ async def register_submit(
     )
 
     # Admin notification
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     if settings and settings.notify_new_registration:
         background_tasks.add_task(
             send_admin_notification_email,
@@ -431,7 +428,7 @@ async def registration_detail(
 
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
 
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
 
     # Use the price locked at approval time when available so admin price
@@ -523,7 +520,7 @@ async def create_payment(
     # Use the price locked at approval time so admin price changes don't
     # retroactively affect this vendor's payment amount.
     price = registration.approved_price if registration.approved_price is not None else booth_type.price
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     fee_percent = settings.processing_fee_percent if settings else 0
     fee_flat = settings.processing_fee_flat_cents if settings else 0
     processing_fee_cents = calculate_processing_fee(price, fee_percent, fee_flat)
@@ -587,7 +584,7 @@ async def withdraw_registration(
         if not ok:
             flash = [{"category": "error", "text": f"Cannot withdraw: {msg}"}]
             booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
-            settings = db.query(EventSettings).first()
+            settings = get_event_settings(db)
             insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
             booth_price = registration.approved_price if registration.approved_price is not None else (booth_type.price if booth_type else 0)
             return _template(request, "vendor/registration_detail.html", {
@@ -648,7 +645,7 @@ async def vendor_dashboard(
             "waitlist_position": get_waitlist_position(db, reg),
         })
 
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     registration_open = settings.is_registration_open() if settings else False
     insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
 
@@ -690,7 +687,7 @@ async def vendor_dashboard(
 
 @router.get("/faq", response_class=HTMLResponse)
 async def vendor_faq(request: Request, db: Session = Depends(get_db)):
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     return _template(request, "vendor/faq.html", {
         "settings": settings,
         "registration_open": settings.is_registration_open() if settings else False,
@@ -706,7 +703,7 @@ async def insurance_page(
     db: Session = Depends(get_db),
 ):
     insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == session["email"]).first()
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     return _template(request, "vendor/insurance.html", {
         "insurance_doc": insurance_doc,
         "settings": settings,
@@ -730,7 +727,7 @@ async def insurance_upload(
     if ext not in ALLOWED_EXTENSIONS:
         flash = [{"category": "error", "text": f"File type not allowed. Please upload a PDF, PNG, or JPG file."}]
         insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
-        settings = db.query(EventSettings).first()
+        settings = get_event_settings(db)
         return _template(request, "vendor/insurance.html", {
             "insurance_doc": insurance_doc,
             "settings": settings,
@@ -741,7 +738,7 @@ async def insurance_upload(
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         flash = [{"category": "error", "text": "File type not allowed. Please upload a PDF, PNG, or JPG file."}]
         insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
-        settings = db.query(EventSettings).first()
+        settings = get_event_settings(db)
         return _template(request, "vendor/insurance.html", {
             "insurance_doc": insurance_doc,
             "settings": settings,
@@ -764,7 +761,7 @@ async def insurance_upload(
     if total_size > MAX_FILE_SIZE:
         flash = [{"category": "error", "text": "File is too large. Maximum size is 10 MB."}]
         insurance_doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == email).first()
-        settings = db.query(EventSettings).first()
+        settings = get_event_settings(db)
         return _template(request, "vendor/insurance.html", {
             "insurance_doc": insurance_doc,
             "settings": settings,
@@ -816,7 +813,7 @@ async def insurance_upload(
             old_path.unlink()
 
     # Admin notification for insurance upload
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     if settings and settings.notify_insurance_uploaded:
         # Find an active registration for this vendor to link in the notification
         reg = db.query(Registration).filter(

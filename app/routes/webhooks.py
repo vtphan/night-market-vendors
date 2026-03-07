@@ -8,8 +8,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import STRIPE_WEBHOOK_SECRET, APP_URL
-from app.database import get_db
-from app.models import Registration, BoothType, StripeEvent, EventSettings, AdminNote
+from app.database import get_db, get_event_settings
+from app.models import Registration, BoothType, StripeEvent, AdminNote
 from app.services.registration import transition_status
 from app.services.email import send_payment_confirmation_email, send_admin_notification_email, send_admin_alert_email
 
@@ -175,7 +175,7 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
     )
 
     # Admin notification
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     if settings and settings.notify_payment_received:
         background_tasks.add_task(
             send_admin_notification_email,

@@ -44,3 +44,18 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def get_event_settings(db):
+    """Return the singleton EventSettings row, cached for the lifetime of this session."""
+    from app.models import EventSettings
+    cached = getattr(db, "_event_settings_cache", None)
+    if cached is None:
+        cached = db.query(EventSettings).first()
+        db._event_settings_cache = cached
+    return cached
+
+
+def invalidate_event_settings_cache(db):
+    """Clear the per-session EventSettings cache (call after updating settings)."""
+    db._event_settings_cache = None

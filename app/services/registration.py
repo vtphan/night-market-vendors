@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, and_
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.database import get_event_settings
 from app.models import Registration, BoothType, EventSettings
 
 logger = logging.getLogger(__name__)
@@ -203,7 +204,7 @@ def approve_with_inventory_check(db: Session, registration: Registration) -> Reg
     transition_status(db, registration, "approved", _commit=False)
 
     # Set payment deadline from event settings
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     deadline_days = settings.payment_deadline_days if settings else 7
     registration.payment_deadline = compute_payment_deadline(
         registration.approved_at, deadline_days
@@ -334,23 +335,35 @@ def get_inventory(db: Session) -> list[dict]:
         .all()
     )
 
+    # Single query for all booth type counts instead of one per booth type
+    all_counts = (
+        db.query(Registration.booth_type_id, Registration.status, func.count(Registration.id))
+        .group_by(Registration.booth_type_id, Registration.status)
+        .all()
+    )
+    counts_map: dict[int, dict[str, int]] = {}
+    for bt_id, status, count in all_counts:
+        counts_map.setdefault(bt_id, {})[status] = count
+
     result = []
     for bt in booth_types:
-        counts = _get_booth_counts(db, bt.id)
+        c = counts_map.get(bt.id, {})
+        approved = c.get("approved", 0)
+        paid = c.get("paid", 0)
         result.append({
             "id": bt.id,
             "name": bt.name,
             "description": bt.description,
             "price": bt.price,
             "total_quantity": bt.total_quantity,
-            "pending": counts["pending"],
-            "approved": counts["approved"],
-            "paid": counts["paid"],
-            "rejected": counts["rejected"],
-            "cancelled": counts["cancelled"],
-            "withdrawn": counts["withdrawn"],
-            "reserved": counts["approved"] + counts["paid"],
-            "available": bt.total_quantity - counts["approved"] - counts["paid"],
+            "pending": c.get("pending", 0),
+            "approved": approved,
+            "paid": paid,
+            "rejected": c.get("rejected", 0),
+            "cancelled": c.get("cancelled", 0),
+            "withdrawn": c.get("withdrawn", 0),
+            "reserved": approved + paid,
+            "available": bt.total_quantity - approved - paid,
         })
     return result
 

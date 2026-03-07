@@ -16,12 +16,12 @@ from sqlalchemy.orm import Session
 from app.config import (
     APP_URL, SECRET_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_OAUTH_ENABLED,
 )
-from app.database import get_db
+from app.database import get_db, get_event_settings
 from app.csrf import generate_csrf_token, require_csrf
 from app.session import create_session, clear_session, read_session, get_client_ip
 from app.services.otp import create_otp, validate_otp, is_valid_email
 from app.services.email import send_otp_email
-from app.models import AdminUser, EventSettings, OTPCode
+from app.models import AdminUser, OTPCode
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ _otp_ip_counts: dict[str, list[float]] = {}
 
 def _is_registration_open(db: Session) -> bool:
     """Check if vendor registration is currently open."""
-    settings = db.query(EventSettings).first()
+    settings = get_event_settings(db)
     return settings.is_registration_open() if settings else False
 
 
