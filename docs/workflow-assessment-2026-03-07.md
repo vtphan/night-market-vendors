@@ -16,7 +16,7 @@
 | 4 | W2 | Accidental approval (no confirmation step?) | Low | Medium | Verify UI |
 | 5 | W2 | Payment deadline not adjustable per-registration | Medium | Low | Non-technical |
 | 6 | W2/W13 | ~~Food permit generated from unverified vendor data~~ | Medium | Medium | **Addressed** |
-| 7 | W3 | No self-service path for rejected vendors to re-apply | Medium | Low | Non-technical |
+| 7 | W3 | ~~No self-service path for rejected vendors to re-apply~~ | Medium | Low | **Addressed** |
 | 8 | W4 | No downloadable receipt/invoice in app | High | Medium | Verify Stripe config |
 | 9 | W4 | Processing fee may surprise vendors at payment time | Medium | Low | Non-technical |
 | 10 | W5 | Cancelled registrations don't notify waitlisted vendors | Low | Low | Non-technical |
@@ -35,7 +35,7 @@
 |----------|--------|--------------------|
 | **Address soon** | #11 (insurance deadline), #14 (OTP deliverability) | Non-technical policy + verify technical config |
 | **Monitor** | #4 (approval confirmation), #8 (receipts), #12 (insurance feedback) | Verify UI exists or add lightweight fixes |
-| **Low priority** | #1, #3, #5, #7, #9, #10, #13, #15, #16 | Non-technical admin awareness |
+| **Low priority** | #1, #3, #5, #9, #10, #13, #15, #16 | Non-technical admin awareness |
 | **Ignore** | #2 (draft cleanup) | No action needed at this scale |
 
 ---
@@ -92,12 +92,10 @@
 
 ### W3. Admin Rejection
 
-#### Issue 7: No self-service path for rejected vendors to re-apply
+#### Issue 7: No self-service path for rejected vendors to re-apply — ADDRESSED
 
 - **What:** Once rejected, only an admin can revoke the rejection (Rejected -> Pending). The vendor can't self-service correct their application and resubmit.
-- **Likelihood:** Medium — some rejections may be for fixable issues (incomplete info, wrong booth type).
-- **Severity:** Low — the vendor can email the organizer, who revokes rejection. But this creates manual overhead.
-- **Recommendation:** Non-technical. Include in the rejection email a note like "If you believe this was in error or want to update your application, contact us at [organizer email]." The admin can then revoke the rejection. Building a vendor self-service resubmission flow is over-engineering for ~150 vendors.
+- **Resolution:** The rejection email now explicitly invites vendors to contact the organizer (with a mailto link to `contact_email` from event settings) if they believe the rejection was in error or want to update their application and reapply. The admin can then revoke the rejection. A self-service resubmission flow is unnecessary for ~150 vendors.
 
 ---
 
