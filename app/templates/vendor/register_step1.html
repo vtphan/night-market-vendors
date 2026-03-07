@@ -26,9 +26,9 @@
             {% endfor %}
         </select>
 
-        <label for="description">What will you be selling or serving?</label>
+        <label for="description">Tell us about the delicious foods or awesome products you'll be bringing!</label>
         <textarea id="description" name="description" rows="3" required
-                  placeholder="e.g., pho, banh mi, spring rolls, bubble tea, handmade jewelry, henna art...">{{ draft.get('description', '') }}</textarea>
+                  placeholder="e.g., mouth-watering pho, crispy banh mi, sizzling lumpia, savory char siu, smoky chicken satay, refreshing bubble tea, handcrafted jewelry...">{{ draft.get('description', '') }}</textarea>
         <small style="color: var(--pico-muted-color);">Food/beverage vendors: please list specific items. This will appear on your food permit.</small>
 
         <div id="address-fields" style="{% if draft.get('category') not in ('food', 'beverage') %}display:none{% endif %}">

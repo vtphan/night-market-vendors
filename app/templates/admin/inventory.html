@@ -211,7 +211,7 @@
                        value="{{ item.total_quantity }}" min="0" required>
                 <label for="desc_{{ item.id }}">Description</label>
                 <textarea id="desc_{{ item.id }}" name="bt_{{ item.id }}_description"
-                          rows="3" placeholder="Shown to vendors">{{ item.description or '' }}</textarea>
+                          rows="9" placeholder="Shown to vendors">{{ item.description or '' }}</textarea>
             </div>
             {% endfor %}
         </div>
