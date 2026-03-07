@@ -294,9 +294,9 @@
     {% for item in inventory %}
         {% set pct = ((item.reserved / item.total_quantity) * 100) | round(1) if item.total_quantity > 0 else 0 %}
         {% if item.available <= 0 %}
-            {% set bar_color = "#f87171" %}
+            {% set bar_color = "#d97706" %}
         {% elif item.available <= 3 %}
-            {% set bar_color = "#facc15" %}
+            {% set bar_color = "#fb923c" %}
         {% else %}
             {% set bar_color = "#4ade80" %}
         {% endif %}
@@ -315,8 +315,8 @@
     {% else %}
     <div class="bar-legend">
         <span class="legend-item"><span class="legend-dot" style="background: #4ade80;"></span> Available</span>
-        <span class="legend-item"><span class="legend-dot" style="background: #facc15;"></span> Low (≤3)</span>
-        <span class="legend-item"><span class="legend-dot" style="background: #f87171;"></span> Sold out</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #fb923c;"></span> Low (≤3)</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #d97706;"></span> Sold out</span>
     </div>
     {% endif %}
 </article>
