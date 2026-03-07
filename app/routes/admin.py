@@ -780,7 +780,7 @@ async def reject_registration(
 
     background_tasks.add_task(send_rejection_email, registration.email, reg_id, reversal_reason or None)
 
-    log_admin_action(db, session["email"], "rejected", reg_id, reversal_reason or None)
+    log_admin_action(db, session["email"], "rejected", reg_id, registration.business_name)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -846,7 +846,7 @@ async def unreject_registration(
         )
 
     action = "revoked_approval" if was_approved else "unrejected"
-    log_admin_action(db, session["email"], action, reg_id, reversal_reason or None)
+    log_admin_action(db, session["email"], action, reg_id, registration.business_name)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -980,7 +980,7 @@ async def cancel_registration(
     )
 
     refund_note = f"Refund: ${amount_cents / 100:.2f}" if amount_cents > 0 else "No refund"
-    log_admin_action(db, session["email"], "cancelled", reg_id, f"{reversal_reason} ({refund_note})")
+    log_admin_action(db, session["email"], "cancelled", reg_id, f"{registration.business_name} ({refund_note})")
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
