@@ -30,68 +30,152 @@
     color: #fff;
     border-color: var(--pico-primary-background);
 }
+
+/* Status pills */
+.status-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+}
+.status-pills a {
+    display: inline-block;
+    padding: 0.3rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid var(--pico-muted-border-color);
+    color: var(--pico-color);
+    background: none;
+}
+.status-pills a.active {
+    background: var(--pico-primary-background);
+    color: #fff;
+    border-color: var(--pico-primary-background);
+}
+
+/* Filter dropdowns row */
+.filter-dropdowns {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+.filter-dropdowns select {
+    width: 100%;
+    margin-bottom: 0;
+    font-size: 0.8rem;
+}
+
+/* Live search row */
+.live-search {
+    margin-bottom: 1rem;
+}
+.live-search input {
+    margin-bottom: 0;
+    font-size: 0.8rem;
+}
+
+/* Reset button — visually distinct from status pills */
+.reset-btn {
+    display: inline-block;
+    padding: 0.3rem 0.75rem;
+    border-radius: 0;
+    font-size: 0.7rem;
+    font-variant: small-caps;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    background: none;
+    color: #9ca3af;
+    border-bottom: 1px dashed #d1d5db;
+}
+.reset-btn:hover {
+    color: #ef4444;
+    border-bottom-color: #ef4444;
+}
+
+/* Chart toggle: arrow on left */
+details.chart-toggle summary {
+    display: list-item;
+    list-style: disclosure-closed inside;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--pico-muted-color);
+}
+details.chart-toggle[open] summary {
+    list-style-type: disclosure-open;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<h2>Registrations</h2>
+<div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem;">
+    <h2 style="margin-bottom: 0;">Registrations</h2>
+    <span style="font-size: 0.9rem; color: var(--pico-muted-color);">
+        {{ registrations | length }} entr{{ 'ies' if registrations | length != 1 else 'y' }}
+        &middot; <a href="/admin/export">Export CSV</a>
+        &middot; <a href="/admin/download-insurance">Insurance ZIP</a>
+        &middot; <a href="/admin/download-permits">Permits ZIP</a>
+    </span>
+</div>
 
-<form method="get" action="/admin/registrations" class="filter-bar">
-    <div class="grid">
-        <select name="status">
-            <option value="">All Statuses</option>
-            {% for s in ['pending', 'approved', 'paid', 'rejected', 'cancelled'] %}
-            <option value="{{ s }}" {{ 'selected' if filter_status == s }}>{{ s | title }}</option>
-            {% endfor %}
-        </select>
+<!-- Row 1: Status pills -->
+<div class="status-pills">
+    <a href="/admin/registrations?{{ 'category=' ~ filter_category ~ '&' if filter_category }}{{ 'booth_type=' ~ filter_booth_type ~ '&' if filter_booth_type }}{{ 'insurance=' ~ filter_insurance ~ '&' if filter_insurance }}{{ 'permit=' ~ filter_permit if filter_permit }}" class="{{ 'active' if not filter_status }}">All</a>
+    {% for s in ['pending', 'approved', 'paid', 'rejected', 'cancelled'] %}
+    <a href="/admin/registrations?status={{ s }}{{ '&category=' ~ filter_category if filter_category }}{{ '&booth_type=' ~ filter_booth_type if filter_booth_type }}{{ '&insurance=' ~ filter_insurance if filter_insurance }}{{ '&permit=' ~ filter_permit if filter_permit }}" class="{{ 'active' if filter_status == s }}">{{ s | title }}</a>
+    {% endfor %}
+    <a href="/admin/registrations" class="reset-btn">Reset</a>
+</div>
 
-        <select name="category">
-            <option value="">All Categories</option>
-            {% for key, label in CATEGORIES.items() %}
-            <option value="{{ key }}" {{ 'selected' if filter_category == key }}>{{ label }}</option>
-            {% endfor %}
-        </select>
+<!-- Row 2: Dropdown filters (auto-submit on change) -->
+<form id="filter-form" method="get" action="/admin/registrations" class="filter-dropdowns">
+    {% if filter_status %}
+    <input type="hidden" name="status" value="{{ filter_status }}">
+    {% endif %}
 
-        <select name="booth_type">
-            <option value="">All Booth Types</option>
-            {% for bt_id, bt in booth_types.items() %}
-            <option value="{{ bt_id }}" {{ 'selected' if filter_booth_type == bt_id|string }}>{{ bt.name }}</option>
-            {% endfor %}
-        </select>
+    <select name="category">
+        <option value="">All Categories</option>
+        {% for key, label in CATEGORIES.items() %}
+        <option value="{{ key }}" {{ 'selected' if filter_category == key }}>{{ label }}</option>
+        {% endfor %}
+    </select>
 
-        <select name="insurance">
-            <option value="">Insurance: All</option>
-            <option value="approved" {{ 'selected' if filter_insurance == 'approved' }}>Insurance: Approved</option>
-            <option value="uploaded" {{ 'selected' if filter_insurance == 'uploaded' }}>Insurance: Uploaded</option>
-            <option value="no" {{ 'selected' if filter_insurance == 'no' }}>Insurance: No</option>
-        </select>
+    <select name="booth_type">
+        <option value="">All Booth Types</option>
+        {% for bt_id, bt in booth_types.items() %}
+        <option value="{{ bt_id }}" {{ 'selected' if filter_booth_type == bt_id|string }}>{{ bt.name }}</option>
+        {% endfor %}
+    </select>
 
-        <select name="permit">
-            <option value="">Permit: All</option>
-            <option value="missing" {{ 'selected' if filter_permit == 'missing' }}>Permit: Missing</option>
-            <option value="generated" {{ 'selected' if filter_permit == 'generated' }}>Permit: Generated</option>
-            <option value="na" {{ 'selected' if filter_permit == 'na' }}>Permit: N/A</option>
-        </select>
+    <select name="insurance">
+        <option value="">Insurance: All</option>
+        <option value="approved" {{ 'selected' if filter_insurance == 'approved' }}>Insurance: Approved</option>
+        <option value="uploaded" {{ 'selected' if filter_insurance == 'uploaded' }}>Insurance: Uploaded</option>
+        <option value="no" {{ 'selected' if filter_insurance == 'no' }}>Insurance: No</option>
+    </select>
 
-        <input type="search" name="search" placeholder="Search name, email, or ID..."
-               value="{{ filter_search }}">
+    <select name="permit">
+        <option value="">Permit: All</option>
+        <option value="missing" {{ 'selected' if filter_permit == 'missing' }}>Permit: Missing</option>
+        <option value="generated" {{ 'selected' if filter_permit == 'generated' }}>Permit: Generated</option>
+        <option value="na" {{ 'selected' if filter_permit == 'na' }}>Permit: N/A</option>
+    </select>
 
-        <button type="submit">Filter</button>
-    </div>
+
 </form>
 
-<!-- Registration Activity Chart -->
-<article>
-    <header>
-        <strong>Registration Activity</strong>
-        <span style="float: right; font-weight: normal; font-size: 0.9rem;">
-            {{ registrations | length }} registration{{ 's' if registrations | length != 1 }} found
-            &middot; <a href="/admin/export">Export CSV</a>
-            &middot; <a href="/admin/download-insurance">Insurance ZIP</a>
-            &middot; <a href="/admin/download-permits">Permits ZIP</a>
-        </span>
-    </header>
-    <div class="chart-tabs">
+<!-- Row 3: Live search -->
+<div class="live-search">
+    <input type="search" id="live-search-input" placeholder="Search name, email, or ID..." value="{{ filter_search }}">
+</div>
+
+<!-- Registration Activity Chart (collapsible) -->
+<details class="chart-toggle">
+    <summary>Registration Activity</summary>
+    <div class="chart-tabs" style="margin-top: 0.75rem;">
         <button class="chart-tab active" data-chart-tab="daily">Last 30 Days</button>
         <button class="chart-tab" data-chart-tab="hourly">By Hour</button>
     </div>
@@ -101,19 +185,19 @@
     <div class="chart-container" id="chart-hourly" style="display:none;">
         <canvas id="hourly-chart" height="180"></canvas>
     </div>
-</article>
+</details>
 
 <figure>
-    <table>
+    <table id="registrations-table">
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Vendor</th>
                 <th>Category</th>
                 <th>Booth</th>
-                <th>Status</th>
-                <th>Status Changed</th>
-                <th>Ins / Permit</th>
+                <th style="text-align: center;">Status</th>
+                <th style="text-align: center;">Status Changed</th>
+                <th style="text-align: center;">Ins / Permit</th>
             </tr>
         </thead>
         <tbody>
@@ -126,8 +210,8 @@
                 </td>
                 <td>{{ CATEGORIES.get(reg.category, reg.category) }}</td>
                 <td>{{ booth_types[reg.booth_type_id].name | replace(' Booth', '') if reg.booth_type_id in booth_types else 'N/A' }}</td>
-                <td><span class="status-badge {{ reg.status }}">{{ reg.status | title }}</span></td>
-                <td>
+                <td style="text-align: center;"><span class="status-badge {{ reg.status }}">{{ reg.status | title }}</span></td>
+                <td style="text-align: center;">
                     {% if reg.status == 'approved' and reg.approved_at %}
                         {% set days_ago = ((now - reg.approved_at).total_seconds() / 86400) | int %}
                         {% if days_ago >= payment_deadline_days %}
@@ -157,7 +241,7 @@
                         <span>{{ 'new' if days_ago == 0 else days_ago ~ 'd ago' }}</span>
                     {% endif %}
                 </td>
-                <td>
+                <td style="text-align: center;">
                     {% set ins_doc = insurance_docs.get(reg.email) %}
                     {% if ins_doc and ins_doc.is_approved %}&#x2705;{% elif ins_doc %}&#x1F50D;{% else %}&#x2205;{% endif %}
                     /
@@ -178,4 +262,5 @@
     "hourlyCounts": {{ hourly_counts | tojson }}
 }</script>
 <script src="/static/admin-charts.js"></script>
+<script src="/static/live-search.js"></script>
 {% endblock %}

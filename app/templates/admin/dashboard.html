@@ -36,23 +36,51 @@
 }
 .card-header-link a { font-size: 0.85rem; }
 
-/* Stacked bar */
-.stacked-bar {
-    display: flex;
-    height: 1.5rem;
-    border-radius: 0.375rem;
-    background: #e5e7eb;
-    overflow: hidden;
-}
-.stacked-bar .bar-seg {
+/* Donut chart */
+.donut-wrap {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #fff;
-    white-space: nowrap;
+    gap: 1.25rem;
+}
+.donut {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+}
+.donut::after {
+    content: "";
+    position: absolute;
+    top: 22%;
+    left: 22%;
+    width: 56%;
+    height: 56%;
+    border-radius: 50%;
+    background: var(--pico-card-background-color, #fff);
+}
+.donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--pico-muted-color);
+}
+
+/* Stacked bar */
+.stacked-bar {
+    display: flex;
+    height: 0.75rem;
+    border-radius: 0.375rem;
+    background: #f0f0f0;
     overflow: hidden;
+    max-width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+}
+.stacked-bar .bar-seg {
+    font-size: 0;
     transition: width 0.3s ease;
 }
 
@@ -60,9 +88,11 @@
 .bar-legend {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: 0.5rem 1rem;
     margin-top: 0.5rem;
     font-size: 0.8rem;
+    color: var(--pico-muted-color);
 }
 .bar-legend .legend-item {
     display: flex;
@@ -83,8 +113,8 @@
 .util-bar-label .name { font-weight: 500; }
 .util-bar-label .count { color: var(--pico-muted-color); }
 .util-bar-track {
-    height: 1.25rem;
-    background: #e5e7eb;
+    height: 0.75rem;
+    background: #f0f0f0;
     border-radius: 0.375rem;
     overflow: hidden;
 }
@@ -98,6 +128,31 @@
     color: var(--pico-muted-color);
     font-size: 0.9rem;
     margin-bottom: 0.75rem;
+}
+
+/* Alert callouts for actionable items */
+.alert-callout {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    border-left: 4px solid;
+    margin-bottom: 0.75rem;
+}
+.alert-callout a { text-decoration: none; }
+
+.alert-callout.warn {
+    border-left-color: #f59e0b;
+    color: #92400e;
+}
+
+.alert-callout.danger {
+    border-left-color: #ef4444;
+    color: #991b1b;
+}
+
+.alert-callout.ok {
+    border-left-color: #22c55e;
+    color: #166534;
 }
 
 /* Empty state */
@@ -123,19 +178,19 @@
 </p>
 
 {% set status_colors = {
-    "pending": "#f59e0b",
-    "approved": "#3b82f6",
-    "paid": "#22c55e",
-    "rejected": "#6b7280",
-    "cancelled": "#ef4444",
-    "withdrawn": "#8b5cf6"
+    "pending": "#facc15",
+    "approved": "#60a5fa",
+    "paid": "#4ade80",
+    "rejected": "#a8a29e",
+    "cancelled": "#f87171",
+    "withdrawn": "#a78bfa"
 } %}
 
 {% set urgency_colors = {
-    "normal": "#3b82f6",
-    "reminder_1": "#f59e0b",
-    "reminder_2": "#ea580c",
-    "overdue": "#dc2626"
+    "normal": "#60a5fa",
+    "reminder_1": "#facc15",
+    "reminder_2": "#fb923c",
+    "overdue": "#f87171"
 } %}
 
 {% set urgency_labels = {
@@ -151,42 +206,47 @@
     <header>
         <strong>Registrations</strong>
     </header>
-    <p class="context-line">{{ total_registrations }} registration{{ 's' if total_registrations != 1 }} from {{ total_vendors }} vendor{{ 's' if total_vendors != 1 }}. {{ pending_count }} pending awaiting review <a href="/admin/registrations?status=pending">➤</a></p>
+    <p class="context-line">{{ total_registrations }} registration{{ 's' if total_registrations != 1 }} from {{ total_vendors }} vendor{{ 's' if total_vendors != 1 }}.</p>
+    {% if pending_count > 0 %}
+    <p class="alert-callout warn">{{ pending_count }} pending awaiting review <a href="/admin/registrations?status=pending">➤</a></p>
+    {% else %}
+    <p class="alert-callout ok">No pending reviews</p>
+    {% endif %}
     {% if total_registrations > 0 %}
-    <div class="stacked-bar">
-        {% set status_order = ["pending", "approved", "paid", "rejected", "cancelled", "withdrawn"] %}
-        {% for s in status_order %}
-            {% set count = status_counts.get(s, 0) %}
-            {% if count > 0 %}
-                {% set pct = (count / total_registrations * 100) | round(1) %}
-                <div class="bar-seg" style="width: {{ pct }}%; background: {{ status_colors[s] }};">
-                    {% if pct > 10 %}{{ count }}{% endif %}
-                </div>
-            {% endif %}
-        {% endfor %}
-    </div>
-    <div class="bar-legend">
-        {% for s in status_order %}
-            {% set count = status_counts.get(s, 0) %}
-            {% if count > 0 %}
-            <span class="legend-item">
-                <span class="legend-dot" style="background: {{ status_colors[s] }};"></span>
-                {{ s | capitalize }} ({{ count }})
-            </span>
-            {% endif %}
-        {% endfor %}
+    {% set status_order = ["pending", "approved", "paid", "rejected", "cancelled", "withdrawn"] %}
+    {% set ns = namespace(offset=0) %}
+    {% set segments = [] %}
+    {% for s in status_order %}
+        {% set count = status_counts.get(s, 0) %}
+        {% if count > 0 %}
+            {% set pct = (count / total_registrations * 100) | round(1) %}
+            {% set _ = segments.append(status_colors[s] ~ " " ~ ns.offset ~ "% " ~ (ns.offset + pct) ~ "%") %}
+            {% set ns.offset = ns.offset + pct %}
+        {% endif %}
+    {% endfor %}
+    <div class="donut-wrap">
+        <div class="donut" style="background: conic-gradient({{ segments | join(', ') }});"></div>
+        <div class="donut-legend">
+            {% for s in status_order %}
+                {% set count = status_counts.get(s, 0) %}
+                {% if count > 0 %}
+                <span class="legend-item">
+                    <span class="legend-dot" style="background: {{ status_colors[s] }};"></span>
+                    {{ s | capitalize }} ({{ count }})
+                </span>
+                {% endif %}
+            {% endfor %}
+        </div>
     </div>
     {% else %}
     <p class="empty-state">No registrations yet</p>
     {% endif %}
 
-    <p class="context-line" style="margin-top: 1rem;">
-        {% if unpaid_count > 0 %}
-        {{ unpaid_count }} approved but unpaid <a href="/admin/registrations?status=approved">➤</a>
-        {% else %}
-        All approved vendors have paid
-        {% endif %}
-    </p>
+    {% if unpaid_count > 0 %}
+    <p class="alert-callout {{ 'danger' if urgency_counts.get('overdue', 0) > 0 else 'warn' }}" style="margin-top: 1rem;">{{ unpaid_count }} approved but unpaid <a href="/admin/registrations?status=approved">➤</a></p>
+    {% else %}
+    <p class="alert-callout ok" style="margin-top: 1rem;">All approved vendors have paid</p>
+    {% endif %}
     {% set pay_total = unpaid_count + paid_count %}
     {% if pay_total > 0 %}
     <div class="stacked-bar">
@@ -201,9 +261,7 @@
         {% endfor %}
         {% if paid_count > 0 %}
             {% set pct_paid = (paid_count / pay_total * 100) | round(1) %}
-            <div class="bar-seg" style="width: {{ pct_paid }}%; background: #22c55e;">
-                {% if pct_paid > 10 %}{{ paid_count }}{% endif %}
-            </div>
+            <div class="bar-seg" style="width: {{ pct_paid }}%; background: #4ade80;"></div>
         {% endif %}
     </div>
     <div class="bar-legend">
@@ -218,7 +276,7 @@
         {% endfor %}
         {% if paid_count > 0 %}
         <span class="legend-item">
-            <span class="legend-dot" style="background: #22c55e;"></span>
+            <span class="legend-dot" style="background: #4ade80;"></span>
             Paid ({{ paid_count }})
         </span>
         {% endif %}
@@ -236,11 +294,11 @@
     {% for item in inventory %}
         {% set pct = ((item.reserved / item.total_quantity) * 100) | round(1) if item.total_quantity > 0 else 0 %}
         {% if item.available <= 0 %}
-            {% set bar_color = "#dc2626" %}
+            {% set bar_color = "#f87171" %}
         {% elif item.available <= 3 %}
-            {% set bar_color = "#f59e0b" %}
+            {% set bar_color = "#facc15" %}
         {% else %}
-            {% set bar_color = "#22c55e" %}
+            {% set bar_color = "#4ade80" %}
         {% endif %}
         <div class="util-bar-wrap">
             <div class="util-bar-label">
@@ -256,9 +314,9 @@
     <p class="empty-state">No booth types configured</p>
     {% else %}
     <div class="bar-legend">
-        <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span> Available</span>
-        <span class="legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Low (≤3)</span>
-        <span class="legend-item"><span class="legend-dot" style="background: #dc2626;"></span> Sold out</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #4ade80;"></span> Available</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #facc15;"></span> Low (≤3)</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #f87171;"></span> Sold out</span>
     </div>
     {% endif %}
 </article>
@@ -270,33 +328,44 @@
     <header>
         <strong>Insurance Coverage</strong>
     </header>
-    <p class="context-line">{{ active_without_approved_ins }} of {{ active_vendor_count }} active vendor{{ 's' if active_vendor_count != 1 }} without approved insurance <a href="/admin/registrations?insurance=no">➤</a></p>
-    <p class="context-line">{{ vendors_with_pending_doc }} vendor{{ 's' if vendors_with_pending_doc != 1 }} need{{ '' if vendors_with_pending_doc != 1 else 's' }} insurance reviewed <a href="/admin/registrations?insurance=uploaded">➤</a></p>
+    {% if active_without_approved_ins > 0 %}
+    <p class="alert-callout danger">{{ active_without_approved_ins }} active vendor{{ 's' if active_without_approved_ins != 1 }} without approved insurance <a href="/admin/registrations?insurance=no">➤</a></p>
+    {% else %}
+    <p class="alert-callout ok">All active vendors have approved insurance</p>
+    {% endif %}
+    {% if vendors_with_pending_doc > 0 %}
+    <p class="alert-callout warn">{{ vendors_with_pending_doc }} vendor{{ 's' if vendors_with_pending_doc != 1 }} need{{ '' if vendors_with_pending_doc != 1 else 's' }} insurance reviewed <a href="/admin/registrations?insurance=uploaded">➤</a></p>
+    {% endif %}
     {% if active_vendor_count > 0 %}
-    <div class="stacked-bar">
-        {% set pct_no = (vendors_without_doc / active_vendor_count * 100) | round(1) %}
-        {% set pct_pend = (vendors_with_pending_doc / active_vendor_count * 100) | round(1) %}
-        {% set pct_appr = (vendors_with_approved_doc / active_vendor_count * 100) | round(1) %}
-        {% if vendors_without_doc > 0 %}
-        <div class="bar-seg" style="width: {{ pct_no }}%; background: #ef4444;">
-            {% if pct_no > 10 %}{{ vendors_without_doc }}{% endif %}
+    {% set pct_no = (vendors_without_doc / active_vendor_count * 100) | round(1) %}
+    {% set pct_pend = (vendors_with_pending_doc / active_vendor_count * 100) | round(1) %}
+    {% set pct_appr = (vendors_with_approved_doc / active_vendor_count * 100) | round(1) %}
+    {% set ins_segments = [] %}
+    {% set ins_ns = namespace(offset=0) %}
+    {% if vendors_without_doc > 0 %}
+        {% set _ = ins_segments.append("#f87171 " ~ ins_ns.offset ~ "% " ~ (ins_ns.offset + pct_no) ~ "%") %}
+        {% set ins_ns.offset = ins_ns.offset + pct_no %}
+    {% endif %}
+    {% if vendors_with_pending_doc > 0 %}
+        {% set _ = ins_segments.append("#facc15 " ~ ins_ns.offset ~ "% " ~ (ins_ns.offset + pct_pend) ~ "%") %}
+        {% set ins_ns.offset = ins_ns.offset + pct_pend %}
+    {% endif %}
+    {% if vendors_with_approved_doc > 0 %}
+        {% set _ = ins_segments.append("#4ade80 " ~ ins_ns.offset ~ "% " ~ (ins_ns.offset + pct_appr) ~ "%") %}
+    {% endif %}
+    <div class="donut-wrap">
+        <div class="donut" style="background: conic-gradient({{ ins_segments | join(', ') }});"></div>
+        <div class="donut-legend">
+            {% if vendors_without_doc > 0 %}
+            <span class="legend-item"><span class="legend-dot" style="background: #f87171;"></span> Missing ({{ vendors_without_doc }})</span>
+            {% endif %}
+            {% if vendors_with_pending_doc > 0 %}
+            <span class="legend-item"><span class="legend-dot" style="background: #facc15;"></span> Need review ({{ vendors_with_pending_doc }})</span>
+            {% endif %}
+            {% if vendors_with_approved_doc > 0 %}
+            <span class="legend-item"><span class="legend-dot" style="background: #4ade80;"></span> Approved ({{ vendors_with_approved_doc }})</span>
+            {% endif %}
         </div>
-        {% endif %}
-        {% if vendors_with_pending_doc > 0 %}
-        <div class="bar-seg" style="width: {{ pct_pend }}%; background: #f59e0b;">
-            {% if pct_pend > 10 %}{{ vendors_with_pending_doc }}{% endif %}
-        </div>
-        {% endif %}
-        {% if vendors_with_approved_doc > 0 %}
-        <div class="bar-seg" style="width: {{ pct_appr }}%; background: #22c55e;">
-            {% if pct_appr > 10 %}{{ vendors_with_approved_doc }}{% endif %}
-        </div>
-        {% endif %}
-    </div>
-    <div class="bar-legend">
-        <span class="legend-item"><span class="legend-dot" style="background: #ef4444;"></span> Missing ({{ vendors_without_doc }})</span>
-        <span class="legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Need review ({{ vendors_with_pending_doc }})</span>
-        <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span> Approved ({{ vendors_with_approved_doc }})</span>
     </div>
     {% endif %}
 </article>
@@ -305,33 +374,27 @@
     <header>
         <strong>Food Permits</strong>
     </header>
-    <p class="context-line">
-        {% if permits_missing > 0 %}
-        {{ permits_missing }} of {{ food_bev_total }} active food/beverage registration{{ 's' if food_bev_total != 1 }} missing permits <a href="/admin/registrations?permit=missing">➤</a>
-        {% else %}
-        All {{ food_bev_total }} active food/beverage registration{{ 's' if food_bev_total != 1 }} {{ 'have' if food_bev_total != 1 else 'has' }} permits
-        {% endif %}
-    </p>
+    {% if permits_missing > 0 %}
+    <p class="alert-callout danger">{{ permits_missing }} food/beverage registration{{ 's' if permits_missing != 1 }} missing permits <a href="/admin/registrations?permit=missing">➤</a></p>
+    {% else %}
+    <p class="alert-callout ok">All {{ food_bev_total }} food/beverage registration{{ 's' if food_bev_total != 1 }} {{ 'have' if food_bev_total != 1 else 'has' }} permits ready</p>
+    {% endif %}
     {% if food_bev_total > 0 %}
     <div class="stacked-bar">
         {% set pct_missing = (permits_missing / food_bev_total * 100) | round(1) %}
         {% set pct_generated = (permits_generated / food_bev_total * 100) | round(1) %}
         {% if permits_missing > 0 %}
-        <div class="bar-seg" style="width: {{ pct_missing }}%; background: #ef4444;">
-            {% if pct_missing > 10 %}{{ permits_missing }}{% endif %}
-        </div>
+        <div class="bar-seg" style="width: {{ pct_missing }}%; background: #f87171;"></div>
         {% endif %}
         {% if permits_generated > 0 %}
-        <div class="bar-seg" style="width: {{ pct_generated }}%; background: #22c55e;">
-            {% if pct_generated > 10 %}{{ permits_generated }}{% endif %}
-        </div>
+        <div class="bar-seg" style="width: {{ pct_generated }}%; background: #4ade80;"></div>
         {% endif %}
     </div>
     <div class="bar-legend">
         {% if permits_missing > 0 %}
-        <span class="legend-item"><span class="legend-dot" style="background: #ef4444;"></span> Missing ({{ permits_missing }})</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #f87171;"></span> Missing ({{ permits_missing }})</span>
         {% endif %}
-        <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span> Generated ({{ permits_generated }})</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #4ade80;"></span> Ready ({{ permits_generated }})</span>
     </div>
     {% else %}
     <p class="empty-state">No active food/beverage registrations</p>
