@@ -11,7 +11,7 @@ git reset --hard origin/master
 
 3. pip install -r requirements.txt
 
-4. If testing, delete data in data/  or python scripts/seed_registration medium --reset 
+4. If testing, delete data in data/  or python scripts/seed_registrations.py medium --reset 
    Make sure to backup the database first.
 
 5. Restart service
