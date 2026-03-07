@@ -123,12 +123,13 @@ async def register_gateway(request: Request, edit: str = "", new: str = "", db: 
         return _template(request, "vendor/register_step2.html", {
             "draft": draft,
             "booth_type": booth_type,
+            "agreement_text": settings.vendor_agreement_text if settings else "",
+            "insurance_instructions": settings.insurance_instructions if settings else "",
+            "settings": settings,
         })
 
     # Default: step 1 (also handles step 0 or any unexpected value)
     return _template(request, "vendor/register_step1.html", {
-        "agreement_text": settings.vendor_agreement_text if settings else "",
-        "insurance_instructions": settings.insurance_instructions if settings else "",
         "booth_types": booth_types,
         "booth_availability": booth_availability,
         "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
@@ -154,7 +155,6 @@ async def register_step1(
     city_state_zip: str = Form(""),
     electrical_equipment: list[str] = Form([]),
     electrical_other: str = Form(""),
-    agreement_accepted: str = Form(""),
     _csrf: None = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
@@ -173,8 +173,6 @@ async def register_step1(
 
     MAX_LENGTHS = {"contact_name": 200, "business_name": 200, "phone": 30, "description": 2000, "electrical_other": 500}
 
-    if agreement_accepted != "yes":
-        errors.append("You must accept the vendor agreement to continue.")
     if not contact_name.strip():
         errors.append("Full name is required.")
     elif len(contact_name) > MAX_LENGTHS["contact_name"]:
@@ -236,8 +234,6 @@ async def register_step1(
             "booth_type_id": booth_type_id,
         }
         return _template(request, "vendor/register_step1.html", {
-            "agreement_text": settings.vendor_agreement_text if settings else "",
-            "insurance_instructions": settings.insurance_instructions if settings else "",
             "booth_types": booth_types,
             "booth_availability": booth_availability,
             "LOW_INVENTORY_THRESHOLD": LOW_INVENTORY_THRESHOLD,
@@ -262,8 +258,6 @@ async def register_step1(
         "booth_type_id": booth_type.id,
         "booth_type_name": booth_type.name,
         "booth_type_price": booth_type.price,
-        "agreement_ip": get_client_ip(request),
-        "agreement_accepted_at": datetime.now(timezone.utc).isoformat(),
     }
 
     _upsert_draft(db, email, draft)
@@ -314,6 +308,9 @@ async def register_submit(
         return _template(request, "vendor/register_step2.html", {
             "draft": draft,
             "booth_type": booth_type,
+            "agreement_text": settings_check.vendor_agreement_text if settings_check else "",
+            "insurance_instructions": settings_check.insurance_instructions if settings_check else "",
+            "settings": settings_check,
             "get_flashed_messages": lambda: flash,
         })
 
@@ -330,8 +327,8 @@ async def register_submit(
         "electrical_equipment": draft.get("electrical_equipment") or None,
         "electrical_other": draft.get("electrical_other") or None,
         "booth_type_id": draft["booth_type_id"],
-        "agreement_accepted_at": datetime.fromisoformat(draft["agreement_accepted_at"]),
-        "agreement_ip_address": draft.get("agreement_ip", "unknown"),
+        "agreement_accepted_at": datetime.now(timezone.utc),
+        "agreement_ip_address": get_client_ip(request),
     }
 
     registration = create_registration(db, data)
@@ -474,8 +471,8 @@ async def download_food_permit(
         )
         .first()
     )
-    if not registration:
-        return RedirectResponse(url="/vendor/dashboard", status_code=303)
+    if not registration or registration.status not in ("approved", "paid"):
+        return RedirectResponse(url=f"/vendor/registrations/{registration_id}" if registration else "/vendor/dashboard", status_code=303)
 
     permit_path = PERMITS_DIR / f"{registration_id}.pdf"
     if not permit_path.exists():

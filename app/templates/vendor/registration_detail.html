@@ -55,12 +55,18 @@
 
 <div class="grid">
     <article>
-        <header>Business Information</header>
+        <header>Registration Details</header>
         <dl class="detail-list">
             <dt>Category</dt>
             <dd>{{ CATEGORIES.get(registration.category, registration.category) }}</dd>
             <dt>Description</dt>
             <dd>{{ registration.description }}</dd>
+            <dt>Booth Type</dt>
+            <dd>{{ booth_type.name if booth_type else 'N/A' }}</dd>
+            <dt>Price</dt>
+            <dd>${{ "%.2f" | format(booth_price / 100) if booth_price else 'N/A' }}</dd>
+            <dt>Extra Electrical Equipment</dt>
+            <dd>{{ equip_display(registration) }}</dd>
         </dl>
     </article>
 
@@ -80,72 +86,6 @@
         </dl>
     </article>
 </div>
-
-<article>
-    <header>Booth Details</header>
-    <dl class="detail-list">
-        <dt>Booth Type</dt>
-        <dd>{{ booth_type.name if booth_type else 'N/A' }}</dd>
-        <dt>Price</dt>
-        <dd>${{ "%.2f" | format(booth_price / 100) if booth_price else 'N/A' }}</dd>
-        <dt>Electrical Equipment</dt>
-        <dd>{{ equip_display(registration) }}</dd>
-    </dl>
-</article>
-
-{% if registration.status in ["pending", "approved", "paid"] %}
-<article>
-    <header>Insurance and Permit</header>
-    <p>
-        Insurance status:
-        {% if insurance_doc and insurance_doc.is_approved %}
-        <span class="status-badge paid">Approved</span>
-        {% elif insurance_doc %}
-        <span class="status-badge pending">Pending Review</span>
-        {% else %}
-        <span class="status-badge rejected">Not Uploaded</span>
-        {% endif %}
-    </p>
-    <p>
-        {% if insurance_doc %}
-        <a href="/vendor/insurance">View Insurance Document</a>
-        {% else %}
-        <a href="/vendor/insurance">Upload Insurance Document</a>
-        {% endif %}
-        {% if needs_permit %}
-        &middot;
-            {% if food_permit_available %}
-            <a href="/vendor/registrations/{{ registration.registration_id }}/food-permit">View Food Permit</a>
-            {% else %}
-            <span style="color: var(--pico-muted-color);">Food permit not yet generated</span>
-            {% endif %}
-        {% endif %}
-    </p>
-</article>
-{% endif %}
-
-{% if registration.status in ["pending", "approved"] %}
-<article>
-    <header>Withdraw Registration</header>
-    <p>If you no longer wish to participate, you can withdraw this registration. <strong>This action is permanent and cannot be undone.</strong></p>
-    <button type="button" class="secondary outline btn-inline" data-open-dialog="withdraw-dialog">Withdraw Registration</button>
-    <dialog id="withdraw-dialog">
-        <article class="dialog-sm">
-            <header><strong>Withdraw Registration</strong></header>
-            <form method="post" action="/vendor/registration/{{ registration.registration_id }}/withdraw">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <label>Reason (optional)</label>
-                <input type="text" name="reason" placeholder="e.g. Unable to attend" maxlength="500">
-                <p style="font-size: 0.85rem; color: var(--pico-muted-color);">This action is permanent. Your registration will be cancelled and cannot be restored.</p>
-                <footer class="dialog-footer">
-                    <button type="button" class="outline btn-inline" data-close-dialog>Cancel</button>
-                    <button type="submit" class="btn-inline btn-red">Confirm Withdrawal</button>
-                </footer>
-            </form>
-        </article>
-    </dialog>
-</article>
-{% endif %}
 
 {% if registration.status == "approved" and stripe_publishable_key %}
 {% set fee_cents = processing_fee_cents | default(0) %}
@@ -219,6 +159,37 @@
 </article>
 {% endif %}
 
+{% if registration.status in ["pending", "approved", "paid"] %}
+<article>
+    <header>Insurance and Permit</header>
+    <p>
+        Insurance status:
+        {% if insurance_doc and insurance_doc.is_approved %}
+        <span class="status-badge paid">Approved</span>
+        {% elif insurance_doc %}
+        <span class="status-badge pending">Pending Review</span>
+        {% else %}
+        <span class="status-badge rejected">Not Uploaded</span>
+        {% endif %}
+    </p>
+    <p>
+        {% if insurance_doc %}
+        <a href="/vendor/insurance">View Insurance Document</a>
+        {% else %}
+        <a href="/vendor/insurance">Upload Insurance Document</a>
+        {% endif %}
+        {% if needs_permit %}
+        &middot;
+            {% if food_permit_available and registration.status in ('approved', 'paid') %}
+            <a href="/vendor/registrations/{{ registration.registration_id }}/food-permit">View Food Permit</a>
+            {% else %}
+            <span style="color: var(--pico-muted-color);">Food permit not yet generated</span>
+            {% endif %}
+        {% endif %}
+    </p>
+</article>
+{% endif %}
+
 <article>
     <header>Timeline</header>
     <dl class="detail-list">
@@ -242,6 +213,29 @@
         {% endif %}
     </dl>
 </article>
+
+{% if registration.status in ["pending", "approved"] %}
+<article>
+    <header>Withdraw Registration</header>
+    <p>If you no longer wish to participate, you can withdraw this registration. <strong>This action is permanent and cannot be undone.</strong></p>
+    <button type="button" class="secondary outline btn-inline" data-open-dialog="withdraw-dialog">Withdraw</button>
+    <dialog id="withdraw-dialog">
+        <article class="dialog-sm">
+            <header><strong>Withdraw Registration</strong></header>
+            <form method="post" action="/vendor/registration/{{ registration.registration_id }}/withdraw">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>Reason (optional)</label>
+                <input type="text" name="reason" placeholder="e.g. Unable to attend" maxlength="500">
+                <p style="font-size: 0.85rem; color: var(--pico-muted-color);">This action is permanent. Your registration will be cancelled and cannot be restored.</p>
+                <footer class="dialog-footer">
+                    <button type="button" class="outline btn-inline" data-close-dialog>Cancel</button>
+                    <button type="submit" class="btn-inline btn-red">Confirm</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
+</article>
+{% endif %}
 
 {% if settings and settings.contact_email %}
 <hr>

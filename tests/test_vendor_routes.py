@@ -50,7 +50,6 @@ def _step1_form_data(csrf, booth_type_id, **overrides):
         "address": "123 Main St",
         "city_state_zip": "Memphis, TN 38134",
         "booth_type_id": str(booth_type_id),
-        "agreement_accepted": "yes",
     }
     data.update(overrides)
     return data
@@ -161,26 +160,6 @@ async def test_step1_valid_saves_draft_and_redirects(db):
     from app.models import RegistrationDraft
     draft_row = db.query(RegistrationDraft).filter(RegistrationDraft.email == "vendor@test.com").first()
     assert draft_row is not None
-
-
-@pytest.mark.anyio
-async def test_step1_rejects_without_agreement(db):
-    seed_event_open(db)
-    booths = seed_booth_types(db)
-    cookies = vendor_cookie()
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        page = await client.get("/vendor/register", cookies=cookies)
-        csrf = extract_csrf(page.text)
-
-        response = await client.post(
-            "/vendor/register/step1",
-            data=_step1_form_data(csrf, booths[1].id, agreement_accepted=""),
-            cookies=cookies,
-        )
-        assert response.status_code == 200
-        assert "must accept" in response.text.lower()
 
 
 @pytest.mark.anyio
@@ -372,6 +351,7 @@ async def test_submit_creates_registration_and_redirects(db):
         with patch("app.routes.vendor.send_submission_confirmation_email", return_value=True):
             response = await client.post("/vendor/register/submit", data={
                 "csrf_token": csrf,
+                "agreement_accepted": "yes",
             }, cookies=cookies)
 
         assert response.status_code == 303
@@ -431,6 +411,7 @@ async def test_submit_rate_limited(db):
 
         response = await client.post("/vendor/register/submit", data={
             "csrf_token": csrf,
+            "agreement_accepted": "yes",
         }, cookies=cookies)
         assert response.status_code == 200
         assert "too many" in response.text.lower()

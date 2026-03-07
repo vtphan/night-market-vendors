@@ -27,6 +27,7 @@
 
 <h2>Registration {{ registration.registration_id }}</h2>
 
+<!-- Row 1: Vendor Information + Booth Details -->
 <div class="grid">
     <article>
         <header><strong>Vendor Information</strong></header>
@@ -35,21 +36,17 @@
             <tr><th>Contact Name</th><td>{{ registration.contact_name }}</td></tr>
             <tr><th>Email</th><td><a href="mailto:{{ registration.email }}">{{ registration.email }}</a></td></tr>
             <tr><th>Phone</th><td>{{ registration.phone }}</td></tr>
-            <tr><th>Category</th><td>{{ CATEGORIES.get(registration.category, registration.category) }}</td></tr>
-            <tr><th>Description</th><td>{{ registration.description }}</td></tr>
             {% if registration.address %}
             <tr><th>Address</th><td>{{ registration.address }}, {{ registration.city_state_zip or '' }}</td></tr>
             {% endif %}
-            <tr>
-                <th>Electrical Equipment</th>
-                <td>{{ equip_display(registration) }}</td>
-            </tr>
         </table>
     </article>
 
     <article>
-        <header><strong>Registration Details</strong></header>
+        <header><strong>Booth Details</strong></header>
         <table>
+            <tr><th>Category</th><td>{{ CATEGORIES.get(registration.category, registration.category) }}</td></tr>
+            <tr><th>Description</th><td>{{ registration.description }}</td></tr>
             <tr><th>Booth Type</th><td>{{ booth_type.name if booth_type else 'N/A' }} ({{ format_price(booth_type.price) if booth_type else 'N/A' }})</td></tr>
             {% if registration.approved_price is not none %}
             <tr>
@@ -62,170 +59,16 @@
                 </td>
             </tr>
             {% endif %}
-            <tr><th>Submitted</th><td>{{ registration.created_at.strftime('%b %d, %Y %I:%M %p') if registration.created_at else '' }}</td></tr>
-            {% if registration.approved_at %}
-            <tr><th>Approved</th><td>{{ registration.approved_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
-            {% endif %}
-            {% if registration.payment_deadline and registration.status == 'approved' %}
             <tr>
-                <th>Payment Deadline</th>
-                <td>
-                    {{ registration.payment_deadline.strftime('%b %d, %Y') }}
-                    {% if now is defined %}
-                        {% set deadline_ts = registration.payment_deadline.timestamp() %}
-                        {% set now_ts = now.timestamp() %}
-                        {% if now_ts > deadline_ts %}
-                        <span class="status-badge rejected" style="margin-left: 0.5rem;">OVERDUE</span>
-                        {% elif (deadline_ts - now_ts) <= 172800 %}
-                        <span class="status-badge pending" style="margin-left: 0.5rem;">Due soon</span>
-                        {% endif %}
-                    {% endif %}
-                </td>
+                <th>Extra Electrical Equipment</th>
+                <td>{{ equip_display(registration) }}</td>
             </tr>
-            {% endif %}
-            {% if registration.reminder_count and registration.reminder_count > 0 %}
-            <tr>
-                <th>Reminders Sent</th>
-                <td>
-                    {{ registration.reminder_count }}
-                    {% if registration.last_reminder_sent_at %}
-                    <small style="color: var(--pico-muted-color);">(last: {{ registration.last_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})</small>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endif %}
-            {% if registration.rejected_at %}
-            <tr><th>Rejected</th><td>{{ registration.rejected_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
-            {% endif %}
-            {% if registration.withdrawn_at %}
-            <tr><th>Withdrawn</th><td>{{ registration.withdrawn_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
-            {% endif %}
-            {% if registration.reversal_reason %}
-            <tr><th>Reversal Reason</th><td>{{ registration.reversal_reason }}</td></tr>
-            {% endif %}
-            {% if registration.amount_paid %}
-            <tr><th>Amount Paid</th><td>{{ format_price(registration.amount_paid) }}</td></tr>
-            {% endif %}
-            {% if registration.processing_fee %}
-            <tr><th>Processing Fee</th><td>{{ format_price(registration.processing_fee) }} (non-refundable)</td></tr>
-            {% endif %}
-            {% if registration.refund_amount %}
-            <tr><th>Refund Amount</th><td>{{ format_price(registration.refund_amount) }}</td></tr>
-            {% endif %}
-            <tr><th>Agreement IP</th><td>{{ registration.agreement_ip_address }}</td></tr>
-            <tr><th>Agreement Date</th><td>{{ registration.agreement_accepted_at.strftime('%b %d, %Y %I:%M %p') if registration.agreement_accepted_at else '' }}</td></tr>
         </table>
     </article>
 </div>
 
-<!-- Insurance and Permit -->
-<article>
-    <header>
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            <strong>Insurance and Permit</strong>
-            {% if insurance_doc %}
-            <span class="status-badge {{ 'paid' if insurance_doc.is_approved else 'pending' }}" style="font-size: 1rem;">
-                {{ 'Approved' if insurance_doc.is_approved else 'Under Review' }}
-            </span>
-            {% else %}
-            <span class="status-badge rejected" style="font-size: 1rem;">Not Uploaded</span>
-            {% endif %}
-        </div>
-    </header>
-    {% if insurance_doc %}
-    <p>
-        <a href="/admin/insurance/{{ insurance_doc.stored_filename }}">
-            Insurance: {{ insurance_doc.original_filename }}
-        </a>
-        <small style="color: var(--pico-muted-color);">({{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB)</small>
-    </p>
-    {% else %}
-    <p class="helper-text">
-        No insurance document uploaded by this vendor.
-    </p>
-    {% if registration.insurance_reminder_count and registration.insurance_reminder_count > 0 %}
-    <p class="helper-text">
-        {{ registration.insurance_reminder_count }} insurance reminder{{ 's' if registration.insurance_reminder_count != 1 }} sent
-        {% if registration.last_insurance_reminder_sent_at %}
-        (last: {{ registration.last_insurance_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})
-        {% endif %}
-    </p>
-    {% endif %}
-    {% endif %}
-
-    {% if registration.category in ('food', 'beverage') and food_permit_available %}
-    <p>
-        <a href="/admin/registrations/{{ registration.registration_id }}/food-permit">
-            Food Permit: food_permit_{{ registration.registration_id }}.pdf
-        </a>
-    </p>
-    {% endif %}
-
-    <div class="action-bar">
-        {% if insurance_doc %}
-            {% if insurance_doc.is_approved %}
-            <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/revoke"
-                  style="margin: 0;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="outline btn-inline">Revoke Insurance Approval</button>
-            </form>
-            {% else %}
-            <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/approve"
-                  style="margin: 0;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn-inline btn-blue">Approve Insurance</button>
-            </form>
-            {% endif %}
-        {% else %}
-            <button type="button" class="btn-inline btn-blue"
-                    data-open-dialog="insurance-reminder-dialog">
-                Send Insurance Reminder
-            </button>
-            <button type="button" class="outline btn-inline"
-                    data-open-dialog="admin-insurance-upload-dialog">
-                Upload Insurance Document
-            </button>
-        {% endif %}
-        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/food-permit/generate" style="margin: 0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="outline btn-inline"
-                    {% if registration.category not in ('food', 'beverage') %}disabled{% endif %}>
-                {{ 'Regenerate Food Permit' if food_permit_available else 'Generate Food Permit' }}
-            </button>
-        </form>
-    </div>
-
-    {% if not insurance_doc %}
-    <dialog id="admin-insurance-upload-dialog">
-        <article class="dialog-sm">
-            <header><strong>Upload Insurance Document</strong></header>
-            <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/upload"
-                  enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <p class="helper-text">Upload an insurance document on behalf of <strong>{{ registration.business_name }}</strong>.</p>
-                <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
-                {{ dialog_footer("Upload") }}
-            </form>
-        </article>
-    </dialog>
-
-    <dialog id="insurance-reminder-dialog">
-        <article class="dialog-md">
-            <header><strong>Send Insurance Reminder</strong></header>
-            <form id="insurance-reminder-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance-remind">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <p id="insurance-reminder-to" class="helper-text"></p>
-                <label>Subject</label>
-                <input type="text" name="custom_subject" id="insurance-reminder-subject" required>
-                <label>Body</label>
-                <textarea name="custom_body" id="insurance-reminder-body" rows="8" required></textarea>
-                {{ dialog_footer("Send Reminder", "btn-blue") }}
-            </form>
-        </article>
-    </dialog>
-    {% endif %}
-
-</article>
+<!-- Row 2: Registration Status + Insurance and Permit -->
+<div class="grid">
 
 <!-- Registration Status -->
 <article>
@@ -285,12 +128,27 @@
                 <label>Your name</label>
                 <input type="text" id="reject-admin-name" placeholder="e.g. Julia" required>
                 <input type="hidden" name="reversal_reason" id="reject-reason-hidden" value="">
-                {{ dialog_footer("Confirm Rejection", "btn-red") }}
+                {{ dialog_footer("Confirm", "btn-red") }}
             </form>
         </article>
     </dialog>
 
     {% elif registration.status == 'approved' %}
+
+    {% if registration.payment_deadline %}
+    <p style="margin-bottom: 0.5rem;">
+        <strong>Payment Deadline:</strong> {{ registration.payment_deadline.strftime('%b %d, %Y') }}
+        {% if now is defined %}
+            {% set deadline_ts = registration.payment_deadline.timestamp() %}
+            {% set now_ts = now.timestamp() %}
+            {% if now_ts > deadline_ts %}
+            <span class="status-badge rejected" style="margin-left: 0.5rem;">OVERDUE</span>
+            {% elif (deadline_ts - now_ts) <= 172800 %}
+            <span class="status-badge pending" style="margin-left: 0.5rem;">Due soon</span>
+            {% endif %}
+        {% endif %}
+    </p>
+    {% endif %}
 
     {% if registration.reminder_count %}
     <p class="helper-text">
@@ -304,11 +162,11 @@
     <div class="action-bar">
         <button type="button" class="btn-inline btn-blue"
                 data-open-dialog="reminder-dialog">
-            Send Payment Reminder
+            Send Reminder
         </button>
         <button type="button" class="outline btn-inline"
                 data-open-dialog="revoke-approval-dialog">
-            Revoke (move to Pending)
+            Revoke to Pending
         </button>
     </div>
 
@@ -347,7 +205,7 @@
                 <label>Your name</label>
                 <input type="text" id="revoke-approval-admin-name" placeholder="e.g. Julia" required>
                 <input type="hidden" name="reversal_reason" id="revoke-approval-reason-hidden" value="">
-                {{ dialog_footer("Confirm Revoke") }}
+                {{ dialog_footer("Confirm") }}
             </form>
         </article>
     </dialog>
@@ -357,7 +215,7 @@
     <div class="action-bar">
         <button type="button" class="outline btn-inline"
                 data-open-dialog="revoke-rejection-dialog">
-            Revoke (move to Pending)
+            Revoke to Pending
         </button>
     </div>
 
@@ -380,7 +238,7 @@
                 <label>Your name</label>
                 <input type="text" id="revoke-rejection-admin-name" placeholder="e.g. Julia" required>
                 <input type="hidden" name="reversal_reason" id="revoke-rejection-reason-hidden" value="">
-                {{ dialog_footer("Confirm Revoke") }}
+                {{ dialog_footer("Confirm") }}
             </form>
         </article>
     </dialog>
@@ -449,7 +307,7 @@
                 <p id="refund-calc-display" class="helper-text" style="margin: 0.25rem 0 0.5rem;"></p>
                 <input type="hidden" name="refund_amount" id="refund-amount-hidden" value="">
 
-                {{ dialog_footer("Confirm Cancel &amp; Refund", "btn-red") }}
+                {{ dialog_footer("Confirm", "btn-red") }}
             </form>
         </article>
     </dialog>
@@ -466,6 +324,133 @@
     {% endif %}
 
 </article>
+
+<!-- Insurance and Permit -->
+<article>
+    <header>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <strong>Insurance and Permit</strong>
+            {% if insurance_doc %}
+            <span class="status-badge {{ 'paid' if insurance_doc.is_approved else 'pending' }}" style="font-size: 1rem;">
+                {{ 'Approved' if insurance_doc.is_approved else 'Under Review' }}
+            </span>
+            {% else %}
+            <span class="status-badge rejected" style="font-size: 1rem;">Not Uploaded</span>
+            {% endif %}
+        </div>
+    </header>
+    {% if insurance_doc %}
+    <p>
+        <a href="/admin/insurance/{{ insurance_doc.stored_filename }}">
+            Insurance: {{ insurance_doc.original_filename }}
+        </a>
+        <small style="color: var(--pico-muted-color);">({{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB)</small>
+    </p>
+    {% else %}
+    <p class="helper-text">
+        No insurance document uploaded by this vendor.
+    </p>
+    {% if registration.insurance_reminder_count and registration.insurance_reminder_count > 0 %}
+    <p class="helper-text">
+        {{ registration.insurance_reminder_count }} insurance reminder{{ 's' if registration.insurance_reminder_count != 1 }} sent
+        {% if registration.last_insurance_reminder_sent_at %}
+        (last: {{ registration.last_insurance_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})
+        {% endif %}
+    </p>
+    {% endif %}
+    {% endif %}
+
+    {% if registration.category in ('food', 'beverage') and food_permit_available and registration.status in ('approved', 'paid') %}
+    <p>
+        <a href="/admin/registrations/{{ registration.registration_id }}/food-permit">
+            Food Permit: food_permit_{{ registration.registration_id }}.pdf
+        </a>
+    </p>
+    {% endif %}
+
+    <div class="action-bar">
+        {% if insurance_doc %}
+            {% if insurance_doc.is_approved %}
+            <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/revoke"
+                  style="margin: 0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="outline btn-inline">Revoke Approval</button>
+            </form>
+            {% else %}
+            <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/approve"
+                  style="margin: 0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn-inline btn-blue">Approve</button>
+            </form>
+            {% endif %}
+        {% else %}
+            <button type="button" class="btn-inline btn-blue"
+                    data-open-dialog="insurance-reminder-dialog">
+                Send Reminder
+            </button>
+            <button type="button" class="outline btn-inline"
+                    data-open-dialog="admin-insurance-upload-dialog">
+                Upload Document
+            </button>
+        {% endif %}
+        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/food-permit/generate" style="margin: 0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="outline btn-inline"
+                    {% if registration.category not in ('food', 'beverage') or registration.status not in ('approved', 'paid') %}disabled{% endif %}>
+                {{ 'Refill Permit' if food_permit_available else 'Fill Out Permit' }}
+            </button>
+        </form>
+    </div>
+
+    {% if not insurance_doc %}
+    <dialog id="admin-insurance-upload-dialog">
+        <article class="dialog-sm">
+            <header><strong>Upload Insurance Document</strong></header>
+            <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/upload"
+                  enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <p class="helper-text">Upload an insurance document on behalf of <strong>{{ registration.business_name }}</strong>.</p>
+                <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
+                {{ dialog_footer("Upload") }}
+            </form>
+        </article>
+    </dialog>
+
+    <dialog id="insurance-reminder-dialog">
+        <article class="dialog-md">
+            <header><strong>Send Insurance Reminder</strong></header>
+            <form id="insurance-reminder-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance-remind">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <p id="insurance-reminder-to" class="helper-text"></p>
+                <label>Subject</label>
+                <input type="text" name="custom_subject" id="insurance-reminder-subject" required>
+                <label>Body</label>
+                <textarea name="custom_body" id="insurance-reminder-body" rows="8" required></textarea>
+                {{ dialog_footer("Send Reminder", "btn-blue") }}
+            </form>
+        </article>
+    </dialog>
+    {% endif %}
+
+</article>
+
+</div>
+
+<!-- Payment (paid/cancelled/refunded only) -->
+{% if registration.amount_paid %}
+<article>
+    <header><strong>Payment</strong></header>
+    <table>
+        <tr><th>Amount Paid</th><td>{{ format_price(registration.amount_paid) }}</td></tr>
+        {% if registration.processing_fee %}
+        <tr><th>Processing Fee</th><td>{{ format_price(registration.processing_fee) }} (non-refundable)</td></tr>
+        {% endif %}
+        {% if registration.refund_amount %}
+        <tr><th>Refund Amount</th><td>{{ format_price(registration.refund_amount) }}</td></tr>
+        {% endif %}
+    </table>
+</article>
+{% endif %}
 
 <!-- Notes -->
 <article>
@@ -511,6 +496,31 @@
     {% else %}
     <p class="helper-text" style="margin: 0;">No notes yet.</p>
     {% endif %}
+</article>
+
+<!-- Timeline -->
+<article>
+    <header><strong>Timeline</strong></header>
+    <table>
+        <tr><th>Submitted</th><td>{{ registration.created_at.strftime('%b %d, %Y %I:%M %p') if registration.created_at else '' }}</td></tr>
+        {% if registration.approved_at %}
+        <tr><th>Approved</th><td>{{ registration.approved_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+        {% endif %}
+        {% if registration.rejected_at %}
+        <tr><th>Rejected</th><td>{{ registration.rejected_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+        {% endif %}
+        {% if registration.withdrawn_at %}
+        <tr><th>Withdrawn</th><td>{{ registration.withdrawn_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+        {% endif %}
+        {% if registration.cancelled_at %}
+        <tr><th>Cancelled</th><td>{{ registration.cancelled_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+        {% endif %}
+        {% if registration.reversal_reason %}
+        <tr><th>Reversal Reason</th><td>{{ registration.reversal_reason }}</td></tr>
+        {% endif %}
+        <tr><th>Agreement IP</th><td>{{ registration.agreement_ip_address }}</td></tr>
+        <tr><th>Agreement Date</th><td>{{ registration.agreement_accepted_at.strftime('%b %d, %Y %I:%M %p') if registration.agreement_accepted_at else '' }}</td></tr>
+    </table>
 </article>
 
 <script id="admin-reg-config" type="application/json">{

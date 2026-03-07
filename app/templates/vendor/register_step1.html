@@ -13,30 +13,6 @@
     <form method="post" action="/vendor/register/step1">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-        <h3>Contact Information</h3>
-
-        <label for="contact_name">Full Name</label>
-        <input type="text" id="contact_name" name="contact_name" required
-               value="{{ draft.get('contact_name', '') }}" placeholder="Your full name">
-
-        <label for="email">Email Address</label>
-        <input type="email" id="email" name="email" value="{{ email }}" readonly
-               style="background: var(--pico-form-element-disabled-background-color); cursor: not-allowed;">
-
-        <label for="phone">Phone Number</label>
-        <input type="tel" id="phone" name="phone" required
-               value="{{ draft.get('phone', '') }}" placeholder="(555) 123-4567">
-
-        <div id="address-fields" style="{% if draft.get('category') not in ('food', 'beverage') %}display:none{% endif %}">
-            <label for="address">Street Address <small>(required for food permit)</small></label>
-            <input type="text" id="address" name="address"
-                   value="{{ draft.get('address', '') }}" placeholder="1234 Main St">
-
-            <label for="city_state_zip">City, State, ZIP <small>(required for food permit)</small></label>
-            <input type="text" id="city_state_zip" name="city_state_zip"
-                   value="{{ draft.get('city_state_zip', '') }}" placeholder="Memphis, TN 38134">
-        </div>
-
         <h3>Business Information</h3>
 
         <label for="business_name">Business Name</label>
@@ -55,28 +31,29 @@
                   placeholder="e.g., pho, banh mi, spring rolls, bubble tea, handmade jewelry, henna art...">{{ draft.get('description', '') }}</textarea>
         <small style="color: var(--pico-muted-color);">Food/beverage vendors: please list specific items. This will appear on your food permit.</small>
 
-        <fieldset>
-            <legend>Electrical Equipment</legend>
-            <small style="display: block; margin-bottom: 0.5rem; color: var(--pico-muted-color);">
-                Note: Heavy electrical usage may limit booth placement options.
-            </small>
-            {% set selected_equipment = draft.get('electrical_equipment', '') %}
-            {% if selected_equipment is string %}
-                {% set selected_list = selected_equipment.split(',') if selected_equipment else [] %}
-            {% else %}
-                {% set selected_list = selected_equipment %}
-            {% endif %}
-            {% for equip in ELECTRICAL_EQUIPMENT_OPTIONS %}
-            <label>
-                <input type="checkbox" name="electrical_equipment" value="{{ equip }}"
-                       {{ 'checked' if equip in selected_list }}>
-                {{ EQUIP_LABELS.get(equip, equip | title) }}
-            </label>
-            {% endfor %}
-            <label for="electrical_other">Other electrical equipment</label>
-            <input type="text" id="electrical_other" name="electrical_other"
-                   value="{{ draft.get('electrical_other', '') }}" placeholder="e.g., heat lamp, electric kettle">
-        </fieldset>
+        <div id="address-fields" style="{% if draft.get('category') not in ('food', 'beverage') %}display:none{% endif %}">
+            <label for="address">Street Address <small>(required for food permit)</small></label>
+            <input type="text" id="address" name="address"
+                   value="{{ draft.get('address', '') }}" placeholder="1234 Main St">
+
+            <label for="city_state_zip">City, State, ZIP <small>(required for food permit)</small></label>
+            <input type="text" id="city_state_zip" name="city_state_zip"
+                   value="{{ draft.get('city_state_zip', '') }}" placeholder="Memphis, TN 38134">
+        </div>
+
+        <h3>Contact Information</h3>
+
+        <label for="contact_name">Full Name</label>
+        <input type="text" id="contact_name" name="contact_name" required
+               value="{{ draft.get('contact_name', '') }}" placeholder="Your full name">
+
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" value="{{ email }}" readonly
+               style="background: var(--pico-form-element-disabled-background-color); cursor: not-allowed;">
+
+        <label for="phone">Phone Number</label>
+        <input type="tel" id="phone" name="phone" required
+               value="{{ draft.get('phone', '') }}" placeholder="(555) 123-4567">
 
         <h3>Booth Selection</h3>
 
@@ -99,22 +76,27 @@
         </label>
         {% endfor %}
 
-        {% if insurance_instructions %}
-        <article>
-            {{ insurance_instructions | sanitize_html }}
-        </article>
-        {% endif %}
-
-        <hr>
-
-        <p style="font-size: 0.85rem; font-weight: bold; margin-bottom: 0.25rem;">Vendor Participation Agreement</p>
-        <div style="max-height: 200px; overflow-y: auto; padding: 0.75rem; background: var(--pico-card-background-color); border: 1px solid var(--pico-muted-border-color); border-radius: 4px; margin: 0 0 0.5rem; white-space: pre-line; font-size: 0.8rem; line-height: 1.4;">{{ agreement_text }}</div>
-
         <fieldset>
-            <label style="font-size: 0.85rem;">
-                <input type="checkbox" name="agreement_accepted" value="yes" required>
-                I have read and agree to the Vendor Participation Agreement
+            <legend>Extra Electrical Equipment</legend>
+            <small style="display: block; margin-bottom: 0.5rem; color: var(--pico-muted-color);">
+                Each booth includes basic lighting. This is an outdoor event with limited electrical capacity, so vendors are strongly encouraged to use gas, charcoal, or other non-electric cooking methods. If you must use electrical cooking equipment, please use your best judgement and only select what is truly necessary — this will affect your booth placement due to the limited availability of electricity connections.
+            </small>
+            {% set selected_equipment = draft.get('electrical_equipment', '') %}
+            {% if selected_equipment is string %}
+                {% set selected_list = selected_equipment.split(',') if selected_equipment else [] %}
+            {% else %}
+                {% set selected_list = selected_equipment %}
+            {% endif %}
+            {% for equip in ELECTRICAL_EQUIPMENT_OPTIONS %}
+            <label>
+                <input type="checkbox" name="electrical_equipment" value="{{ equip }}"
+                       {{ 'checked' if equip in selected_list }}>
+                {{ EQUIP_LABELS.get(equip, equip | title) }}
             </label>
+            {% endfor %}
+            <label for="electrical_other">Other</label>
+            <input type="text" id="electrical_other" name="electrical_other"
+                   value="{{ draft.get('electrical_other', '') }}" placeholder="e.g., heat lamp, electric kettle">
         </fieldset>
 
         {% set any_available = booth_availability.values() | select('gt', 0) | list %}

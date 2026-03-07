@@ -723,6 +723,11 @@ async def reject_registration(
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
 
+    # Remove food permit PDF if it exists (no longer approved)
+    permit_path = PERMITS_DIR / f"{reg_id}.pdf"
+    if permit_path.exists():
+        permit_path.unlink()
+
     background_tasks.add_task(send_rejection_email, registration.email, reg_id, reversal_reason or None)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
@@ -775,6 +780,11 @@ async def unreject_registration(
         ctx = _detail_context(db, registration)
         ctx["get_flashed_messages"] = lambda: flash
         return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+    # Remove food permit PDF if it exists (no longer approved)
+    permit_path = PERMITS_DIR / f"{reg_id}.pdf"
+    if permit_path.exists():
+        permit_path.unlink()
 
     # Notify the vendor when a previously approved registration is revoked
     if was_approved:
@@ -1035,8 +1045,8 @@ async def download_food_permit(
     db: Session = Depends(get_db),
 ):
     registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
-    if not registration:
-        return RedirectResponse(url="/admin/registrations", status_code=303)
+    if not registration or registration.status not in ("approved", "paid"):
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}" if registration else "/admin/registrations", status_code=303)
 
     permit_path = PERMITS_DIR / f"{reg_id}.pdf"
     if not permit_path.exists():
@@ -1057,7 +1067,7 @@ async def generate_food_permit_route(
     _csrf: None = Depends(require_csrf),
 ):
     registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
-    if not registration or registration.category not in FOOD_CATEGORIES:
+    if not registration or registration.category not in FOOD_CATEGORIES or registration.status not in ("approved", "paid"):
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
     settings = get_event_settings(db)
