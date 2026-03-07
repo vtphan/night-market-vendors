@@ -129,6 +129,17 @@ class AdminNote(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
 
+class AdminActivityLog(Base):
+    __tablename__ = "admin_activity_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    admin_email = Column(String, nullable=False, index=True)
+    action = Column(String(50), nullable=False)
+    registration_id = Column(String(20), nullable=True, index=True)
+    detail = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
 class RegistrationDraft(Base):
     __tablename__ = "registration_drafts"
 

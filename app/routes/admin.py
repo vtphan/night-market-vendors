@@ -20,6 +20,7 @@ from app.database import get_db, get_event_settings, invalidate_event_settings_c
 from app.csrf import generate_csrf_token, require_csrf
 from app.session import require_admin
 from app.models import Registration, BoothType, InsuranceDocument, AdminNote
+from app.models import AdminActivityLog
 from app.services.registration import (
     transition_status,
     approve_with_inventory_check,
@@ -27,6 +28,7 @@ from app.services.registration import (
     get_booth_availability,
     get_unpaid_registrations,
     try_cancel_active_payment_intent,
+    log_admin_action,
     LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
@@ -478,6 +480,50 @@ async def registration_detail(
     }, session=session)
 
 
+# --- Activity log ---
+
+ACTION_LABELS = {
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "revoked_approval": "Revoked Approval",
+    "unrejected": "Unrejected",
+    "cancelled": "Cancelled & Refunded",
+    "approved_insurance": "Approved Insurance",
+    "revoked_insurance": "Revoked Insurance",
+    "sent_payment_reminder": "Sent Payment Reminder",
+    "sent_insurance_reminder": "Sent Insurance Reminder",
+}
+
+
+@router.get("/logs")
+async def activity_logs(
+    request: Request,
+    page: int = Query(1, ge=1),
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    per_page = 50
+    total = db.query(sa_func.count(AdminActivityLog.id)).scalar()
+    total_pages = max(1, math.ceil(total / per_page))
+    page = min(page, total_pages)
+
+    logs = (
+        db.query(AdminActivityLog)
+        .order_by(AdminActivityLog.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    return _template(request, "admin/logs.html", {
+        "logs": logs,
+        "action_labels": ACTION_LABELS,
+        "page": page,
+        "total_pages": total_pages,
+        "total": total,
+    }, session=session)
+
+
 # --- Approve registration ---
 
 @router.post("/registrations/{reg_id}/approve")
@@ -546,6 +592,8 @@ async def approve_registration(
             event_location=event_location,
             event_dates=event_dates,
         )
+
+    log_admin_action(db, session["email"], "approved", reg_id, registration.business_name)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -675,6 +723,8 @@ async def send_reminder(
     registration.reminder_count = (registration.reminder_count or 0) + 1
     db.commit()
 
+    log_admin_action(db, session["email"], "sent_payment_reminder", reg_id, f"Reminder #{registration.reminder_count}")
+
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
 
@@ -730,6 +780,8 @@ async def reject_registration(
         permit_path.unlink()
 
     background_tasks.add_task(send_rejection_email, registration.email, reg_id, reversal_reason or None)
+
+    log_admin_action(db, session["email"], "rejected", reg_id, reversal_reason or None)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -793,6 +845,9 @@ async def unreject_registration(
             send_approval_revoked_email,
             registration.email, reg_id, reversal_reason or None,
         )
+
+    action = "revoked_approval" if was_approved else "unrejected"
+    log_admin_action(db, session["email"], action, reg_id, reversal_reason or None)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -924,6 +979,9 @@ async def cancel_registration(
         f"Refund amount: ${amount_cents / 100:.2f}\n"
         f"PaymentIntent: {registration.stripe_payment_intent_id or 'N/A'}",
     )
+
+    refund_note = f"Refund: ${amount_cents / 100:.2f}" if amount_cents > 0 else "No refund"
+    log_admin_action(db, session["email"], "cancelled", reg_id, f"{reversal_reason} ({refund_note})")
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -1180,6 +1238,7 @@ async def approve_insurance(
         doc.approved_by = session["email"]
         doc.approved_at = datetime.now(timezone.utc)
         db.commit()
+        log_admin_action(db, session["email"], "approved_insurance", reg_id, registration.email)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -1205,6 +1264,7 @@ async def revoke_insurance(
         doc.approved_by = None
         doc.approved_at = None
         db.commit()
+        log_admin_action(db, session["email"], "revoked_insurance", reg_id, registration.email)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -1404,6 +1464,8 @@ async def send_insurance_reminder(
     registration.last_insurance_reminder_sent_at = now
     registration.insurance_reminder_count = (registration.insurance_reminder_count or 0) + 1
     db.commit()
+
+    log_admin_action(db, session["email"], "sent_insurance_reminder", reg_id, f"Reminder #{registration.insurance_reminder_count}")
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 

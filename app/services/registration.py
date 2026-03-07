@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.database import get_event_settings
-from app.models import Registration, BoothType, EventSettings
+from app.models import Registration, BoothType, EventSettings, AdminActivityLog
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,24 @@ EQUIP_LABELS = {
     "griddle": "Griddle",
     "blender": "Blender",
 }
+
+
+def log_admin_action(
+    db: Session,
+    admin_email: str,
+    action: str,
+    registration_id: str | None = None,
+    detail: str | None = None,
+) -> None:
+    """Record an admin action in the activity log."""
+    entry = AdminActivityLog(
+        admin_email=admin_email,
+        action=action,
+        registration_id=registration_id,
+        detail=detail,
+    )
+    db.add(entry)
+    db.commit()
 
 
 def try_cancel_active_payment_intent(registration: Registration) -> tuple[bool, str | None]:

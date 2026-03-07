@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Activity Log - Admin{% endblock %}
+
+{% block extra_head %}
+<script src="/static/clickable-rows.js" defer></script>
+{% endblock %}
+
+{% block content %}
+<h2>Activity Log</h2>
+<p><small style="color: var(--pico-muted-color);">{{ total }} action{{ 's' if total != 1 }} recorded</small></p>
+
+<figure>
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Admin</th>
+                <th>Action</th>
+                <th>Registration</th>
+                <th>Detail</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in logs %}
+            <tr{% if entry.registration_id %} data-href="/admin/registrations/{{ entry.registration_id }}" style="cursor: pointer;"{% endif %}>
+                <td><small>{{ (entry.created_at|localtime).strftime('%b %d, %Y %I:%M %p') }}</small></td>
+                <td><small>{{ entry.admin_email }}</small></td>
+                <td><span class="status-badge {{ entry.action }}">{{ action_labels.get(entry.action, entry.action | replace('_', ' ') | title) }}</span></td>
+                <td>{% if entry.registration_id %}<code>{{ entry.registration_id }}</code>{% else %}—{% endif %}</td>
+                <td><small>{{ entry.detail or '' }}</small></td>
+            </tr>
+            {% endfor %}
+            {% if not logs %}
+            <tr><td colspan="5">No activity recorded yet.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</figure>
+
+{% if total_pages > 1 %}
+<nav style="display: flex; justify-content: center; gap: 1rem; align-items: center;">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}">&larr; Newer</a>
+    {% endif %}
+    <small>Page {{ page }} of {{ total_pages }}</small>
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}">Older &rarr;</a>
+    {% endif %}
+</nav>
+{% endif %}
+{% endblock %}
