@@ -112,6 +112,7 @@
 
   // --- Dialog openers (with special handling for reminder dialogs) ---
   var INSURANCE_REMINDER_PREVIEW_URL = config.insuranceReminderPreviewUrl || "";
+  var INSURANCE_RESUBMIT_PREVIEW_URL = config.insuranceResubmitPreviewUrl || "";
 
   document.querySelectorAll("[data-open-dialog]").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -120,6 +121,8 @@
         loadReminderPreview("reminder-dialog", REMINDER_PREVIEW_URL, "reminder");
       } else if (target === "insurance-reminder-dialog") {
         loadReminderPreview("insurance-reminder-dialog", INSURANCE_REMINDER_PREVIEW_URL, "insurance-reminder");
+      } else if (target === "insurance-resubmit-dialog") {
+        loadReminderPreview("insurance-resubmit-dialog", INSURANCE_RESUBMIT_PREVIEW_URL, "insurance-resubmit");
       } else {
         var dialog = document.getElementById(target);
         if (dialog) dialog.showModal();

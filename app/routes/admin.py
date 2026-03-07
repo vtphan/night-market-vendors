@@ -497,6 +497,7 @@ ACTION_LABELS = {
     "revoked_insurance": "Revoked Insurance",
     "sent_payment_reminder": "Sent Payment Reminder",
     "sent_insurance_reminder": "Sent Insurance Reminder",
+    "requested_insurance_resubmit": "Requested Insurance Resubmission",
 }
 
 
@@ -1510,6 +1511,108 @@ async def send_insurance_reminder(
     db.commit()
 
     log_admin_action(db, session["email"], "sent_insurance_reminder", reg_id, f"Reminder #{registration.insurance_reminder_count}")
+
+    return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
+# --- Insurance resubmission request ---
+
+def _insurance_resubmit_defaults(registration, db):
+    """Build default subject and body for an insurance resubmission request."""
+    from app.services.email import _get_email_globals
+
+    portal_domain = urlparse(APP_URL).hostname or APP_URL
+    globals = _get_email_globals()
+    event_name = globals.get("event_name", "")
+
+    subject = f"Insurance Document Resubmission Required — {event_name}"
+    body = (
+        f"Hi,\n\n"
+        f"We've reviewed your insurance document for registration "
+        f"{registration.registration_id} and found some issues.\n\n"
+        f"Please review the requirements and upload a new document.\n\n"
+        f"Please log in to the vendor portal at {portal_domain} "
+        f"to resubmit.\n\n"
+        f"Thank you!"
+    )
+    return subject, body
+
+
+@router.get("/registrations/{reg_id}/insurance-resubmit/preview")
+async def insurance_resubmit_preview(
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration:
+        return JSONResponse({"error": "Not found"}, status_code=400)
+
+    # Only allow if insurance doc exists and is NOT approved
+    doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
+    if not doc:
+        return JSONResponse({"error": "No insurance document uploaded"}, status_code=400)
+    if doc.is_approved:
+        return JSONResponse({"error": "Insurance document is already approved"}, status_code=400)
+
+    subject, body = _insurance_resubmit_defaults(registration, db)
+    return JSONResponse({"subject": subject, "body": body, "to": registration.email})
+
+
+@router.post("/registrations/{reg_id}/insurance-resubmit")
+async def send_insurance_resubmit_request(
+    request: Request,
+    reg_id: str,
+    background_tasks: BackgroundTasks,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+    custom_subject: str = Form(""),
+    custom_body: str = Form(""),
+):
+    registration = (
+        db.query(Registration)
+        .filter(Registration.registration_id == reg_id)
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    # Only allow if insurance doc exists and is NOT approved
+    doc = db.query(InsuranceDocument).filter(InsuranceDocument.email == registration.email).first()
+    if not doc:
+        flash = [{"category": "error", "text": "No insurance document to request resubmission for."}]
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
+    if doc.is_approved:
+        flash = [{"category": "error", "text": "Insurance document is already approved."}]
+        ctx = _detail_context(db, registration)
+        ctx["get_flashed_messages"] = lambda: flash
+        return _template(request, "admin/registration_detail.html", ctx, session=session)
+
+    if custom_subject.strip() and custom_body.strip():
+        subject_text = custom_subject.strip()
+        body_text = custom_body.strip()
+    else:
+        subject_text, body_text = _insurance_resubmit_defaults(registration, db)
+
+    portal_domain = urlparse(APP_URL).hostname or APP_URL
+
+    background_tasks.add_task(
+        send_insurance_reminder_email,
+        registration.email,
+        reg_id,
+        portal_domain,
+        subject_text,
+        body_text,
+    )
+
+    log_admin_action(db, session["email"], "requested_insurance_resubmit", reg_id, registration.email)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 

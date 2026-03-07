@@ -469,6 +469,10 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" class="btn-inline btn-blue">Approve</button>
             </form>
+            <button type="button" class="outline btn-inline"
+                    data-open-dialog="insurance-resubmit-dialog">
+                Request Resubmission
+            </button>
             {% endif %}
         {% else %}
             <button type="button" class="btn-inline btn-blue"
@@ -512,6 +516,23 @@
                 <label>Body</label>
                 <textarea name="custom_body" id="insurance-reminder-body" rows="8" required></textarea>
                 {{ dialog_footer("Send Reminder", "btn-blue") }}
+            </form>
+        </article>
+    </dialog>
+    {% endif %}
+
+    {% if insurance_doc and not insurance_doc.is_approved %}
+    <dialog id="insurance-resubmit-dialog">
+        <article class="dialog-md">
+            <header><strong>Request Insurance Resubmission</strong></header>
+            <form id="insurance-resubmit-form" method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance-resubmit">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <p id="insurance-resubmit-to" class="helper-text"></p>
+                <label>Subject</label>
+                <input type="text" name="custom_subject" id="insurance-resubmit-subject" required>
+                <label>Body</label>
+                <textarea name="custom_body" id="insurance-resubmit-body" rows="8" required></textarea>
+                {{ dialog_footer("Send Request", "btn-blue") }}
             </form>
         </article>
     </dialog>
@@ -646,7 +667,8 @@
     "adminEmail": {{ session.email | tojson }},
     "boothFeeCents": {{ ((registration.amount_paid or 0) - (registration.processing_fee or 0)) }},
     "reminderPreviewUrl": "/admin/registrations/{{ registration.registration_id }}/remind/preview",
-    "insuranceReminderPreviewUrl": "/admin/registrations/{{ registration.registration_id }}/insurance-remind/preview"
+    "insuranceReminderPreviewUrl": "/admin/registrations/{{ registration.registration_id }}/insurance-remind/preview",
+    "insuranceResubmitPreviewUrl": "/admin/registrations/{{ registration.registration_id }}/insurance-resubmit/preview"
 }</script>
 <script src="/static/admin-registration.js"></script>
 {% endblock %}
