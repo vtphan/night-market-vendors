@@ -41,16 +41,32 @@
                    value="{{ settings.developer_contact or '' }}"
                    placeholder="Developer/technical contact email">
 
+            <label for="event_timezone">Timezone</label>
+            <select id="event_timezone" name="event_timezone">
+                {% set tz_options = [
+                    ("America/New_York", "Eastern Time (ET)"),
+                    ("America/Chicago", "Central Time (CT)"),
+                    ("America/Denver", "Mountain Time (MT)"),
+                    ("America/Los_Angeles", "Pacific Time (PT)"),
+                    ("America/Anchorage", "Alaska Time (AKT)"),
+                    ("Pacific/Honolulu", "Hawaii Time (HT)"),
+                    ("UTC", "UTC"),
+                ] %}
+                {% for value, label in tz_options %}
+                <option value="{{ value }}" {% if settings.timezone == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+
             <div class="grid">
                 <div>
                     <label for="registration_open_date">Registration Opens</label>
                     <input type="datetime-local" id="registration_open_date" name="registration_open_date"
-                           value="{{ settings.registration_open_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+                           value="{{ (settings.registration_open_date|localtime).strftime('%Y-%m-%dT%H:%M') }}" required>
                 </div>
                 <div>
                     <label for="registration_close_date">Registration Closes</label>
                     <input type="datetime-local" id="registration_close_date" name="registration_close_date"
-                           value="{{ settings.registration_close_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+                           value="{{ (settings.registration_close_date|localtime).strftime('%Y-%m-%dT%H:%M') }}" required>
                 </div>
             </div>
         </details>

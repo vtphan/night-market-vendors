@@ -47,7 +47,7 @@
                     —
                     {% endif %}
                 </td>
-                <td><small>{{ latest_note_dates.get(reg.registration_id).strftime('%m/%d') if latest_note_dates.get(reg.registration_id) else '' }}</small></td>
+                <td><small>{{ (latest_note_dates.get(reg.registration_id)|localtime).strftime('%m/%d') if latest_note_dates.get(reg.registration_id) else '' }}</small></td>
                 <td><small>{{ latest_notes.get(reg.registration_id, '') }}</small></td>
             </tr>
             {% endfor %}

@@ -24,7 +24,7 @@
             <dt>Size</dt>
             <dd>{{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB</dd>
             <dt>Uploaded</dt>
-            <dd>{{ insurance_doc.uploaded_at.strftime('%b %d, %Y at %I:%M %p') if insurance_doc.uploaded_at else '' }}</dd>
+            <dd>{{ (insurance_doc.uploaded_at|localtime).strftime('%b %d, %Y at %I:%M %p %Z') if insurance_doc.uploaded_at else '' }}</dd>
         </dl>
     {% elif insurance_doc %}
         <p><span class="status-badge pending">Pending Review</span></p>
@@ -34,7 +34,7 @@
             <dt>Size</dt>
             <dd>{{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB</dd>
             <dt>Uploaded</dt>
-            <dd>{{ insurance_doc.uploaded_at.strftime('%b %d, %Y at %I:%M %p') if insurance_doc.uploaded_at else '' }}</dd>
+            <dd>{{ (insurance_doc.uploaded_at|localtime).strftime('%b %d, %Y at %I:%M %p %Z') if insurance_doc.uploaded_at else '' }}</dd>
         </dl>
 
         <hr>

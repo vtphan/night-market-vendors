@@ -4,6 +4,7 @@ import logging
 import zipfile
 import math
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 
@@ -1528,6 +1529,7 @@ async def update_settings(
     event_end_date: str = Form(...),
     registration_open_date: str = Form(...),
     registration_close_date: str = Form(...),
+    event_timezone: str = Form("America/Chicago"),
     banner_text: str = Form(""),
     contact_email: str = Form(""),
     developer_contact: str = Form(""),
@@ -1559,8 +1561,13 @@ async def update_settings(
             settings.event_name = event_name.strip()
             settings.event_start_date = date.fromisoformat(event_start_date)
             settings.event_end_date = date.fromisoformat(event_end_date)
-            settings.registration_open_date = datetime.fromisoformat(registration_open_date)
-            settings.registration_close_date = datetime.fromisoformat(registration_close_date)
+            tz_name = event_timezone.strip() or "America/Chicago"
+            event_tz = ZoneInfo(tz_name)
+            open_dt = datetime.fromisoformat(registration_open_date).replace(tzinfo=event_tz)
+            close_dt = datetime.fromisoformat(registration_close_date).replace(tzinfo=event_tz)
+            settings.registration_open_date = open_dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+            settings.registration_close_date = close_dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+            settings.timezone = tz_name
             settings.banner_text = banner_text.strip()
             settings.contact_email = contact_email.strip()
             settings.developer_contact = developer_contact.strip()
@@ -1626,6 +1633,7 @@ async def update_settings(
             db.commit()
             invalidate_event_settings_cache(db)
             request.app.state.event_name = settings.event_name
+            request.app.state.event_timezone = settings.timezone
         except ValueError:
             flash = [{"category": "error", "text": "Invalid date format. Please use YYYY-MM-DD."}]
             return _template(request, "admin/settings.html", {

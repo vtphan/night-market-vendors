@@ -142,7 +142,7 @@
     {% if registration.payment_deadline %}
     {% set is_overdue = now is defined and now.timestamp() > registration.payment_deadline.timestamp() %}
     <div style="background-color: {% if is_overdue %}#fef2f2{% else %}#fff8e1{% endif %}; border-left: 4px solid {% if is_overdue %}#dc2626{% else %}#f59e0b{% endif %}; padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 4px;">
-        <strong style="color: {% if is_overdue %}#991b1b{% else %}#92400e{% endif %};">Payment Deadline: {{ registration.payment_deadline.strftime('%b %d, %Y') }}</strong>
+        <strong style="color: {% if is_overdue %}#991b1b{% else %}#92400e{% endif %};">Payment Deadline: {{ (registration.payment_deadline|localtime).strftime('%b %d, %Y') }}</strong>
         {% if is_overdue %}
         <p style="margin: 4px 0 0; font-size: 0.85rem; color: #991b1b;">The payment deadline has passed. Please complete your payment as soon as possible or contact the organizers.</p>
         {% else %}
@@ -241,22 +241,22 @@
     <header>Timeline</header>
     <dl class="detail-list">
         <dt>Submitted</dt>
-        <dd>{{ registration.created_at.strftime('%b %d, %Y at %I:%M %p') if registration.created_at else '' }}</dd>
+        <dd>{{ (registration.created_at|localtime).strftime('%b %d, %Y at %I:%M %p %Z') if registration.created_at else '' }}</dd>
         {% if registration.approved_at %}
         <dt>Approved</dt>
-        <dd>{{ registration.approved_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
+        <dd>{{ (registration.approved_at|localtime).strftime('%b %d, %Y at %I:%M %p %Z') }}</dd>
         {% endif %}
         {% if registration.payment_deadline and registration.status == 'approved' %}
         <dt>Payment Deadline</dt>
-        <dd>{{ registration.payment_deadline.strftime('%b %d, %Y') }}</dd>
+        <dd>{{ (registration.payment_deadline|localtime).strftime('%b %d, %Y') }}</dd>
         {% endif %}
         {% if registration.rejected_at %}
         <dt>Declined</dt>
-        <dd>{{ registration.rejected_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
+        <dd>{{ (registration.rejected_at|localtime).strftime('%b %d, %Y at %I:%M %p %Z') }}</dd>
         {% endif %}
         {% if registration.withdrawn_at %}
         <dt>Withdrawn</dt>
-        <dd>{{ registration.withdrawn_at.strftime('%b %d, %Y at %I:%M %p') }}</dd>
+        <dd>{{ (registration.withdrawn_at|localtime).strftime('%b %d, %Y at %I:%M %p %Z') }}</dd>
         {% endif %}
     </dl>
 </article>

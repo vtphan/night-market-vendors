@@ -45,9 +45,9 @@
 <article style="background-color: {% if has_overdue_payment %}#fef2f2{% else %}#fff8e1{% endif %}; border-left: 4px solid {% if has_overdue_payment %}#dc2626{% else %}#f59e0b{% endif %}; padding: 1rem;">
     <strong>Approved — awaiting payment.</strong>
     {% if has_overdue_payment %}
-    Payment deadline has passed ({{ registration.payment_deadline.strftime('%b %d, %Y') }}).
+    Payment deadline has passed ({{ (registration.payment_deadline|localtime).strftime('%b %d, %Y') }}).
     {% elif registration.payment_deadline %}
-    Payment due by {{ registration.payment_deadline.strftime('%b %d, %Y') }}.
+    Payment due by {{ (registration.payment_deadline|localtime).strftime('%b %d, %Y') }}.
     {% endif %}
     {% if needs_insurance %}
     Insurance not uploaded.
@@ -216,7 +216,7 @@
 
     {% if registration.payment_deadline %}
     <p style="margin-bottom: 0.5rem;">
-        <strong>Payment Deadline:</strong> {{ registration.payment_deadline.strftime('%b %d, %Y') }}
+        <strong>Payment Deadline:</strong> {{ (registration.payment_deadline|localtime).strftime('%b %d, %Y') }}
         {% if now is defined %}
             {% set deadline_ts = registration.payment_deadline.timestamp() %}
             {% set now_ts = now.timestamp() %}
@@ -233,7 +233,7 @@
     <p class="helper-text">
         {{ registration.reminder_count }} reminder{{ 's' if registration.reminder_count != 1 }} sent
         {% if registration.last_reminder_sent_at %}
-        (last: {{ registration.last_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})
+        (last: {{ (registration.last_reminder_sent_at|localtime).strftime('%b %d, %Y %I:%M %p %Z') }})
         {% endif %}
     </p>
     {% endif %}
@@ -433,7 +433,7 @@
     <p class="helper-text">
         {{ registration.insurance_reminder_count }} insurance reminder{{ 's' if registration.insurance_reminder_count != 1 }} sent
         {% if registration.last_insurance_reminder_sent_at %}
-        (last: {{ registration.last_insurance_reminder_sent_at.strftime('%b %d, %Y %I:%M %p') }})
+        (last: {{ (registration.last_insurance_reminder_sent_at|localtime).strftime('%b %d, %Y %I:%M %p %Z') }})
         {% endif %}
     </p>
     {% endif %}
@@ -567,7 +567,7 @@
         {% for note in notes %}
         <div style="padding: 0.4rem 0; border-bottom: 1px solid var(--pico-muted-border-color); font-size: 0.85rem;">
             <strong>{{ note.admin_email.split('@')[0] }}</strong>
-            <small style="color: var(--pico-muted-color);">{{ note.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+            <small style="color: var(--pico-muted-color);">{{ (note.created_at|localtime).strftime('%b %d, %Y %I:%M %p %Z') }}</small>
             <br>{{ note.text }}
         </div>
         {% endfor %}
@@ -581,24 +581,24 @@
 <article>
     <header><strong>Timeline</strong></header>
     <table>
-        <tr><th>Submitted</th><td>{{ registration.created_at.strftime('%b %d, %Y %I:%M %p') if registration.created_at else '' }}</td></tr>
+        <tr><th>Submitted</th><td>{{ (registration.created_at|localtime).strftime('%b %d, %Y %I:%M %p %Z') if registration.created_at else '' }}</td></tr>
         {% if registration.approved_at %}
-        <tr><th>Approved</th><td>{{ registration.approved_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+        <tr><th>Approved</th><td>{{ (registration.approved_at|localtime).strftime('%b %d, %Y %I:%M %p %Z') }}</td></tr>
         {% endif %}
         {% if registration.rejected_at %}
-        <tr><th>Rejected</th><td>{{ registration.rejected_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+        <tr><th>Rejected</th><td>{{ (registration.rejected_at|localtime).strftime('%b %d, %Y %I:%M %p %Z') }}</td></tr>
         {% endif %}
         {% if registration.withdrawn_at %}
-        <tr><th>Withdrawn</th><td>{{ registration.withdrawn_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+        <tr><th>Withdrawn</th><td>{{ (registration.withdrawn_at|localtime).strftime('%b %d, %Y %I:%M %p %Z') }}</td></tr>
         {% endif %}
         {% if registration.cancelled_at %}
-        <tr><th>Cancelled</th><td>{{ registration.cancelled_at.strftime('%b %d, %Y %I:%M %p') }}</td></tr>
+        <tr><th>Cancelled</th><td>{{ (registration.cancelled_at|localtime).strftime('%b %d, %Y %I:%M %p %Z') }}</td></tr>
         {% endif %}
         {% if registration.reversal_reason %}
         <tr><th>Reversal Reason</th><td>{{ registration.reversal_reason }}</td></tr>
         {% endif %}
         <tr><th>Agreement IP</th><td>{{ registration.agreement_ip_address }}</td></tr>
-        <tr><th>Agreement Date</th><td>{{ registration.agreement_accepted_at.strftime('%b %d, %Y %I:%M %p') if registration.agreement_accepted_at else '' }}</td></tr>
+        <tr><th>Agreement Date</th><td>{{ (registration.agreement_accepted_at|localtime).strftime('%b %d, %Y %I:%M %p %Z') if registration.agreement_accepted_at else '' }}</td></tr>
     </table>
 </article>
 

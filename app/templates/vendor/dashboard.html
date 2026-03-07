@@ -62,7 +62,7 @@
                     <br><small style="color: #e65100;">Waitlist #{{ item.waitlist_position }}</small>
                     {% endif %}
                 </td>
-                <td>{{ item.registration.created_at.strftime('%b %d, %Y') if item.registration.created_at else '' }}</td>
+                <td>{{ (item.registration.created_at|localtime).strftime('%b %d, %Y') if item.registration.created_at else '' }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -86,9 +86,9 @@
             {% endif %}
             <strong>{{ insurance_doc.original_filename }}</strong>
             <br><small style="color: var(--pico-muted-color);">
-                Uploaded {{ insurance_doc.uploaded_at.strftime('%b %d, %Y') }}
+                Uploaded {{ (insurance_doc.uploaded_at|localtime).strftime('%b %d, %Y') }}
                 {% if insurance_doc.is_approved and insurance_doc.approved_at %}
-                · Approved {{ insurance_doc.approved_at.strftime('%b %d, %Y') }}
+                · Approved {{ (insurance_doc.approved_at|localtime).strftime('%b %d, %Y') }}
                 {% endif %}
             </small>
         </div>

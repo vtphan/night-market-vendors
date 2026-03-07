@@ -35,9 +35,9 @@
 {% endif %}
 
 {% if status == "coming_soon" %}
-<p>Vendor registration opens on <strong>{{ settings.registration_open_date.strftime('%B %d, %Y at %I:%M %p') }}</strong>. Check back then to register your booth.</p>
+<p>Vendor registration opens on <strong>{{ (settings.registration_open_date|localtime).strftime('%B %d, %Y at %I:%M %p %Z') }}</strong>. Check back then to register your booth.</p>
 {% elif status == "open" %}
-<p>Vendor registration is <strong>open</strong> and closes on <strong>{{ settings.registration_close_date.strftime('%B %d, %Y at %I:%M %p') }}</strong>.</p>
+<p>Vendor registration is <strong>open</strong> and closes on <strong>{{ (settings.registration_close_date|localtime).strftime('%B %d, %Y at %I:%M %p %Z') }}</strong>.</p>
 <p><a href="/auth/login" role="button">Register Now</a></p>
 {% else %}
 <p>Vendor registration is now <strong>closed</strong>. If you have already registered, you can <a href="/auth/login">log in</a> to check your status.</p>

@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import nh3
 from fastapi import FastAPI, Request, Depends
@@ -36,6 +37,13 @@ async def lifespan(app: FastAPI):
     from sqlalchemy import inspect, text
     with engine.connect() as conn:
         columns = [c["name"] for c in inspect(engine).get_columns("registrations")]
+        if "timezone" not in [c["name"] for c in inspect(engine).get_columns("event_settings")]:
+            conn.execute(text(
+                "ALTER TABLE event_settings ADD COLUMN timezone VARCHAR NOT NULL DEFAULT 'America/Chicago'"
+            ))
+            conn.commit()
+            logger.info("Added timezone column to event_settings")
+
         if "concern_status" not in columns:
             conn.execute(text(
                 "ALTER TABLE registrations ADD COLUMN concern_status VARCHAR(10) NOT NULL DEFAULT 'none'"
@@ -50,6 +58,7 @@ async def lifespan(app: FastAPI):
         bootstrap_admins(db)
         settings = db.query(EventSettings).first()
         app.state.event_name = settings.event_name if settings else "Vendor Registration"
+        app.state.event_timezone = getattr(settings, "timezone", "America/Chicago") if settings else "America/Chicago"
 
         # Clean up abandoned drafts older than 24 hours
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
@@ -132,6 +141,17 @@ def vendor_status(status: str) -> str:
     """Vendor-friendly status label: 'rejected' → 'Declined', others title-cased."""
     return VENDOR_STATUS_LABELS.get(status, status.title() if status else "")
 
+def localtime(dt, tz_name=None):
+    """Convert a UTC datetime to the event timezone for display."""
+    if dt is None:
+        return None
+    if tz_name is None:
+        tz_name = getattr(app.state, "event_timezone", "America/Chicago")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(ZoneInfo(tz_name))
+
+app.state.templates.env.filters["localtime"] = localtime
 app.state.templates.env.filters["vendor_status"] = vendor_status
 app.state.templates.env.filters["sanitize_html"] = sanitize_html
 app.state.templates.env.globals["get_event_name"] = get_event_name
