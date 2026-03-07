@@ -167,13 +167,13 @@
             <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/revoke"
                   style="margin: 0;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="outline btn-inline">Revoke Approval</button>
+                <button type="submit" class="outline btn-inline">Revoke Insurance Approval</button>
             </form>
             {% else %}
             <form method="post" action="/admin/registrations/{{ registration.registration_id }}/insurance/approve"
                   style="margin: 0;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn-inline btn-blue">Approve Document</button>
+                <button type="submit" class="btn-inline btn-blue">Approve Insurance</button>
             </form>
             {% endif %}
         {% else %}

@@ -66,6 +66,13 @@
             <option value="no" {{ 'selected' if filter_insurance == 'no' }}>Insurance: No</option>
         </select>
 
+        <select name="permit">
+            <option value="">Permit: All</option>
+            <option value="missing" {{ 'selected' if filter_permit == 'missing' }}>Permit: Missing</option>
+            <option value="generated" {{ 'selected' if filter_permit == 'generated' }}>Permit: Generated</option>
+            <option value="na" {{ 'selected' if filter_permit == 'na' }}>Permit: N/A</option>
+        </select>
+
         <input type="search" name="search" placeholder="Search name, email, or ID..."
                value="{{ filter_search }}">
 
@@ -80,6 +87,8 @@
         <span style="float: right; font-weight: normal; font-size: 0.9rem;">
             {{ registrations | length }} registration{{ 's' if registrations | length != 1 }} found
             &middot; <a href="/admin/export">Export CSV</a>
+            &middot; <a href="/admin/download-insurance">Insurance ZIP</a>
+            &middot; <a href="/admin/download-permits">Permits ZIP</a>
         </span>
     </header>
     <div class="chart-tabs">
@@ -104,7 +113,7 @@
                 <th>Booth</th>
                 <th>Status</th>
                 <th>Status Changed</th>
-                <th>Insurance</th>
+                <th>Ins / Permit</th>
             </tr>
         </thead>
         <tbody>
@@ -151,6 +160,10 @@
                 <td>
                     {% set ins_doc = insurance_docs.get(reg.email) %}
                     {% if ins_doc and ins_doc.is_approved %}&#x2705;{% elif ins_doc %}&#x1F50D;{% else %}&#x2205;{% endif %}
+                    /
+                    {% if reg.registration_id in permit_status %}
+                        {% if permit_status[reg.registration_id] %}&#x2705;{% else %}&#x2205;{% endif %}
+                    {% else %}&mdash;{% endif %}
                 </td>
             </tr>
             {% endfor %}

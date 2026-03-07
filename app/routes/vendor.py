@@ -22,6 +22,7 @@ from app.services.registration import (
     LOW_INVENTORY_THRESHOLD,
     CATEGORIES,
 )
+from app.services.food_permit import FOOD_CATEGORIES, PERMITS_DIR
 from app.services.email import (
     send_submission_confirmation_email,
     send_admin_notification_email,
@@ -437,6 +438,9 @@ async def registration_detail(
     # changes don't retroactively affect this vendor's displayed/charged amount.
     booth_price = registration.approved_price if registration.approved_price is not None else (booth_type.price if booth_type else 0)
 
+    needs_permit = registration.category in FOOD_CATEGORIES
+    food_permit_available = needs_permit and (PERMITS_DIR / f"{registration.registration_id}.pdf").exists()
+
     ctx = {
         "registration": registration,
         "booth_type": booth_type,
@@ -444,6 +448,8 @@ async def registration_detail(
         "settings": settings,
         "waitlist_position": get_waitlist_position(db, registration),
         "insurance_doc": insurance_doc,
+        "needs_permit": needs_permit,
+        "food_permit_available": food_permit_available,
         "now": datetime.now(timezone.utc),
     }
     if registration.status == "approved":
@@ -453,6 +459,36 @@ async def registration_detail(
         ctx["processing_fee_cents"] = calculate_processing_fee(booth_price, fee_percent, fee_flat)
 
     return _template(request, "vendor/registration_detail.html", ctx)
+
+
+# --- Food permit download ---
+
+@router.get("/registrations/{registration_id}/food-permit")
+async def download_food_permit(
+    registration_id: str,
+    session: dict = Depends(require_vendor),
+    db: Session = Depends(get_db),
+):
+    registration = (
+        db.query(Registration)
+        .filter(
+            Registration.registration_id == registration_id,
+            Registration.email == session["email"],
+        )
+        .first()
+    )
+    if not registration:
+        return RedirectResponse(url="/vendor/dashboard", status_code=303)
+
+    permit_path = PERMITS_DIR / f"{registration_id}.pdf"
+    if not permit_path.exists():
+        return RedirectResponse(url=f"/vendor/registrations/{registration_id}", status_code=303)
+
+    return FileResponse(
+        path=str(permit_path),
+        media_type="application/pdf",
+        filename=f"food_permit_{registration_id}.pdf",
+    )
 
 
 # --- Payment ---

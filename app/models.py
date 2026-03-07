@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    CheckConstraint, Column, Integer, Float, String, Text, Boolean, DateTime, Date, ForeignKey,
+    CheckConstraint, Column, Index, Integer, Float, String, Text, Boolean, DateTime, Date, ForeignKey,
 )
 from sqlalchemy.sql import func
 
@@ -18,6 +18,7 @@ class Registration(Base):
         CheckConstraint("amount_paid IS NULL OR amount_paid >= 0", name="ck_amount_paid_non_negative"),
         CheckConstraint("processing_fee IS NULL OR processing_fee >= 0", name="ck_processing_fee_non_negative"),
         CheckConstraint("refund_amount >= 0", name="ck_refund_amount_non_negative"),
+        Index("ix_registrations_status_category", "status", "category"),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)

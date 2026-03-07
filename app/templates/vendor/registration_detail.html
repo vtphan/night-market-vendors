@@ -95,14 +95,32 @@
 
 {% if registration.status in ["pending", "approved", "paid"] %}
 <article>
-    <header>Insurance Document</header>
-    {% if insurance_doc and insurance_doc.is_approved %}
-    <p><span class="status-badge paid">Approved</span> &mdash; <a href="/vendor/insurance">View details</a></p>
-    {% elif insurance_doc %}
-    <p><span class="status-badge pending">Pending Review</span> &mdash; <a href="/vendor/insurance">View details</a></p>
-    {% else %}
-    <p>No document uploaded. <a href="/vendor/insurance">Upload your insurance certificate</a></p>
-    {% endif %}
+    <header>Insurance and Permit</header>
+    <p>
+        Insurance status:
+        {% if insurance_doc and insurance_doc.is_approved %}
+        <span class="status-badge paid">Approved</span>
+        {% elif insurance_doc %}
+        <span class="status-badge pending">Pending Review</span>
+        {% else %}
+        <span class="status-badge rejected">Not Uploaded</span>
+        {% endif %}
+    </p>
+    <p>
+        {% if insurance_doc %}
+        <a href="/vendor/insurance">View Insurance Document</a>
+        {% else %}
+        <a href="/vendor/insurance">Upload Insurance Document</a>
+        {% endif %}
+        {% if needs_permit %}
+        &middot;
+            {% if food_permit_available %}
+            <a href="/vendor/registrations/{{ registration.registration_id }}/food-permit">View Food Permit</a>
+            {% else %}
+            <span style="color: var(--pico-muted-color);">Food permit not yet generated</span>
+            {% endif %}
+        {% endif %}
+    </p>
 </article>
 {% endif %}
 

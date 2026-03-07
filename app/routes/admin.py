@@ -216,6 +216,18 @@ async def admin_dashboard(
 
     active_without_approved_ins = active_vendor_count - vendors_with_approved_doc
 
+    # Food permit counts (only approved/paid — permits are auto-generated on approval)
+    food_bev_regs = db.query(Registration.registration_id).filter(
+        Registration.status.in_(["approved", "paid"]),
+        Registration.category.in_(list(FOOD_CATEGORIES)),
+    ).all()
+    food_bev_total = len(food_bev_regs)
+    permits_generated = sum(
+        1 for (rid,) in food_bev_regs
+        if (PERMITS_DIR / f"{rid}.pdf").exists()
+    )
+    permits_missing = food_bev_total - permits_generated
+
     # Meta line
     last_registration = (
         db.query(Registration.created_at)
@@ -234,6 +246,9 @@ async def admin_dashboard(
         "vendors_with_pending_doc": vendors_with_pending_doc,
         "vendors_with_approved_doc": vendors_with_approved_doc,
         "active_without_approved_ins": active_without_approved_ins,
+        "food_bev_total": food_bev_total,
+        "permits_generated": permits_generated,
+        "permits_missing": permits_missing,
         "paid_count": paid_count,
         "last_registration_at": last_registration_at,
         "status_counts": status_counts,
@@ -254,6 +269,7 @@ async def registration_list(
     booth_type: str = Query("", alias="booth_type"),
     insurance: str = Query("", alias="insurance"),
     notes: str = Query("", alias="notes"),
+    permit: str = Query("", alias="permit"),
     search: str = Query("", alias="search"),
 ):
     query = db.query(Registration)
@@ -276,6 +292,18 @@ async def registration_list(
     elif insurance == "no":
         emails_with_doc = db.query(InsuranceDocument.email).subquery()
         query = query.filter(~Registration.email.in_(emails_with_doc))
+    if permit == "missing":
+        query = query.filter(
+            Registration.category.in_(list(FOOD_CATEGORIES)),
+            Registration.status.in_(["approved", "paid"]),
+        )
+    elif permit == "generated":
+        query = query.filter(
+            Registration.category.in_(list(FOOD_CATEGORIES)),
+            Registration.status.in_(["approved", "paid"]),
+        )
+    elif permit == "na":
+        query = query.filter(~Registration.category.in_(list(FOOD_CATEGORIES)))
     if notes == "yes":
         has_notes = db.query(AdminNote.registration_id).distinct().subquery()
         query = query.filter(Registration.registration_id.in_(has_notes))
@@ -294,10 +322,28 @@ async def registration_list(
 
     registrations = query.order_by(Registration.created_at.desc()).all()
 
+    # Post-query filter for permit status (file-based check)
+    if permit in ("missing", "generated"):
+        filtered = []
+        for r in registrations:
+            has_permit = (PERMITS_DIR / f"{r.registration_id}.pdf").exists()
+            if permit == "missing" and not has_permit:
+                filtered.append(r)
+            elif permit == "generated" and has_permit:
+                filtered.append(r)
+        registrations = filtered
+
     booth_types = {bt.id: bt for bt in db.query(BoothType).all()}
 
     # Build insurance doc lookup by email
     insurance_docs = {doc.email: doc for doc in db.query(InsuranceDocument).all()}
+
+    # Build permit status lookup (only for food/bev registrations)
+    permit_status = {}
+    for r in registrations:
+        if r.category in FOOD_CATEGORIES:
+            permit_status[r.registration_id] = (PERMITS_DIR / f"{r.registration_id}.pdf").exists()
+        # Non-food/bev registrations are omitted (N/A)
 
     daily_counts, hourly_counts = _compute_chart_data(db)
 
@@ -311,11 +357,13 @@ async def registration_list(
         "registrations": registrations,
         "booth_types": booth_types,
         "insurance_docs": insurance_docs,
+        "permit_status": permit_status,
         "regs_with_notes": regs_with_notes,
         "filter_status": status,
         "filter_category": category,
         "filter_booth_type": booth_type,
         "filter_insurance": insurance,
+        "filter_permit": permit,
         "filter_search": search,
         "daily_counts": daily_counts,
         "hourly_counts": hourly_counts,
@@ -467,6 +515,31 @@ async def approve_registration(
         insurance_instructions=settings.insurance_instructions if settings else "",
         deadline_date=deadline_date,
     )
+
+    # Auto-generate food permit for food/beverage vendors
+    if registration.category in FOOD_CATEGORIES:
+        event_name = settings.event_name if settings else "Asian Night Market"
+        event_location = "Agricenter Outdoor, 7777 Walnut Grove Rd, Memphis, TN"
+        event_dates = ""
+        if settings:
+            start = settings.event_start_date.strftime("%b %d")
+            end = settings.event_end_date.strftime("%b %d, %Y")
+            event_dates = f"{start}-{end}"
+        background_tasks.add_task(
+            generate_food_permit,
+            registration_id=reg_id,
+            category=registration.category,
+            business_name=registration.business_name,
+            contact_name=registration.contact_name,
+            address=registration.address,
+            city_state_zip=registration.city_state_zip,
+            phone=registration.phone,
+            email=registration.email,
+            description=registration.description,
+            event_name=event_name,
+            event_location=event_location,
+            event_dates=event_dates,
+        )
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
@@ -1008,104 +1081,9 @@ async def generate_food_permit_route(
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
 
 
-# --- Insurance & Permits overview ---
+# --- Download insurance / permits ---
 
-@router.get("/insurance-permits", response_class=HTMLResponse)
-async def insurance_permits_page(
-    request: Request,
-    session: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    registrations = (
-        db.query(Registration)
-        .filter(Registration.status.in_(["pending", "approved", "paid"]))
-        .order_by(Registration.created_at.desc())
-        .all()
-    )
-    insurance_docs = {
-        doc.email: doc for doc in db.query(InsuranceDocument).all()
-    }
-
-    rows = []
-    missing_permit_count = 0
-    insurance_count = 0
-    permit_count = 0
-
-    for reg in registrations:
-        ins_doc = insurance_docs.get(reg.email)
-        has_permit = (PERMITS_DIR / f"{reg.registration_id}.pdf").exists()
-
-        if ins_doc:
-            insurance_count += 1
-        if has_permit:
-            permit_count += 1
-        if reg.category in FOOD_CATEGORIES and not has_permit:
-            missing_permit_count += 1
-
-        rows.append({
-            "registration": reg,
-            "insurance_doc": ins_doc,
-            "has_permit": has_permit,
-        })
-
-    return _template(request, "admin/insurance_permits.html", {
-        "rows": rows,
-        "missing_permit_count": missing_permit_count,
-        "insurance_count": insurance_count,
-        "permit_count": permit_count,
-    }, session=session)
-
-
-@router.post("/insurance-permits/generate-all")
-async def generate_all_permits(
-    request: Request,
-    session: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-    _csrf: None = Depends(require_csrf),
-):
-    settings = db.query(EventSettings).first()
-    event_location = "Agricenter Outdoor, 7777 Walnut Grove Rd, Memphis, TN"
-    event_dates = ""
-    if settings:
-        start = settings.event_start_date.strftime("%b %d")
-        end = settings.event_end_date.strftime("%b %d, %Y")
-        event_dates = f"{start}-{end}"
-    event_name = settings.event_name if settings else "Asian Night Market"
-
-    registrations = (
-        db.query(Registration)
-        .filter(
-            Registration.status.in_(["pending", "approved", "paid"]),
-            Registration.category.in_(list(FOOD_CATEGORIES)),
-        )
-        .all()
-    )
-
-    generated = 0
-    for reg in registrations:
-        if (PERMITS_DIR / f"{reg.registration_id}.pdf").exists():
-            continue
-        generate_food_permit(
-            registration_id=reg.registration_id,
-            category=reg.category,
-            business_name=reg.business_name,
-            contact_name=reg.contact_name,
-            address=reg.address,
-            city_state_zip=reg.city_state_zip,
-            phone=reg.phone,
-            email=reg.email,
-            description=reg.description,
-            event_name=event_name,
-            event_location=event_location,
-            event_dates=event_dates,
-        )
-        generated += 1
-
-    logger.info("Bulk generated %d food permits", generated)
-    return RedirectResponse(url="/admin/insurance-permits", status_code=303)
-
-
-@router.get("/insurance-permits/download-insurance")
+@router.get("/download-insurance")
 async def download_all_insurance(
     request: Request,
     session: dict = Depends(require_admin),
@@ -1141,17 +1119,16 @@ async def download_all_insurance(
     )
 
 
-@router.get("/insurance-permits/download-permits")
+@router.get("/download-permits")
 async def download_all_permits(
     session: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
 ):
     if not PERMITS_DIR.exists():
-        return RedirectResponse(url="/admin/insurance-permits", status_code=303)
+        return RedirectResponse(url="/admin/registrations", status_code=303)
 
     permit_files = list(PERMITS_DIR.glob("*.pdf"))
     if not permit_files:
-        return RedirectResponse(url="/admin/insurance-permits", status_code=303)
+        return RedirectResponse(url="/admin/registrations", status_code=303)
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:

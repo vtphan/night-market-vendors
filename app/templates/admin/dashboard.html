@@ -308,7 +308,7 @@
 </article>
 </div>
 
-<!-- Row 3: Insurance Coverage -->
+<!-- Row 3: Insurance Coverage + Food Permits -->
 <div class="dashboard-row">
 <article>
     <header>
@@ -342,6 +342,43 @@
         <span class="legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Need review ({{ vendors_with_pending_doc }})</span>
         <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span> Approved ({{ vendors_with_approved_doc }})</span>
     </div>
+    {% endif %}
+</article>
+
+<article>
+    <header>
+        <strong>Food Permits</strong>
+    </header>
+    <p class="context-line">
+        {% if permits_missing > 0 %}
+        {{ permits_missing }} of {{ food_bev_total }} active food/beverage registration{{ 's' if food_bev_total != 1 }} missing permits <a href="/admin/registrations?permit=missing">➤</a>
+        {% else %}
+        All {{ food_bev_total }} active food/beverage registration{{ 's' if food_bev_total != 1 }} {{ 'have' if food_bev_total != 1 else 'has' }} permits
+        {% endif %}
+    </p>
+    {% if food_bev_total > 0 %}
+    <div class="stacked-bar">
+        {% set pct_missing = (permits_missing / food_bev_total * 100) | round(1) %}
+        {% set pct_generated = (permits_generated / food_bev_total * 100) | round(1) %}
+        {% if permits_missing > 0 %}
+        <div class="bar-seg" style="width: {{ pct_missing }}%; background: #ef4444;">
+            {% if pct_missing > 10 %}{{ permits_missing }}{% endif %}
+        </div>
+        {% endif %}
+        {% if permits_generated > 0 %}
+        <div class="bar-seg" style="width: {{ pct_generated }}%; background: #22c55e;">
+            {% if pct_generated > 10 %}{{ permits_generated }}{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="bar-legend">
+        {% if permits_missing > 0 %}
+        <span class="legend-item"><span class="legend-dot" style="background: #ef4444;"></span> Missing ({{ permits_missing }})</span>
+        {% endif %}
+        <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span> Generated ({{ permits_generated }})</span>
+    </div>
+    {% else %}
+    <p class="empty-state">No active food/beverage registrations</p>
     {% endif %}
 </article>
 </div>
