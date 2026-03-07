@@ -49,6 +49,7 @@ A single form collects all required information:
 | **Premium Booth** | Prime location (near entrance, corner, high foot traffic) | configurable | configurable |
 | **Regular Booth** | Standard booth space | configurable | configurable |
 | **Compact Booth** | Smaller footprint for vendors with minimal setup | configurable | configurable |
+| **Food Truck** | Designated food truck parking spot with electrical hookup | configurable | configurable |
 
 **Step 2: Review & Submit**
 

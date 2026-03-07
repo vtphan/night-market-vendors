@@ -73,54 +73,58 @@ VENDORS = [
 # ---------------------------------------------------------------------------
 # Registration plans — (vendor_index, booth_type_name, status)
 #
-# Inventory: Premium=10, Regular=10, Compact=10
-# Approved counts per type must stay ≤ 10.
+# Inventory: Premium=10, Regular=10, Compact=10, Food Truck=5
+# Approved counts per type must stay ≤ their inventory.
 # ---------------------------------------------------------------------------
 
 PLANS = {
     # ------------------------------------------------------------------
-    # SMALL — 10 registrations, 4 approved
-    # Approved: Premium=1, Regular=2, Compact=1
+    # SMALL — 12 registrations, 5 approved
+    # Approved: Premium=1, Regular=2, Compact=1, Food Truck=1
     # ------------------------------------------------------------------
     "small": [
-        # Vendor 0 — vphan@memphis.edu (3 regs)
+        # Vendor 0 — vphan@memphis.edu (4 regs)
         (0, "Regular Booth", "approved"),
         (0, "Compact Booth", "pending"),
         (0, "Premium Booth", "pending"),
+        (0, "Food Truck", "approved"),
         # Vendor 1 — thuyadiobooks@gmail.com (3 regs)
         (1, "Premium Booth", "approved"),
         (1, "Regular Booth", "pending"),
         (1, "Compact Booth", "pending"),
-        # Vendor 2 — aidangphieu@gmail.com (2 regs)
+        # Vendor 2 — aidangphieu@gmail.com (3 regs)
         (2, "Regular Booth", "approved"),
         (2, "Premium Booth", "pending"),
+        (2, "Food Truck", "pending"),
         # Vendor 3 — moodandmelody1975@gmail.com (2 regs)
         (3, "Compact Booth", "approved"),
         (3, "Regular Booth", "pending"),
     ],
 
     # ------------------------------------------------------------------
-    # MEDIUM — 20 registrations, 8 approved
-    # Approved: Premium=3, Regular=3, Compact=2
+    # MEDIUM — 22 registrations, 10 approved
+    # Approved: Premium=3, Regular=3, Compact=2, Food Truck=2
     # ------------------------------------------------------------------
     "medium": [
-        # Vendor 0 (5 regs)
+        # Vendor 0 (6 regs)
         (0, "Premium Booth", "approved"),
         (0, "Regular Booth", "approved"),
         (0, "Compact Booth", "pending"),
         (0, "Premium Booth", "pending"),
         (0, "Regular Booth", "pending"),
+        (0, "Food Truck", "approved"),
         # Vendor 1 (5 regs)
         (1, "Premium Booth", "approved"),
         (1, "Regular Booth", "pending"),
         (1, "Compact Booth", "approved"),
         (1, "Premium Booth", "pending"),
         (1, "Compact Booth", "pending"),
-        # Vendor 2 (5 regs)
+        # Vendor 2 (6 regs)
         (2, "Premium Booth", "approved"),
         (2, "Regular Booth", "approved"),
         (2, "Compact Booth", "pending"),
         (2, "Regular Booth", "pending"),
+        (2, "Food Truck", "approved"),
         (2, "Compact Booth", "pending"),
         # Vendor 3 (5 regs)
         (3, "Compact Booth", "approved"),
@@ -131,47 +135,51 @@ PLANS = {
     ],
 
     # ------------------------------------------------------------------
-    # LARGE — 40 registrations, 15 approved
-    # Approved: Premium=5, Regular=5, Compact=5
+    # LARGE — 44 registrations, 18 approved
+    # Approved: Premium=5, Regular=5, Compact=5, Food Truck=3
     # ------------------------------------------------------------------
     "large": [
-        # Vendor 0 (10 regs) — approved: P=2, R=1, C=1
+        # Vendor 0 (11 regs) — approved: P=2, R=1, C=1, FT=1
         (0, "Premium Booth", "approved"),
         (0, "Premium Booth", "approved"),
         (0, "Regular Booth", "approved"),
         (0, "Compact Booth", "approved"),
+        (0, "Food Truck", "approved"),
         (0, "Regular Booth", "pending"),
         (0, "Compact Booth", "pending"),
         (0, "Premium Booth", "pending"),
         (0, "Regular Booth", "pending"),
         (0, "Compact Booth", "pending"),
         (0, "Premium Booth", "pending"),
-        # Vendor 1 (10 regs) — approved: P=1, R=2, C=1
+        # Vendor 1 (11 regs) — approved: P=1, R=2, C=1, FT=1
         (1, "Premium Booth", "approved"),
         (1, "Regular Booth", "approved"),
         (1, "Regular Booth", "approved"),
         (1, "Compact Booth", "approved"),
+        (1, "Food Truck", "approved"),
         (1, "Compact Booth", "pending"),
         (1, "Premium Booth", "pending"),
         (1, "Regular Booth", "pending"),
         (1, "Compact Booth", "pending"),
         (1, "Premium Booth", "pending"),
         (1, "Regular Booth", "pending"),
-        # Vendor 2 (10 regs) — approved: P=1, R=1, C=2
+        # Vendor 2 (11 regs) — approved: P=1, R=1, C=2, FT=1
         (2, "Premium Booth", "approved"),
         (2, "Regular Booth", "approved"),
         (2, "Compact Booth", "approved"),
         (2, "Compact Booth", "approved"),
+        (2, "Food Truck", "approved"),
         (2, "Premium Booth", "pending"),
         (2, "Regular Booth", "pending"),
         (2, "Compact Booth", "pending"),
         (2, "Premium Booth", "pending"),
         (2, "Regular Booth", "pending"),
         (2, "Regular Booth", "pending"),
-        # Vendor 3 (10 regs) — approved: P=1, R=1, C=1
+        # Vendor 3 (11 regs) — approved: P=1, R=1, C=1, FT=0
         (3, "Premium Booth", "approved"),
         (3, "Regular Booth", "approved"),
         (3, "Compact Booth", "approved"),
+        (3, "Food Truck", "pending"),
         (3, "Regular Booth", "pending"),
         (3, "Compact Booth", "pending"),
         (3, "Premium Booth", "pending"),
@@ -183,15 +191,24 @@ PLANS = {
 }
 
 
+INVENTORY_LIMITS = {
+    "Premium Booth": 10,
+    "Regular Booth": 10,
+    "Compact Booth": 10,
+    "Food Truck": 5,
+}
+
+
 def validate_plan(plan, label):
-    """Verify approved counts don't exceed inventory (10 per type)."""
+    """Verify approved counts don't exceed inventory per type."""
     from collections import Counter
     approved = Counter(
         booth for _, booth, status in plan if status == "approved"
     )
     for booth_name, count in approved.items():
-        if count > 10:
-            print(f"ERROR: {label} plan has {count} approved {booth_name} (max 10)")
+        limit = INVENTORY_LIMITS.get(booth_name, 10)
+        if count > limit:
+            print(f"ERROR: {label} plan has {count} approved {booth_name} (max {limit})")
             sys.exit(1)
 
 
