@@ -45,6 +45,7 @@
     <table>
         <thead>
             <tr>
+                <th>ID</th>
                 <th>Category</th>
                 <th>Booth Type</th>
                 <th>Status</th>
@@ -54,6 +55,7 @@
         <tbody>
             {% for item in registrations %}
             <tr data-href="/vendor/registration/{{ item.registration.registration_id }}" style="cursor: pointer;">
+                <td><small>{{ item.registration.registration_id[-4:] }}</small></td>
                 <td>{{ CATEGORIES.get(item.registration.category, item.registration.category) }}</td>
                 <td>{{ item.booth_type.name if item.booth_type else 'N/A' }}</td>
                 <td>
