@@ -51,6 +51,15 @@ async def lifespan(app: FastAPI):
             conn.commit()
             logger.info("Added concern_status column to registrations")
 
+        es_columns = [c["name"] for c in inspect(engine).get_columns("event_settings")]
+        for col in ("org_name", "org_address", "org_tax_id"):
+            if col not in es_columns:
+                conn.execute(text(
+                    f"ALTER TABLE event_settings ADD COLUMN {col} VARCHAR NOT NULL DEFAULT ''"
+                ))
+                conn.commit()
+                logger.info("Added %s column to event_settings", col)
+
     logger.info("Running seed data...")
     db = SessionLocal()
     try:
