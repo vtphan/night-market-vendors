@@ -343,11 +343,11 @@ async def registration_list(
     } if relevant_emails else {}
 
     # Build permit status lookup (only for food/bev registrations)
+    existing_permits = {p.stem for p in PERMITS_DIR.iterdir() if p.suffix == ".pdf"} if PERMITS_DIR.exists() else set()
     permit_status = {}
     for r in registrations:
         if r.category in FOOD_CATEGORIES:
-            permit_status[r.registration_id] = (PERMITS_DIR / f"{r.registration_id}.pdf").exists()
-        # Non-food/bev registrations are omitted (N/A)
+            permit_status[r.registration_id] = r.registration_id in existing_permits
 
     daily_counts, hourly_counts = _compute_chart_data(db)
 
