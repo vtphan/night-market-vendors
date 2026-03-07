@@ -57,6 +57,10 @@ Seven tables defined in `app/models.py`: `registrations`, `booth_types`, `admin_
 
 One registration = one vendor + one booth. No separate vendors/orders tables. Insurance documents are per-vendor email (not per-registration).
 
+### Content Security Policy (CSP)
+
+The app sets `script-src 'self' https://js.stripe.com` in `app/main.py`. **Never use inline `<script>` blocks or inline event handlers (`onclick`, etc.) in templates.** Always put JS in external files under `app/static/` and reference them with `<script src="/static/..."></script>`. Inline `<script type="application/json">` for data is allowed (not executed).
+
 ### Key Design Decisions
 
 - **Approval-first workflow:** Admin must approve before vendor can pay. No inventory race conditions — admin decides based on dashboard availability counts.

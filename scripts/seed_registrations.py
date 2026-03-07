@@ -36,6 +36,8 @@ VENDORS = [
         "category": "food",
         "description": "Authentic Vietnamese pho and banh mi sandwiches",
         "electrical_equipment": "warmer,rice_cooker",
+        "address": "3720 Alumni Ave",
+        "city_state_zip": "Memphis, TN 38152",
     },
     {
         "email": "thuyadiobooks@gmail.com",
@@ -54,6 +56,8 @@ VENDORS = [
         "category": "beverage",
         "description": "Hand-crafted bubble tea and fruit smoothies",
         "electrical_equipment": "fryer",
+        "address": "5100 Poplar Ave",
+        "city_state_zip": "Memphis, TN 38137",
     },
     {
         "email": "moodandmelody1975@gmail.com",
@@ -237,6 +241,8 @@ def seed(size: str, append: bool = False):
                 category=vendor["category"],
                 description=vendor["description"],
                 electrical_equipment=vendor.get("electrical_equipment"),
+                address=vendor.get("address"),
+                city_state_zip=vendor.get("city_state_zip"),
                 booth_type_id=bt.id,
                 status=status,
                 agreement_accepted_at=created_at,

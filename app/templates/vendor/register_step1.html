@@ -50,9 +50,10 @@
             {% endfor %}
         </select>
 
-        <label for="description">Description of Products/Services</label>
+        <label for="description">What will you be selling or serving?</label>
         <textarea id="description" name="description" rows="3" required
-                  placeholder="e.g., Thai street food, handmade jewelry, henna art, bubble tea...">{{ draft.get('description', '') }}</textarea>
+                  placeholder="e.g., pho, banh mi, spring rolls, bubble tea, handmade jewelry, henna art...">{{ draft.get('description', '') }}</textarea>
+        <small style="color: var(--pico-muted-color);">Food/beverage vendors: please list specific items. This will appear on your food permit.</small>
 
         <fieldset>
             <legend>Electrical Equipment</legend>
@@ -124,21 +125,6 @@
     </form>
 </article>
 
-<script>
-(function() {
-    var cat = document.getElementById('category');
-    var addrDiv = document.getElementById('address-fields');
-    var addrInput = document.getElementById('address');
-    var cszInput = document.getElementById('city_state_zip');
-    function toggle() {
-        var need = (cat.value === 'food' || cat.value === 'beverage');
-        addrDiv.style.display = need ? '' : 'none';
-        addrInput.required = need;
-        cszInput.required = need;
-    }
-    cat.addEventListener('change', toggle);
-    toggle();
-})();
-</script>
+<script src="/static/register-step1.js"></script>
 
 {% endblock %}
