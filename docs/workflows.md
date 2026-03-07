@@ -30,7 +30,9 @@ These are the happy-path flows that ~95% of users follow.
 | 1 | Admin | Logs in via OTP (email in `admin_users` table) | Admin session (8h timeout) |
 | 2 | Admin | Opens dashboard, sees pending registrations | Counts, recent list, capacity alerts |
 | 3 | Admin | Opens registration detail, clicks "Approve" | Locks `BoothType` row → checks inventory → sets `approved_price` → transitions to `approved` → post-commit verification reverts if concurrent approval caused overbooking |
-| 4 | System | Sends approval email to vendor | Contains payment portal domain (not direct link) |
+| 4 | System | Sets payment deadline | `payment_deadline` = approved_at + configurable days (default 7) |
+| 5 | System | For food/beverage vendors, auto-generates pre-filled food permit PDF | PDF created in `data/permits/` using vendor registration data |
+| 6 | System | Sends approval email to vendor | Contains payment portal domain, payment deadline, and insurance instructions |
 
 **Preconditions:** Available inventory > 0 for the selected booth type.
 
@@ -139,6 +141,48 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 
 ---
 
+### W11. Payment Deadline & Reminders
+
+| Step | Actor | Action | System Response |
+|------|-------|--------|-----------------|
+| 1 | System | Sets payment deadline on approval | `payment_deadline` = approved_at + configurable days (default 7) |
+| 2 | Admin | Views unpaid registrations on dashboard | Sorted by urgency: normal → reminder_1 → reminder_2 → overdue |
+| 3 | Admin | Clicks "Send Reminder" on a registration | Sends payment reminder email using configured template; rate-limited to 1/hour per registration |
+| 4 | Admin | Reviews overdue registrations | Can revoke approval (Approved → Pending/Rejected) to free slot; system never auto-revokes |
+
+**Preconditions:** Registration status is `approved`. Payment deadline has been set.
+
+---
+
+### W12. Admin Notes & Concern Flags
+
+| Step | Actor | Action | System Response |
+|------|-------|--------|-----------------|
+| 1 | Admin | Opens registration detail, types a note | Note saved to `admin_notes` table with timestamp and admin email |
+| 2 | Admin | Toggles concern flag (none / flagged / resolved) | `concern_status` updated on registration |
+| 3 | Admin | Opens notes page at `/admin/notes` | Shows all notes across registrations, sortable by date, registration ID, or concern status |
+
+---
+
+### W13. Food Permit Management
+
+| Step | Actor | Action | System Response |
+|------|-------|--------|-----------------|
+| 1 | System | Auto-generates permit on food/beverage vendor approval | PDF created in `data/permits/` using vendor registration data |
+| 2 | Vendor | Downloads permit from registration detail page | Serves pre-filled PDF |
+| 3 | Admin | Regenerates permit or downloads all as ZIP | Individual or bulk download from admin dashboard |
+
+---
+
+### W14. Insurance Reminder
+
+| Step | Actor | Action | System Response |
+|------|-------|--------|-----------------|
+| 1 | Admin | Opens registration detail for vendor missing insurance | Shows "Send Insurance Reminder" button |
+| 2 | Admin | Clicks "Send Insurance Reminder" | Sends insurance reminder email; rate-limited to 1/hour per registration |
+
+---
+
 ## Part 2 — Edge Cases
 
 ### Category A: Concurrency & Race Conditions
@@ -154,7 +198,7 @@ The alternative (refund-first, single transaction) risked an irrecoverable incon
 4. Webhook `payment_intent.succeeded` fires
 5. Handler finds registration status ≠ `approved`
 
-**Outcome:** Registration set to `paid` anyway (no auto-refund). System appends note to `admin_notes`: `"[System MM/DD] Payment completed while status was '{old_status}'"`. Admin alert email sent immediately. Admin must manually review and cancel/refund if warranted.
+**Outcome:** Registration set to `paid` anyway (no auto-refund). System appends an AdminNote record: `"[System MM/DD] Payment completed while status was '{old_status}'"`. Admin alert email sent immediately. Admin must manually review and cancel/refund if warranted.
 
 **Why no auto-refund:** Refund decisions involve judgment (partial vs full, policy timing). Safer to alert a human than to issue a potentially wrong refund automatically.
 

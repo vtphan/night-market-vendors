@@ -4,7 +4,7 @@
 
 **Prepared by:** Vietnamese American Community of West Tennessee
 **Date:** February 2026
-**Status:** Draft v14
+**Status:** Draft v15
 
 > This document defines **what** the app does — business requirements, workflows, rules, and constraints. For technical implementation details, see [architecture.md](architecture.md). For the build plan, see [development_plan.md](development_plan.md).
 
@@ -23,8 +23,8 @@ Previous approaches (Google Forms, EventHub) lacked payment integration and stat
 One registration = one vendor + one booth. The process has three phases:
 
 1. **Phase 1 — Registration:** Vendor creates a profile, selects a preferred booth type, and submits the registration. Status: **Pending**.
-2. **Phase 2 — Admin Review:** Admin reviews the registration and approves or rejects it. Approved vendors receive an email with a payment link. Status: **Approved** or **Rejected**.
-3. **Phase 3 — Payment:** Approved vendor pays via Stripe. Status: **Confirmed**.
+2. **Phase 2 — Admin Review:** Admin reviews the registration and approves or rejects it. Approved vendors receive an email with a payment link and deadline. Status: **Approved** or **Rejected**.
+3. **Phase 3 — Payment:** Approved vendor pays via Stripe within the payment deadline. Status: **Paid**.
 
 Registration opens and closes on dates set in the app configuration. Before the open date, the vendor-facing page displays "Registration opens on [date]." After the close date, it displays "Registration is closed."
 
@@ -32,39 +32,31 @@ If a vendor needs a second booth, they can register again or contact admin.
 
 ### 2.2 Phase 1 — Registration
 
-**Step 1: Vendor Agreement**
+The registration form is a two-step wizard. Progress is saved as a draft in the database (keyed by vendor email), so vendors can resume if their session expires.
 
-All vendors must review and accept the Vendor Participation Agreement before proceeding. The agreement text is maintained in the app's configuration (requires redeploy to update). Acceptance is recorded with name, email, IP address, and timestamp.
+**Step 1: All Registration Info**
 
-**Step 2: Contact Info & Vendor Profile**
+A single form collects all required information:
 
-- Business or individual name
-- Primary contact name
-- Email address (verified via OTP before registration; used as login identifier)
-- Phone number
-- Vendor category: Food, Beverage, Merchandise, Entertainment, Non-Profit, Health & Beauty, Promotion, or Other
-- Description of what the vendor intends to sell (vendors are prompted to include specifics like cuisine type)
-- Electrical equipment needs (microwave, fryer, warmer, rice cooker, griddle, blender, or other)
-
-**Step 3: Booth Selection**
+- **Vendor Agreement:** Review and accept the Vendor Participation Agreement. Acceptance recorded with name, email, IP address, and timestamp. Agreement text is admin-editable via the Settings page.
+- **Contact Info:** Business name, primary contact name, email (pre-filled from login, not editable), phone number.
+- **Vendor Profile:** Category (Food, Beverage, Merchandise, Entertainment, Non-Profit, Health & Beauty, Promotion, Other), description of what the vendor intends to sell, electrical equipment needs (microwave, fryer, warmer, rice cooker, griddle, blender, or other with free-text option).
+- **Address (food/beverage only):** Street address, city/state/ZIP — required for food permit auto-generation.
+- **Booth Selection:** Vendor selects their preferred booth type. Available booth counts displayed. Booth types, descriptions, quantities, and prices configured via seed configuration and adjustable by admin.
 
 | Booth Type | Description | Qty Available | Price |
 |------------|-------------|---------------|-------|
-| **Premium Booth** | Prime location (near entrance, corner, high foot traffic) | configurable | TBD |
-| **Regular Booth** | Standard booth space | configurable | TBD |
-| **Compact Booth** | Smaller footprint for vendors with minimal setup | configurable | TBD |
+| **Premium Booth** | Prime location (near entrance, corner, high foot traffic) | configurable | configurable |
+| **Regular Booth** | Standard booth space | configurable | configurable |
+| **Compact Booth** | Smaller footprint for vendors with minimal setup | configurable | configurable |
 
-Dimensions and pricing configured before registration opens. The vendor selects their preferred booth type. Final booth assignment is at the organizer's discretion (per the vendor agreement).
+**Step 2: Review & Submit**
 
-Booth types, descriptions, quantities, and prices configured via seed configuration. Quantities adjustable by admin through the inventory view.
-
-**Step 4: Review & Submit**
-
-- Summary screen showing vendor profile and booth preference
+- Summary screen showing all entered information and selected booth type with price
 - Vendor reviews and submits (no payment at this step)
-- On submit: registration saved with status **Pending**
+- On submit: registration saved with status **Pending**; draft deleted
 
-**Step 5: Submission Confirmation Page**
+**Submission Confirmation Page**
 
 After submitting, the vendor sees:
 
@@ -77,12 +69,19 @@ After submitting, the vendor sees:
 
 Admin reviews pending registrations via the dashboard. For each registration, admin can:
 
-- **Approve** — Vendor receives an email with a link to the payment page. Status transitions to **Approved**.
-- **Reject** — Vendor receives a rejection notification (with optional reason). Status transitions to **Rejected**.
+- **Approve** — Booth price locked at approval time (`approved_price`). Payment deadline set (configurable, default 7 days). Vendor receives an email with the portal domain and deadline. Food/beverage vendors automatically get a pre-filled food permit PDF generated. Status transitions to **Approved**.
+- **Reject** — Vendor receives a rejection notification with reason (required). Status transitions to **Rejected**.
+- **Revoke approval** — Returns approved registration to Pending or Rejected. Cancels any active PaymentIntent first. Reason required.
 
-Admin decides approvals based on dashboard inventory counts, vendor mix, and event needs. No automated inventory enforcement.
+Admin decides approvals based on dashboard inventory counts, vendor mix, and event needs.
 
-**Insurance document upload:** Vendors upload their Certificate of General Liability Insurance at `/vendor/insurance`. Insurance is per-vendor email (not per-registration) — one upload covers all of a vendor's registrations. Files are stored on disk in `uploads/insurance/`. Admins review and approve (or revoke approval of) uploaded documents from the registration detail page. Document approval is informational only — it does not affect registration status or block payment.
+**Payment deadline tracking:** Approved-but-unpaid registrations appear on the dashboard with urgency bands (normal → reminder 1 → reminder 2 → overdue). Admin can send customizable payment reminder emails (rate-limited to 1/hour). The system never auto-revokes — the admin decides whether to reclaim an overdue slot.
+
+**Admin notes:** Admin can attach timestamped notes to any registration. Notes are visible on a dedicated notes page with sorting by date, registration ID, or concern flag. A concern/flag toggle marks registrations needing attention.
+
+**Insurance document upload:** Vendors upload their Certificate of General Liability Insurance at `/vendor/insurance`. Insurance is per-vendor email (not per-registration) — one upload covers all of a vendor's registrations. Files are stored on disk in `uploads/insurance/`. Admins review and approve (or revoke approval of) uploaded documents from the registration detail page. Admin can also upload insurance on behalf of a vendor. Admin can send insurance reminder emails. Document approval is informational only — it does not affect registration status or block payment.
+
+**Food permits:** When a food or beverage vendor is approved, a pre-filled Shelby County temporary food permit PDF is auto-generated using the vendor's registration data (business name, address, event details). Permits are stored in `data/permits/`. Vendors can download their permit from their registration detail page. Admin can regenerate permits or download all as a ZIP.
 
 ### 2.4 Phase 3 — Payment
 
@@ -91,7 +90,7 @@ Approved vendors receive an email with a link to the payment page. The payment p
 - Booth type and price
 - Stripe Elements card form
 
-On successful payment, the registration status transitions to **Confirmed** and a confirmation email is sent.
+On successful payment, the registration status transitions to **Paid** and a confirmation email is sent.
 
 ---
 
@@ -100,9 +99,10 @@ On successful payment, the registration status transitions to **Confirmed** and 
 All payments are online via Stripe. No pay-by-check option. Payment is only available after admin approval.
 
 - Card information collected via Stripe Elements (PCI-compliant; card data never touches our server).
-- Backend creates a Stripe PaymentIntent for each approved registration.
-- On successful payment, the app updates registration status to Confirmed.
-- Refunds processed through Stripe API, triggered by admin action (Confirmed → Cancelled only).
+- Backend creates a Stripe PaymentIntent for each approved registration. Amount = `approved_price` (locked at approval time) + processing fee.
+- **Processing fee:** Configurable pass-through fee (default 2.9% + $0.30) that covers Stripe's fee so the organizer nets the full booth price. Formula: `(rate × price + flat) / (1 − rate)`. Admin-editable in Settings.
+- On successful payment, the app updates registration status to Paid.
+- Refunds processed through Stripe API, triggered by admin action (Paid → Cancelled only). Refund presets configurable (default: 100%, 75%, 50%, 25%, 0%).
 - Stripe transaction ID stored on each registration for reconciliation.
 - CSV export includes amount and status for every registration.
 - No inventory race conditions — admin controls approvals based on dashboard availability counts.
@@ -116,12 +116,13 @@ All payments are online via Stripe. No pay-by-check option. Payment is only avai
 | Status | Meaning |
 |--------|---------|
 | **Pending** | Registration submitted, awaiting admin review |
-| **Approved** | Admin approved; vendor notified to pay |
-| **Rejected** | Admin rejected |
-| **Confirmed** | Vendor paid; registration complete |
-| **Cancelled** | Admin cancelled a confirmed registration (refund issued) |
+| **Approved** | Admin approved; vendor notified to pay within deadline |
+| **Rejected** | Admin rejected (vendor-facing label: "Declined") |
+| **Paid** | Vendor paid; registration complete |
+| **Cancelled** | Admin cancelled a paid registration (refund issued) |
+| **Withdrawn** | Vendor voluntarily withdrew (vendor-facing label: "Withdrawn") |
 
-A `refund_amount` field (in cents, default 0) records any refund issued on cancellation.
+A `refund_amount` field (in cents, default 0) records any refund issued on cancellation. A `reversal_reason` field stores the reason for any reversal action (reject, revoke, cancel, withdraw).
 
 Insurance document approval is tracked in the separate `insurance_documents` table (per-vendor email). This is informational only — it does not affect registration status.
 
@@ -130,12 +131,16 @@ Insurance document approval is tracked in the separate `insurance_documents` tab
 ```
 Pending → Approved        (admin approves)
 Pending → Rejected        (admin rejects)
-Approved → Confirmed      (vendor pays via Stripe)
+Pending → Withdrawn       (vendor withdraws)
+Approved → Paid           (vendor pays via Stripe)
 Approved → Rejected       (admin revokes approval before payment)
-Confirmed → Cancelled     (admin cancels + Stripe refund)
+Approved → Pending        (admin revokes approval for re-review)
+Approved → Withdrawn      (vendor withdraws)
+Rejected → Pending        (admin revokes rejection for re-review)
+Paid → Cancelled          (admin cancels + Stripe refund)
 ```
 
-Status transitions are enforced in the backend. Any transition not listed above is rejected. All transitions are logged.
+Status transitions are enforced in `app/services/registration.py`. Any transition not listed above is rejected. All transitions are logged.
 
 ---
 
@@ -143,20 +148,27 @@ Status transitions are enforced in the backend. Any transition not listed above 
 
 ### 5.1 Approved Vendor Doesn't Pay
 
-- Admin monitors approved registrations via the dashboard.
-- Admin contacts the vendor directly to follow up.
-- If the vendor doesn't pay within a reasonable timeframe, admin can revoke approval (Approved → Rejected).
+- Admin monitors approved registrations via the dashboard **Unpaid Registrations** section, which shows urgency bands (normal → reminder 1 → reminder 2 → overdue) based on configurable deadlines.
+- Admin sends payment reminder emails directly from the dashboard (rate-limited to 1/hour per registration). Reminder templates are customizable in Settings.
+- If the vendor doesn't pay by the deadline, admin can revoke approval (Approved → Pending or Rejected) to free the slot. The system never auto-revokes.
 
 ### 5.2 Vendor Rejected
 
-- Vendor sees rejection status on their dashboard.
+- Vendor sees "Declined" status on their dashboard with the reason.
 - If circumstances change, the vendor can submit a new registration.
 
-### 5.3 Refund Requests
+### 5.3 Vendor Withdrawal
 
-- Admin cancels the registration and enters the refund amount.
-- Refunds processed through Stripe API.
-- Only Confirmed registrations can be cancelled/refunded.
+- Vendors can withdraw their own registration if it is Pending or Approved.
+- If approved with an active PaymentIntent, the system cancels it before allowing withdrawal.
+- Vendor receives a withdrawal confirmation email. Admin is notified.
+- Withdrawn registrations free the booth slot.
+
+### 5.4 Refund Requests
+
+- Admin cancels the registration and selects a refund percentage (presets configurable in Settings).
+- Refunds processed through Stripe API. Processing fee is not refunded.
+- Only Paid registrations can be cancelled/refunded.
 
 ### 5.4 Category and Profile Changes
 
@@ -168,51 +180,63 @@ Category is set at registration. Admin can change it if needed. Vendors contact 
 
 ### 6.1 Registration Management
 
-- View all registrations in a table, filterable by status and category (food/non-food)
+- View all registrations in a table, filterable by status, category, booth type, insurance status, permit status, notes, and concern flag
 - Search by vendor name, email, or registration ID
-- Click into a registration for full details: profile info, booth type, payment, status
+- Click into a registration for full details: profile info, booth type, payment, status, admin notes
 - Approve or reject pending registrations
-- Insurance document review: view uploaded documents, approve or revoke approval from registration detail (does not affect status)
-- Cancel a confirmed registration with optional refund amount (via Stripe)
-- Export registrations to CSV (profile info, booth type, amount, status)
+- Revoke approval (Approved → Pending or Rejected) or revoke rejection (Rejected → Pending) with reason
+- Insurance document review: view uploaded documents, approve or revoke approval from registration detail (does not affect status). Admin can also upload insurance on behalf of a vendor.
+- Cancel a paid registration with refund percentage selection (via Stripe) and reason
+- Admin notes: attach timestamped notes to any registration. Concern/flag toggle for registrations needing attention.
+- Food permit management: auto-generated on approval for food/beverage vendors, manual regeneration available, download individual or all as ZIP
+- Export registrations to CSV (profile info, booth type, amount, status, notes, concern flag)
 
-### 6.2 Inventory
+### 6.2 Unpaid Registrations & Payment Reminders
 
-- View inventory counts per booth type: total, approved (pending payment), confirmed (paid), available
+- Dashboard card shows all approved-but-unpaid registrations with urgency bands based on payment deadline
+- Admin can send payment reminder emails directly from the dashboard (rate-limited to 1/hour per registration)
+- Two reminder tiers with customizable subject and body templates in Settings
+- Insurance reminder emails available for vendors missing documents
+
+### 6.3 Inventory
+
+- View inventory counts per booth type: total, pending, approved (pending payment), paid, available, plus revenue and refund totals
 - Availability derived from registration statuses — no separate counter to maintain
 - Admin uses these counts to decide whether to approve new registrations
-- Adjust total quantity per booth type (e.g., if venue layout changes)
+- Bulk update: adjust total quantity and price for all booth types in a single form. Quantity cannot be set below reserved (approved + paid) count.
 
-### 6.3 Event Configuration
+### 6.4 Event Configuration
 
-Most settings configured via environment variables and seed config (requires redeploy):
+All settings are admin-editable through the dashboard Settings page:
 
-- Event name and date
+- Event name, start/end dates
+- Registration open/close dates and times
 - Vendor agreement text
-- Booth types: name, description, price (quantities adjustable via dashboard — see 6.2)
+- Homepage content (`front_page_content`) and banner text
+- Contact email and developer contact
+- Payment instructions and insurance instructions
+- Processing fee (percentage + flat amount)
+- Refund policy text and refund presets
+- Payment deadline days (default 7) and reminder schedule (R1 and R2 days)
+- Reminder email templates (subject and body, with template variables)
+- Admin notification toggles: new registration, payment received, insurance uploaded
 
-Admin-editable through the dashboard:
+Booth types (name, description, base price) are seeded from `config/event.json`. Quantities and prices adjustable via the inventory view (see 6.3).
 
-- Registration open date/time
-- Registration close date/time
+### 6.5 Financial Reconciliation
 
-### 6.4 Financial Reconciliation
-
-- **CSV export** includes amount and status for every registration — import into a spreadsheet for totals and breakdowns.
+- **CSV export** includes amount, processing fee, refund amount, and status for every registration — import into a spreadsheet for totals and breakdowns.
 - **Stripe Dashboard** provides transaction history, refund records, and payout reports.
 - Stripe transaction IDs stored for cross-referencing.
 
-### 6.5 What the Admin Dashboard Does NOT Include
+### 6.6 What the Admin Dashboard Does NOT Include
 
 These are handled with external tools at this scale (~150 vendors):
 
 - **Bulk email** — Use Resend's dashboard or a mail merge.
 - **Email history per vendor** — Check Resend's dashboard.
-- **Configurable email templates** — Templates defined in code (requires redeploy).
-- **Admin settings UI (beyond registration dates)** — Managed via config files and env vars.
 - **Analytics or reporting** — Export to CSV and use a spreadsheet.
 - **Financial summary page** — Use CSV export + Stripe Dashboard.
-- **Automated reminders** — Admin follows up manually or uses Resend for bulk sends.
 
 ---
 
@@ -225,10 +249,22 @@ All emails sent via Resend. Templates defined in code as Jinja2 templates.
 | Trigger | Recipient | Content |
 |---------|-----------|---------|
 | Registration submitted | Vendor | Confirmation of submission, "under review" message, registration ID |
-| Registration approved | Vendor | Approval notification with payment link and deadline |
-| Registration rejected | Vendor | Rejection notification with optional reason |
-| Payment confirmed | Vendor | Payment receipt, registration confirmed, next steps |
-| Refund processed | Vendor | Refund confirmation, registration ID, amount |
+| Registration approved | Vendor | Approval notification with portal domain, payment deadline, and insurance instructions |
+| Registration rejected | Vendor | Rejection notification with reason |
+| Approval revoked | Vendor | Notification that registration is back under review |
+| Payment confirmed | Vendor | Payment receipt, registration confirmed (status: Paid) |
+| Refund processed | Vendor | Refund confirmation, amount, reason, processing fee note |
+| Vendor withdrawal | Vendor | Withdrawal confirmation |
+| Payment reminder | Vendor | Customizable reminder with deadline (admin-triggered, rate-limited) |
+| Insurance reminder | Vendor | Reminder to upload insurance document (admin-triggered) |
+| New registration | Admin (optional) | Notification with link to registration detail |
+| Payment received | Admin (optional) | Notification with link to registration detail |
+| Insurance uploaded | Admin (optional) | Notification with link to registration detail |
+| Vendor withdrawal | Admin | Notification with link to registration detail |
+| Alert: payment race | Admin | Payment received for non-approved registration |
+| Alert: refund failure | Admin | Refund failed or succeeded but not recorded |
+| Alert: dashboard refund | Admin | Refund issued outside the app |
+| Alert: dispute filed | Admin | Chargeback filed, action required |
 
 ### 7.2 Email Budget
 
@@ -248,8 +284,8 @@ If the OTP email fails to send, the system displays "We couldn't send the verifi
 
 - 6-digit numeric OTP
 - Expires after 10 minutes
-- Max 5 OTP requests per email per hour
-- Max 5 failed verification attempts per code
+- Max 5 OTP requests per email per hour; max 20 OTP requests per IP per hour
+- Max 3 failed verification attempts per code (previous codes invalidated on new request)
 - Single-use
 - Vendor sessions expire after 24 hours of inactivity
 

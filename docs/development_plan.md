@@ -70,15 +70,15 @@ A phase is complete when:
 **Deliverables:**
 
 - FastAPI project structure matching architecture.md §2
-- SQLAlchemy models for all tables (registrations, booth_types, admin_users, otp_codes, stripe_events, event_settings)
-- Registration status values: pending, approved, rejected, confirmed, cancelled
+- SQLAlchemy models for all tables (registrations, booth_types, admin_users, otp_codes, stripe_events, event_settings, insurance_documents, admin_notes, registration_drafts)
+- Registration status values: pending, approved, rejected, paid, cancelled, withdrawn
 - Database indexes on `registrations.status`, `registrations.registration_id`, `registrations.email`, `otp_codes.email`
 - Schema auto-created via `metadata.create_all()` on startup
 - SQLite in WAL mode
 - Seed script (`app/seed.py`) populating event_settings and booth_types from `config/event.json`
 - Admin account bootstrap from `ADMIN_EMAILS`; removed emails deactivated
 - OTP login flow: email → 6-digit code → verify → session (shared by vendors and admins)
-- OTP security: HMAC-SHA256 with SECRET_KEY, 10-minute expiry, rate limiting (5/email/hour), max 5 attempts per code, single-use
+- OTP security: HMAC-SHA256 with SECRET_KEY, 10-minute expiry, rate limiting (5/email/hour), max 3 attempts per code, max 20 OTPs per IP per hour, single-use
 - OTP send failure handling: display retry message
 - Admin login via OTP with `admin_users` check
 - Session management (signed cookies, 8-hour admin / 24-hour vendor expiry, HttpOnly + Secure)
@@ -101,7 +101,7 @@ A phase is complete when:
 - [ ] OTP generation and HMAC verification works (automated)
 - [ ] Expired OTP rejected (automated)
 - [ ] Used OTP cannot be reused (automated)
-- [ ] Rate limiting works (automated: max 5 attempts per code, max 5 codes per email per hour)
+- [ ] Rate limiting works (automated: max 3 attempts per code, max 5 codes per email per hour, max 20 OTPs per IP per hour)
 - [ ] OTP stored as HMAC, not plaintext (code review)
 - [ ] OTP send failure shows retry message
 - [ ] Admin can log in and access dashboard
@@ -120,24 +120,28 @@ A phase is complete when:
 
 **Deliverables:**
 
-- Vendor agreement page (Step 1): accept/decline, records name, email, IP, timestamp
-- Contact info & profile form (Step 2): name, email (pre-filled from OTP), phone, category, description, electrical equipment needs — server-side validation
-- Booth selection (Step 3): vendor selects preferred booth type
-- Review & submit page (Step 4): summary, no payment
+- Two-step registration wizard: Step 1 collects all info (agreement, contact, profile, address for food/bev, booth selection); Step 2 is review & submit. Draft saved to `registration_drafts` table (not session cookies).
 - Registration saved with status **Pending** on submit
 - Registration form rate limiting (10/IP/hour)
 - Existing email detected → redirect to dashboard
 - "Coming soon" page before registration open date/time
 - "Registration closed" page after close date/time
-- Submission confirmation page (Step 5): registration ID, "under review" message, dashboard link
+- Confirmation page after submit: registration ID, "under review" message, dashboard link
 - Submission confirmation email
 - Vendor login → dashboard showing all registrations for their email with current status
 - Admin registration list: filterable by status and category, searchable by name/email/registration ID
 - Admin registration detail: full profile, booth type, status
 - Approve button → status: Approved, approval email with payment link sent to vendor
-- Reject button (with optional reason) → status: Rejected, rejection email sent to vendor
-- Informational `documents_approved` checkbox for food vendor registrations
-- Inventory view: total, approved (pending payment), confirmed (paid), available per booth type — derived from registration statuses
+- Reject button (with required reason) → status: Rejected, rejection email sent to vendor
+- Insurance document upload and admin review workflow
+- Payment deadline system
+- Admin notes with concern flags
+- Food permit auto-generation
+- Vendor withdrawal flow
+- Payment reminders
+- Insurance reminders
+- Processing fee configuration
+- Inventory view: total, approved (pending payment), paid, available per booth type — derived from registration statuses
 - Adjust `total_quantity` per booth type
 - Registration date editing (admin can update open/close dates from dashboard)
 - CSV export of registrations (profile info, booth type, amount, status)
@@ -145,7 +149,7 @@ A phase is complete when:
 
 **Test Criteria:**
 
-- [ ] Full form flow completes: agreement → profile → booth → review → submit
+- [ ] Full form flow completes: Step 1 (all info) → Step 2 (review & submit)
 - [ ] Server rejects invalid inputs (bad email, missing required fields)
 - [ ] Existing email → redirected to dashboard
 - [ ] Mobile-usable (manual)
@@ -161,7 +165,7 @@ A phase is complete when:
 - [ ] Admin can approve → status changes to Approved, vendor notified with payment link (automated)
 - [ ] Admin can reject → status changes to Rejected, vendor notified (automated)
 - [ ] Admin can revoke approval before payment: Approved → Rejected (automated)
-- [ ] Informational `documents_approved` checkbox does not affect status (automated)
+- [ ] Insurance document upload and admin review workflow works correctly
 - [ ] Inventory counts accurate (derived from registration statuses)
 - [ ] Admin can adjust `total_quantity`
 - [ ] Admin can update registration dates; changes take effect immediately
@@ -181,19 +185,22 @@ A phase is complete when:
 - Payment link in approval email leads to payment page
 - Stripe PaymentIntent creation (only for Approved registrations)
 - Stripe Elements card input
-- Webhook for `payment_intent.succeeded`: Approved → Confirmed
+- Processing fee pass-through (configurable %)
+- PaymentIntent amount includes approved_price + processing fee
+- Webhook for `payment_intent.succeeded`: Approved → Paid
 - Webhook idempotency via `stripe_events`
 - Declined card → graceful failure, retry possible
-- Status update on payment: Approved → Confirmed
+- Status update on payment: Approved → Paid
 - Payment confirmation email
-- Cancel confirmed registration with optional refund amount (via Stripe refund API)
+- Cancel paid registration with optional refund amount (via Stripe refund API)
 - Refund email sent to vendor on cancellation
 - `charge.refunded` webhook handler (idempotent)
+- `charge.dispute.created` webhook handler
 
 **Test Criteria:**
 
 - [ ] Only Approved registrations can access payment page
-- [ ] Successful payment → status: Confirmed (automated via Stripe CLI)
+- [ ] Successful payment → status: Paid (automated via Stripe CLI)
 - [ ] Declined card → graceful failure, retry possible
 - [ ] Webhook processes correctly (Stripe CLI)
 - [ ] Duplicate webhook idempotent (automated)
@@ -229,7 +236,7 @@ A phase is complete when:
 - [ ] Stripe failure shows friendly message
 - [ ] All error pages show friendly messages (no stack traces)
 - [ ] All pages render correctly on mobile
-- [ ] End-to-end: register → admin approves → pay → confirmed
+- [ ] End-to-end: register → admin approves → pay → paid
 - [ ] App accessible at production URL
 - [ ] Full flow works with real payment
 - [ ] Webhook fires in production

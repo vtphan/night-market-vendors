@@ -17,7 +17,7 @@
 | **Payments** | Stripe (PaymentIntents API + Stripe.js) |
 | **Email** | Resend |
 | **Hosting** | VPS |
-| **Authentication** | Custom OTP + Google OAuth (optional) |
+| **Authentication** | Custom OTP (+ optional Google OAuth) |
 
 Everything runs on one server: SQLite database file, FastAPI serves pages. Python is the developer's primary language. Server-rendered HTML keeps the frontend minimal — no React, no HTMX.
 
@@ -43,13 +43,15 @@ project/
 │   ├── services/
 │   │   ├── payment.py       # Stripe PaymentIntent creation, refunds
 │   │   ├── email.py         # Resend email sending, template rendering
-│   │   └── registration.py  # Registration status transitions, validation
+│   │   ├── registration.py  # Registration status transitions, validation
+│   │   └── food_permit.py   # Food permit PDF generation
 │   ├── templates/           # Jinja2 HTML templates
 │   │   ├── base.html
 │   │   ├── vendor/          # Registration form steps, dashboard, payment
 │   │   ├── admin/           # Admin dashboard pages
 │   │   ├── auth/            # Login, OTP verification
 │   │   └── emails/          # Email templates
+│   ├── upload_constants.py  # Shared upload validation constants
 │   └── static/              # CSS, JS, images
 ├── config/
 │   └── event.json           # Event settings and booth type seed data
@@ -58,7 +60,8 @@ project/
 │   ├── test_webhooks.py
 │   └── test_auth.py
 ├── data/
-│   └── app.db               # SQLite database (auto-created, not committed)
+│   ├── app.db               # SQLite database (auto-created, not committed)
+│   └── permits/             # Generated food permit PDFs (not committed)
 ├── uploads/
 │   └── insurance/            # Vendor insurance document files (not committed)
 ├── .env                     # Environment variables (never committed)
@@ -92,7 +95,7 @@ One row per registration. Combines vendor profile, booth selection, payment, and
 | `electrical_equipment` | String | Nullable | Comma-separated list (e.g., "microwave,fryer") |
 | `electrical_other` | Text | Nullable | Free-text for unlisted equipment |
 | `booth_type_id` | Integer | FK → booth_types, not null | Vendor must select during registration |
-| `status` | String(50) | Not null, indexed | pending, approved, rejected, confirmed, cancelled |
+| `status` | String(50) | Not null, indexed | pending, approved, rejected, paid, cancelled, withdrawn |
 | `stripe_payment_intent_id` | String | Nullable | Populated after payment |
 | `amount_paid` | Integer | Nullable | In cents; populated after payment |
 | `refund_amount` | Integer | Default 0 | In cents |
@@ -101,8 +104,22 @@ One row per registration. Combines vendor profile, booth selection, payment, and
 | `reversal_reason` | String | Nullable | Reason for any reversal action (reject, revoke, cancel) |
 | `agreement_accepted_at` | DateTime | Not null | |
 | `agreement_ip_address` | String | Not null | |
+| `approved_price` | Integer | Nullable | In cents; locked at approval |
+| `processing_fee` | Integer | Nullable | In cents; processing fee charged |
+| `cancelled_at` | DateTime | Nullable | When admin cancelled |
+| `withdrawn_at` | DateTime | Nullable | When vendor withdrew |
+| `address` | String | Nullable | Street address (food/beverage vendors) |
+| `city_state_zip` | String | Nullable | City/state/ZIP (food/beverage vendors) |
+| `concern_status` | String(10) | Not null, default 'none' | Admin concern flag: none, flagged, resolved |
+| `payment_deadline` | DateTime | Nullable | Payment due date (set on approval) |
+| `last_reminder_sent_at` | DateTime | Nullable | Last payment reminder sent |
+| `reminder_count` | Integer | Default 0 | Payment reminders sent count |
+| `last_insurance_reminder_sent_at` | DateTime | Nullable | Last insurance reminder sent |
+| `insurance_reminder_count` | Integer | Default 0 | Insurance reminders sent count |
 | `created_at` | DateTime | Not null, default now | |
 | `updated_at` | DateTime | Not null, auto-update | |
+
+**Indexes:** `booth_type_id`, `stripe_payment_intent_id`, `ix_registrations_ip_created` (composite on `agreement_ip_address`, `created_at`).
 
 ### 3.2 booth_types
 
@@ -121,9 +138,9 @@ Seeded from `config/event.json` on first startup. Admin can adjust `total_quanti
 Availability derived from query — no counter column to maintain:
 
 ```sql
--- Occupied count (approved + confirmed)
+-- Occupied count (approved + paid)
 SELECT COUNT(*) FROM registrations
-WHERE booth_type_id = ? AND status IN ('approved', 'confirmed')
+WHERE booth_type_id = ? AND status IN ('approved', 'paid')
 
 -- Available = total_quantity - occupied count
 ```
@@ -146,7 +163,7 @@ WHERE booth_type_id = ? AND status IN ('approved', 'confirmed')
 | `code_hash` | String | Not null | HMAC-SHA256 (see §4.1) |
 | `created_at` | DateTime | Not null, default now | |
 | `expires_at` | DateTime | Not null | created_at + 10 minutes |
-| `attempts` | Integer | Default 0 | Max 5 |
+| `attempts` | Integer | Default 0 | Max 3 |
 | `used` | Boolean | Default false | |
 
 ### 3.5 stripe_events
@@ -179,7 +196,7 @@ Insurance documents are per-vendor email (not per-registration). One upload cove
 
 ### 3.7 event_settings
 
-Single-row table. Seeded from `config/event.json`. Registration dates are admin-editable via dashboard; all other fields require config change and redeploy.
+Single-row table. Seeded from `config/event.json`. All settings are now admin-editable via the dashboard Settings page.
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -194,6 +211,41 @@ Single-row table. Seeded from `config/event.json`. Registration dates are admin-
 | `banner_text` | Text | Not null, default "" | Site banner |
 | `contact_email` | String | Not null, default "" | |
 | `payment_instructions` | Text | Not null, default "" | Shown on payment page |
+| `developer_contact` | String | Default "" | Developer contact info |
+| `insurance_instructions` | Text | Default "" | Shown on approval email and insurance page |
+| `processing_fee_percent` | Float | Default 2.9 | Stripe fee % pass-through |
+| `processing_fee_flat_cents` | Integer | Default 30 | Stripe flat fee in cents |
+| `refund_policy` | Text | Default "" | Refund policy text |
+| `refund_presets` | String | Default "100,75,50,25,0" | Comma-separated refund percentages |
+| `notify_new_registration` | Boolean | Default false | Send admin email on new registration |
+| `notify_payment_received` | Boolean | Default false | Send admin email on payment |
+| `notify_insurance_uploaded` | Boolean | Default false | Send admin email on insurance upload |
+| `payment_deadline_days` | Integer | Default 7 | Days to pay after approval |
+| `reminder_1_days` | Integer | Default 2 | Days after approval for first reminder |
+| `reminder_2_days` | Integer | Default 5 | Days after approval for second reminder |
+| `reminder_1_subject` | String | | Reminder 1 email subject template |
+| `reminder_1_body` | Text | | Reminder 1 email body template |
+| `reminder_2_subject` | String | | Reminder 2 email subject template |
+| `reminder_2_body` | Text | | Reminder 2 email body template |
+
+### 3.8 admin_notes
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `id` | Integer | PK, auto-increment | |
+| `registration_id` | String(20) | FK → registrations.registration_id, indexed | |
+| `admin_email` | String | Not null | |
+| `text` | Text | Not null | |
+| `created_at` | DateTime | Not null, default now | |
+
+### 3.9 registration_drafts
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `id` | Integer | PK, auto-increment | |
+| `email` | String | Unique, not null, indexed | One draft per vendor email |
+| `draft_json` | Text | Not null | JSON-serialized form data |
+| `updated_at` | DateTime | Not null, auto-update | |
 
 ---
 
@@ -207,9 +259,9 @@ Single-row table. Seeded from `config/event.json`. Registration dates are admin-
 4. If Resend API fails: display "We couldn't send the verification code. Please try again."
 5. User enters code → backend compares HMAC using `hmac.compare_digest`.
 6. On match: mark OTP as used, create signed session cookie.
-7. On failure: increment `attempts`. After 5 failures, invalidate.
+7. On failure: increment `attempts`. After 3 failures, invalidate.
 
-Rate limit: max 5 OTPs per email per hour.
+Rate limit: max 5 OTPs per email per hour; max 20 OTPs per IP per hour.
 
 ### 4.2 Admin Login
 
@@ -259,7 +311,7 @@ Both variables optional — when absent, the Google button is hidden and `/auth/
    - Verifies webhook signature
    - Checks idempotency (`stripe_events`)
    - Looks up registration by `stripe_payment_intent_id`
-   - Updates status: Approved → Confirmed
+   - Updates status: Approved → Paid
    - Logs the transition to stdout
 7. Confirmation email sent to vendor.
 
@@ -267,7 +319,7 @@ No inventory checks needed in the webhook — admin already verified availabilit
 
 ### 5.2 Refund Flow
 
-1. Admin clicks "Cancel" on a Confirmed registration, enters refund amount.
+1. Admin clicks "Cancel" on a Paid registration, enters refund amount.
 2. Backend calls `stripe.Refund.create()` with PaymentIntent ID and amount.
 3. On success: status → Cancelled, record `refund_amount`, log to stdout.
 4. `charge.refunded` webhook handled idempotently (status already updated).
@@ -329,6 +381,7 @@ All emails sent via Resend's Python SDK. A single `send_email()` function render
 | Endpoint | Limit |
 |----------|-------|
 | OTP requests | 5 per email per hour |
+| OTP requests per IP | 20 per hour |
 | Registration submissions | 10 per IP per hour |
 
 ### 7.4 Session Security
@@ -342,14 +395,14 @@ All emails sent via Resend's Python SDK. A single `send_email()` function render
 
 ### 8.1 Inventory Management
 
-Admin controls inventory by reviewing dashboard counts before approving registrations. No automated inventory enforcement needed. The dashboard shows derived counts (total, approved, confirmed, available) to support admin decisions.
+Admin controls inventory by reviewing dashboard counts before approving registrations. No automated inventory enforcement needed. The dashboard shows derived counts (total, approved, paid, available) to support admin decisions.
 
 ### 8.2 Stripe Webhooks
 
 - Signature verification on every webhook. Reject unverified with 400.
 - Idempotency via `stripe_events` table.
-- Supported events: `payment_intent.succeeded`, `charge.refunded`.
-- Fallback: missed webhook → registration stays in current state; admin reconciles via Stripe Dashboard. Dashboard can show an indicator for Approved registrations that have a Stripe PaymentIntent but haven't transitioned to Confirmed.
+- Supported events: `payment_intent.succeeded`, `charge.refunded`, `charge.dispute.created`.
+- Fallback: missed webhook → registration stays in current state; admin reconciles via Stripe Dashboard. Dashboard can show an indicator for Approved registrations that have a Stripe PaymentIntent but haven't transitioned to Paid.
 
 ### 8.3 External Service Failures
 
@@ -390,6 +443,7 @@ Admin controls inventory by reviewing dashboard counts before approving registra
    - `APP_URL`
    - `SECRET_KEY` (for session signing)
    - `DATABASE_URL` (path to SQLite file)
+   - `DEBUG`
 4. Configure reverse proxy (e.g., Nginx/Caddy) for TLS
 5. Run with a process manager (e.g., systemd/supervisord)
 
@@ -405,6 +459,6 @@ Manual `sqlite3 app.db '.backup backup.db'` before the event. No automated backu
 - [ ] Set strong `SECRET_KEY`
 - [ ] Verify seed script populates correctly
 - [ ] Verify admin accounts bootstrap
-- [ ] Smoke test: full registration → admin approval → payment → confirmed (refund immediately)
+- [ ] Smoke test: full registration → admin approval → payment → paid (refund immediately)
 - [ ] Verify emails deliver
 - [ ] Document manual backup procedure

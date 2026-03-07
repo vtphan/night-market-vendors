@@ -12,6 +12,21 @@
 
 <!-- Format: date, what happened, any decisions or blockers. Keep it simple. -->
 
+### 2026-03-06 — Performance optimizations and code cleanup
+
+Database query optimizations, caching, and code cleanup across the codebase.
+
+**What changed:**
+
+1. **N+1 query fix in inventory.** `get_inventory()` now uses a single aggregate query with GROUP BY instead of calling `_get_booth_counts()` per booth type.
+2. **N+1 query fix in admin notes page.** Latest note per registration fetched via subquery join instead of per-registration queries. Insurance docs scoped to relevant emails only.
+3. **EventSettings per-session cache.** New `get_event_settings(db)` in `app/database.py` caches the singleton EventSettings row for the lifetime of a DB session. Replaced ~40 direct `db.query(EventSettings).first()` calls across all route files.
+4. **Database indexes.** Added indexes on `booth_type_id`, `stripe_payment_intent_id`, and composite index on `(agreement_ip_address, created_at)`.
+5. **Shared upload constants.** New `app/upload_constants.py` consolidates file upload validation constants (extensions, content types, max size) previously duplicated in admin.py and vendor.py.
+6. **Removed legacy code.** Deleted startup migration for `concern_status` column (already in schema). Removed unused `admin_notes` text column from Registration model.
+
+---
+
 ### 2026-02-27 — Replace rejection_reason with universal reversal_reason
 
 Replaced the `rejection_reason` column with `reversal_reason` so all reversal actions (reject, revoke approval, revoke rejection, cancel & refund) store a reason. All four actions now use a `<dialog>`-based two-step confirmation with preset reason dropdowns and a custom option. Reason is required for all reversal actions. Refund emails now include the cancellation reason.
@@ -73,11 +88,11 @@ Phase 2 built and verified. Vendor registration form, admin review workflow, hom
 
 **What was built:**
 
-1. **Vendor registration wizard (4 steps).** Agreement → Contact/profile → Booth selection → Review & submit. Server-side validation on all steps. Registration draft stored in session cookie across steps. Rate limiting (10/IP/hour).
-2. **Registration service.** `app/services/registration.py` — state machine for all status transitions (Pending → Approved → Confirmed, with Rejected and Cancelled paths). Every invalid transition rejected. Registration ID generation (ANM-XXXXX format).
+1. **Vendor registration wizard (2 steps).** Step 1: all info (agreement, contact, profile, booth selection). Step 2: review & submit. Server-side validation on all steps. Registration draft stored in database across steps. Rate limiting (10/IP/hour).
+2. **Registration service.** `app/services/registration.py` — state machine for all status transitions (Pending → Approved → Paid, with Rejected, Cancelled, and Withdrawn paths). Every invalid transition rejected. Registration ID generation (ANM-XXXXX format).
 3. **Vendor dashboard.** Logged-in vendors see all their registrations with current status.
 4. **Admin registration management.** List page with filter by status/category, search by name/email/ID. Detail page with full profile, approve/reject actions (reject with optional reason). Documents-approved checkbox (informational only).
-5. **Admin inventory view.** Total, approved (pending payment), confirmed (paid), and available counts per booth type. Admin can adjust `total_quantity`.
+5. **Admin inventory view.** Total, approved (pending payment), paid, and available counts per booth type. Admin can adjust `total_quantity`.
 6. **Admin settings page.** Edit registration open/close dates and front page content.
 7. **CSV export.** All registrations exported with profile info, booth type, amount, status.
 8. **Email templates.** Submission confirmation, approval notification (with payment link placeholder), rejection notification. All via Resend.
@@ -95,7 +110,7 @@ Phase 2 built and verified. Vendor registration form, admin review workflow, hom
 - Homepage replaces redirect-to-login. Gives all visitors (vendors, admins, public) a clear landing page with event info and registration status.
 - Role-based login via query parameter (`?role=admin`) instead of separate login pages or auto-detection from `admin_users` table. Simpler, and lets the same email test both roles.
 - Admin email checked before OTP send, not after verification. Prevents wasting OTP codes and avoids confusing UX.
-- Registration draft stored in session cookie (not database). Keeps things simple — no draft cleanup needed.
+- Registration draft stored in `registration_drafts` table (keyed by vendor email). Drafts older than 24 hours cleaned up on startup.
 - Resend domain verification needed for production email delivery (`nightmarketmemphis.com`). DNS records: DKIM (`resend._domainkey`), MX + SPF for bounce handling (`send` subdomain), DMARC (`_dmarc`).
 
 **Verified:**
