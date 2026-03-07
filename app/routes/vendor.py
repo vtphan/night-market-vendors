@@ -124,7 +124,6 @@ async def register_gateway(request: Request, edit: str = "", new: str = "", db: 
             "draft": draft,
             "booth_type": booth_type,
             "agreement_text": settings.vendor_agreement_text if settings else "",
-            "insurance_instructions": settings.insurance_instructions if settings else "",
             "settings": settings,
         })
 
@@ -309,7 +308,6 @@ async def register_submit(
             "draft": draft,
             "booth_type": booth_type,
             "agreement_text": settings_check.vendor_agreement_text if settings_check else "",
-            "insurance_instructions": settings_check.insurance_instructions if settings_check else "",
             "settings": settings_check,
             "get_flashed_messages": lambda: flash,
         })

@@ -29,6 +29,53 @@
     <p>{{ registration.registration_id }} &middot; <span class="status-badge {{ registration.status }}">{{ registration.status | vendor_status }}</span></p>
 </hgroup>
 
+{% if registration.status == 'pending' %}
+<article style="background-color: #e8f4fd; border-left: 4px solid #2196f3; padding: 1rem;">
+    <strong>Your registration is under review.</strong>
+    We'll notify you by email once a decision is made.
+</article>
+
+{% elif registration.status == 'approved' %}
+{% set needs_payment = true %}
+{% set needs_insurance = not insurance_doc %}
+{% set insurance_pending = insurance_doc and not insurance_doc.is_approved %}
+<article style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 1rem;">
+    <strong>Your registration has been approved!</strong>
+    {% if needs_payment and needs_insurance %}
+    To secure your booth, please <strong>complete your payment</strong> and <strong>upload your liability insurance document</strong> below.
+    {% elif needs_payment and insurance_pending %}
+    Please <strong>complete your payment</strong> below. Your insurance document is under review.
+    {% elif needs_payment %}
+    Please <strong>complete your payment</strong> below to secure your booth.
+    {% elif needs_insurance %}
+    Please <strong>upload your liability insurance document</strong> below to complete your registration.
+    {% elif insurance_pending %}
+    Payment complete! Your insurance document is under review.
+    {% else %}
+    Payment and insurance are confirmed.
+    {% endif %}
+    {% if needs_insurance %}
+    <br><small>Need help obtaining insurance? {% if settings and settings.contact_email %}<a href="mailto:{{ settings.contact_email }}">Contact us</a>{% else %}Contact the organizers{% endif %} — we're happy to assist.</small>
+    {% endif %}
+</article>
+
+{% elif registration.status == 'paid' %}
+{% set needs_insurance = not insurance_doc %}
+{% set insurance_pending = insurance_doc and not insurance_doc.is_approved %}
+<article style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 1rem;">
+    <strong>Payment received — thank you!</strong>
+    {% if needs_insurance %}
+    Please <strong>upload your liability insurance document</strong> below to complete your registration.
+    <br><small>Need help obtaining insurance? {% if settings and settings.contact_email %}<a href="mailto:{{ settings.contact_email }}">Contact us</a>{% else %}Contact the organizers{% endif %} — we're happy to assist.</small>
+    {% elif insurance_pending %}
+    Your insurance document is under review.
+    {% else %}
+    You're all set — payment and insurance are confirmed.
+    {% endif %}
+</article>
+
+{% endif %}
+
 {% if registration.status in ["rejected", "cancelled"] and registration.reversal_reason %}
 <article class="rejection-notice">
     <strong>Reason:</strong> {{ registration.reversal_reason }}

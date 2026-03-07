@@ -27,6 +27,85 @@
 
 <h2>Registration {{ registration.registration_id }}</h2>
 
+{% if registration.status == 'pending' %}
+<article style="background-color: #e8f4fd; border-left: 4px solid #2196f3; padding: 1rem;">
+    <strong>Pending review.</strong>
+    {% if booth_availability is defined and booth_availability <= 0 %}
+    No {{ booth_type.name }} booths available — vendor will be waitlisted if approved.
+    {% elif booth_availability is defined and booth_availability <= LOW_INVENTORY_THRESHOLD %}
+    {{ booth_availability }} {{ booth_type.name }} booth{{ 's' if booth_availability != 1 }} remaining.
+    {% endif %}
+    <br><small>Review the registration details and approve or reject below.</small>
+</article>
+
+{% elif registration.status == 'approved' %}
+{% set needs_insurance = not insurance_doc %}
+{% set insurance_pending = insurance_doc and not insurance_doc.is_approved %}
+{% set has_overdue_payment = registration.payment_deadline and now is defined and now.timestamp() > registration.payment_deadline.timestamp() %}
+<article style="background-color: {% if has_overdue_payment %}#fef2f2{% else %}#fff8e1{% endif %}; border-left: 4px solid {% if has_overdue_payment %}#dc2626{% else %}#f59e0b{% endif %}; padding: 1rem;">
+    <strong>Approved — awaiting payment.</strong>
+    {% if has_overdue_payment %}
+    Payment deadline has passed ({{ registration.payment_deadline.strftime('%b %d, %Y') }}).
+    {% elif registration.payment_deadline %}
+    Payment due by {{ registration.payment_deadline.strftime('%b %d, %Y') }}.
+    {% endif %}
+    {% if needs_insurance %}
+    Insurance not uploaded.
+    {% elif insurance_pending %}
+    Insurance uploaded, pending approval.
+    {% endif %}
+    <br><small>
+        {% if has_overdue_payment %}
+        Consider sending a payment reminder or revoking approval if unresponsive.
+        {% else %}
+        Waiting for vendor to pay. Send a payment reminder if needed.
+        {% endif %}
+    </small>
+</article>
+
+{% elif registration.status == 'paid' %}
+{% set needs_insurance = not insurance_doc %}
+{% set insurance_pending = insurance_doc and not insurance_doc.is_approved %}
+{% if needs_insurance or insurance_pending %}
+<article style="background-color: #fff8e1; border-left: 4px solid #f59e0b; padding: 1rem;">
+    <strong>Paid.</strong>
+    {% if needs_insurance %}
+    Insurance not yet uploaded.
+    <br><small>Consider sending an insurance reminder to the vendor.</small>
+    {% elif insurance_pending %}
+    Insurance uploaded — needs approval.
+    <br><small>Review the document and approve or request a new upload.</small>
+    {% endif %}
+</article>
+{% else %}
+<article style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 1rem;">
+    <strong>Paid.</strong> Insurance approved. Registration complete — no action needed.
+</article>
+{% endif %}
+
+{% elif registration.status == 'rejected' %}
+<article style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 1rem;">
+    <strong>Rejected.</strong>
+    {% if registration.reversal_reason %}{{ registration.reversal_reason }}{% endif %}
+    <br><small>Revoke the rejection below to move back to pending if this was in error.</small>
+</article>
+
+{% elif registration.status == 'cancelled' %}
+<article style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 1rem;">
+    <strong>Cancelled{% if registration.refund_amount %} &amp; refunded ({{ format_price(registration.refund_amount) }}){% endif %}.</strong>
+    {% if registration.reversal_reason %}{{ registration.reversal_reason }}{% endif %}
+    <br><small>This registration is final. No further actions available.</small>
+</article>
+
+{% elif registration.status == 'withdrawn' %}
+<article style="background-color: #e8eaf6; border-left: 4px solid #283593; padding: 1rem;">
+    <strong>Withdrawn by vendor.</strong>
+    {% if registration.reversal_reason %}{{ registration.reversal_reason }}{% endif %}
+    <br><small>This registration is final. No further actions available.</small>
+</article>
+
+{% endif %}
+
 <!-- Row 1: Vendor Information + Booth Details -->
 <div class="grid">
     <article>
