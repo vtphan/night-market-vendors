@@ -1530,9 +1530,8 @@ def _insurance_resubmit_defaults(registration, db):
         f"Hi,\n\n"
         f"We've reviewed your insurance document for registration "
         f"{registration.registration_id} and found some issues.\n\n"
-        f"Please review the requirements and upload a new document.\n\n"
         f"Please log in to the vendor portal at {portal_domain} "
-        f"to resubmit.\n\n"
+        f"to review the requirements and upload a new document.\n\n"
         f"Thank you!"
     )
     return subject, body
