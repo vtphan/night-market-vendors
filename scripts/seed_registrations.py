@@ -2,16 +2,19 @@
 """Seed the database with test registrations from 4 vendors.
 
 Usage:
-    python scripts/seed_registrations.py small      # 10 registrations
-    python scripts/seed_registrations.py medium     # 20 registrations
-    python scripts/seed_registrations.py large      # 40 registrations
+    python scripts/seed_registrations.py small      # 12 registrations
+    python scripts/seed_registrations.py medium     # 22 registrations
+    python scripts/seed_registrations.py large      # 44 registrations
 
     Add --append to keep existing registrations.
+    Add --reset  to delete the database, uploads, and permits first
+                 (full fresh start — re-creates tables and seeds config).
 
 Registrations use only pending and approved statuses.
-Approved counts never exceed booth inventory (10 per type).
+Approved counts never exceed booth inventory per type.
 """
 
+import shutil
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,8 +22,14 @@ from pathlib import Path
 # Add project root to path so we can import app modules
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DB_PATH = PROJECT_ROOT / "data" / "app.db"
+UPLOADS_DIR = PROJECT_ROOT / "uploads" / "insurance"
+PERMITS_DIR = PROJECT_ROOT / "data" / "permits"
+
 from app.database import SessionLocal
 from app.models import Registration, BoothType, EventSettings
+from app.seed import seed_event_data, bootstrap_admins
 from app.services.registration import generate_registration_id
 
 # ---------------------------------------------------------------------------
@@ -212,6 +221,36 @@ def validate_plan(plan, label):
             sys.exit(1)
 
 
+def reset():
+    """Delete database, insurance uploads, and food permits for a full fresh start."""
+    removed = []
+    if DB_PATH.exists():
+        DB_PATH.unlink()
+        removed.append(f"  Deleted {DB_PATH}")
+    for d in (UPLOADS_DIR, PERMITS_DIR):
+        if d.exists():
+            count = sum(1 for _ in d.iterdir())
+            shutil.rmtree(d)
+            removed.append(f"  Cleared {d} ({count} file(s))")
+    if removed:
+        print("Reset:\n" + "\n".join(removed))
+    else:
+        print("Reset: nothing to clean up.")
+
+    # Re-create tables and seed config
+    from app.database import Base, engine
+    Base.metadata.create_all(bind=engine)
+    print("  Re-created database tables.")
+
+    db = SessionLocal()
+    try:
+        seed_event_data(db)
+        bootstrap_admins(db)
+        print("  Seeded event data and admins.")
+    finally:
+        db.close()
+
+
 def seed(size: str, append: bool = False):
     plan = PLANS[size]
     validate_plan(plan, size)
@@ -298,9 +337,15 @@ if __name__ == "__main__":
     flags = [a for a in sys.argv[1:] if a.startswith("--")]
 
     if not args or args[0] not in PLANS:
-        print("Usage: python scripts/seed_registrations.py <small|medium|large> [--append]")
+        print("Usage: python scripts/seed_registrations.py <small|medium|large> [--append] [--reset]")
         sys.exit(1)
 
     size = args[0]
+    do_reset = "--reset" in flags
     append = "--append" in flags
+
+    if do_reset:
+        reset()
+        print()
+
     seed(size, append)
