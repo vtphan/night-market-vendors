@@ -577,8 +577,7 @@ async def approve_registration(
             start = settings.event_start_date.strftime("%b %d")
             end = settings.event_end_date.strftime("%b %d, %Y")
             event_dates = f"{start}-{end}"
-        background_tasks.add_task(
-            generate_food_permit,
+        generate_food_permit(
             registration_id=reg_id,
             category=registration.category,
             business_name=registration.business_name,
