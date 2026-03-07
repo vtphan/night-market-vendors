@@ -568,30 +568,6 @@ async def approve_registration(
         deadline_date=deadline_date,
     )
 
-    # Auto-generate food permit for food/beverage vendors
-    if registration.category in FOOD_CATEGORIES:
-        event_name = settings.event_name if settings else "Asian Night Market"
-        event_location = "Agricenter Outdoor, 7777 Walnut Grove Rd, Memphis, TN"
-        event_dates = ""
-        if settings:
-            start = settings.event_start_date.strftime("%b %d")
-            end = settings.event_end_date.strftime("%b %d, %Y")
-            event_dates = f"{start}-{end}"
-        generate_food_permit(
-            registration_id=reg_id,
-            category=registration.category,
-            business_name=registration.business_name,
-            contact_name=registration.contact_name,
-            address=registration.address,
-            city_state_zip=registration.city_state_zip,
-            phone=registration.phone,
-            email=registration.email,
-            description=registration.description,
-            event_name=event_name,
-            event_location=event_location,
-            event_dates=event_dates,
-        )
-
     log_admin_action(db, session["email"], "approved", reg_id, registration.business_name)
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
@@ -1120,6 +1096,13 @@ async def download_food_permit(
 @router.post("/registrations/{reg_id}/food-permit/generate")
 async def generate_food_permit_route(
     reg_id: str,
+    business_name: str = Form(...),
+    contact_name: str = Form(...),
+    phone: str = Form(...),
+    description: str = Form(...),
+    address: str = Form(""),
+    city_state_zip: str = Form(""),
+    setup_time: str = Form("2:00 PM"),
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
     _csrf: None = Depends(require_csrf),
@@ -1127,6 +1110,15 @@ async def generate_food_permit_route(
     registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
     if not registration or registration.category not in FOOD_CATEGORIES or registration.status not in ("approved", "paid"):
         return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+    # Save corrected fields back to the registration
+    registration.business_name = business_name.strip()
+    registration.contact_name = contact_name.strip()
+    registration.phone = phone.strip()
+    registration.description = description.strip()
+    registration.address = address.strip() or None
+    registration.city_state_zip = city_state_zip.strip() or None
+    db.commit()
 
     settings = get_event_settings(db)
     event_location = "Agricenter Outdoor, 7777 Walnut Grove Rd, Memphis, TN"
@@ -1149,6 +1141,7 @@ async def generate_food_permit_route(
         event_name=settings.event_name if settings else "Asian Night Market",
         event_location=event_location,
         event_dates=event_dates,
+        setup_time=setup_time.strip(),
     )
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)

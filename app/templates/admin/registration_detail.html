@@ -472,13 +472,11 @@
                 Upload Document
             </button>
         {% endif %}
-        <form method="post" action="/admin/registrations/{{ registration.registration_id }}/food-permit/generate" style="margin: 0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="outline btn-inline"
-                    {% if registration.category not in ('food', 'beverage') or registration.status not in ('approved', 'paid') %}disabled{% endif %}>
-                {{ 'Refill Permit' if food_permit_available else 'Fill Out Permit' }}
-            </button>
-        </form>
+        <button type="button" class="outline btn-inline"
+                {% if registration.category not in ('food', 'beverage') or registration.status not in ('approved', 'paid') %}disabled{% endif %}
+                data-open-dialog="food-permit-dialog">
+            {{ 'Regenerate Permit' if food_permit_available else 'Generate Permit' }}
+        </button>
     </div>
 
     {% if not insurance_doc %}
@@ -506,6 +504,40 @@
                 <label>Body</label>
                 <textarea name="custom_body" id="insurance-reminder-body" rows="8" required></textarea>
                 {{ dialog_footer("Send Reminder", "btn-blue") }}
+            </form>
+        </article>
+    </dialog>
+    {% endif %}
+
+    {% if registration.category in ('food', 'beverage') and registration.status in ('approved', 'paid') %}
+    <dialog id="food-permit-dialog">
+        <article class="dialog-md">
+            <header><strong>{{ 'Regenerate' if food_permit_available else 'Generate' }} Food Permit</strong></header>
+            <form method="post" action="/admin/registrations/{{ registration.registration_id }}/food-permit/generate">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <p class="helper-text">Review and correct the information below before generating the permit PDF.</p>
+                <label>Business Name
+                    <input type="text" name="business_name" value="{{ registration.business_name }}" required>
+                </label>
+                <label>Contact Name
+                    <input type="text" name="contact_name" value="{{ registration.contact_name }}" required>
+                </label>
+                <label>Phone
+                    <input type="text" name="phone" value="{{ registration.phone }}" required>
+                </label>
+                <label>Address
+                    <input type="text" name="address" value="{{ registration.address or '' }}">
+                </label>
+                <label>City, State, ZIP
+                    <input type="text" name="city_state_zip" value="{{ registration.city_state_zip or '' }}">
+                </label>
+                <label>Food/Beverage Description
+                    <textarea name="description" rows="3" required>{{ registration.description }}</textarea>
+                </label>
+                <label>Setup Time
+                    <input type="text" name="setup_time" value="2:00 PM">
+                </label>
+                {{ dialog_footer("Generate Permit", "btn-blue") }}
             </form>
         </article>
     </dialog>
