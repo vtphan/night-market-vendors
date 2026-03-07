@@ -184,6 +184,9 @@ class EventSettings(Base):
     reminder_2_subject = Column(String, default="Urgent: Payment Deadline Approaching — {event_name}")
     reminder_2_body = Column(Text, default="")
     timezone = Column(String, nullable=False, default="America/Chicago", server_default="America/Chicago")
+    org_name = Column(String, nullable=False, default="", server_default="")
+    org_address = Column(String, nullable=False, default="", server_default="")
+    org_tax_id = Column(String, nullable=False, default="", server_default="")
 
     @staticmethod
     def derive_reminder_defaults(deadline_days: int) -> tuple[int, int]:

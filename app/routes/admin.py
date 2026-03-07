@@ -39,6 +39,7 @@ from app.services.email import (
 )
 from app.services.payment import create_refund
 from app.services.food_permit import generate_food_permit, FOOD_CATEGORIES, PERMITS_DIR
+from app.services.invoice import INVOICES_DIR
 from app.config import APP_URL, ADMIN_EMAILS
 from app.upload_constants import ALLOWED_EXTENSIONS, ALLOWED_CONTENT_TYPES, MAX_FILE_SIZE
 
@@ -143,6 +144,7 @@ def _detail_context(db, registration):
     """Build full context for registration_detail.html re-renders."""
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
     permit_path = PERMITS_DIR / f"{registration.registration_id}.pdf"
+    invoice_path = INVOICES_DIR / f"{registration.registration_id}.pdf"
     return {
         "registration": registration,
         "booth_type": booth_type,
@@ -152,6 +154,7 @@ def _detail_context(db, registration):
         "settings": get_event_settings(db),
         "now": datetime.now(timezone.utc),
         "food_permit_available": permit_path.exists(),
+        "invoice_available": invoice_path.exists(),
     }
 
 
@@ -466,6 +469,7 @@ async def registration_detail(
     )
 
     permit_path = PERMITS_DIR / f"{reg_id}.pdf"
+    invoice_path = INVOICES_DIR / f"{reg_id}.pdf"
 
     return _template(request, "admin/registration_detail.html", {
         "registration": registration,
@@ -477,6 +481,7 @@ async def registration_detail(
         "now": datetime.now(timezone.utc),
         "notes": notes,
         "food_permit_available": permit_path.exists(),
+        "invoice_available": invoice_path.exists(),
     }, session=session)
 
 
@@ -1209,6 +1214,53 @@ async def download_all_permits(
     )
 
 
+# --- Invoice download ---
+
+@router.get("/registrations/{reg_id}/invoice")
+async def download_invoice(
+    reg_id: str,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
+    if not registration or registration.status not in ("paid", "cancelled"):
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}" if registration else "/admin/registrations", status_code=303)
+
+    invoice_path = INVOICES_DIR / f"{reg_id}.pdf"
+    if not invoice_path.exists():
+        return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+    return FileResponse(
+        path=str(invoice_path),
+        media_type="application/pdf",
+        filename=f"invoice_{reg_id}.pdf",
+    )
+
+
+@router.get("/download-invoices")
+async def download_all_invoices(
+    session: dict = Depends(require_admin),
+):
+    if not INVOICES_DIR.exists():
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    invoice_files = list(INVOICES_DIR.glob("*.pdf"))
+    if not invoice_files:
+        return RedirectResponse(url="/admin/registrations", status_code=303)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fp in invoice_files:
+            zf.write(fp, f"invoices/{fp.name}")
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=invoices.zip"},
+    )
+
+
 @router.post("/registrations/{reg_id}/insurance/approve")
 async def approve_insurance(
     request: Request,
@@ -1585,6 +1637,9 @@ async def update_settings(
     registration_close_date: str = Form(...),
     event_timezone: str = Form("America/Chicago"),
     banner_text: str = Form(""),
+    org_name: str = Form(""),
+    org_address: str = Form(""),
+    org_tax_id: str = Form(""),
     contact_email: str = Form(""),
     developer_contact: str = Form(""),
     front_page_content: str = Form(""),
@@ -1623,6 +1678,9 @@ async def update_settings(
             settings.registration_close_date = close_dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
             settings.timezone = tz_name
             settings.banner_text = banner_text.strip()
+            settings.org_name = org_name.strip()
+            settings.org_address = org_address.strip()
+            settings.org_tax_id = org_tax_id.strip()
             settings.contact_email = contact_email.strip()
             settings.developer_contact = developer_contact.strip()
             settings.front_page_content = front_page_content.strip()

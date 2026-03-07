@@ -447,6 +447,14 @@
     </p>
     {% endif %}
 
+    {% if invoice_available is defined and invoice_available %}
+    <p>
+        <a href="/admin/registrations/{{ registration.registration_id }}/invoice">
+            Invoice: invoice_{{ registration.registration_id }}.pdf
+        </a>
+    </p>
+    {% endif %}
+
     <div class="action-bar">
         {% if insurance_doc %}
             {% if insurance_doc.is_approved %}

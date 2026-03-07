@@ -17,7 +17,7 @@
 | 5 | W2 | Payment deadline not adjustable per-registration | Medium | Low | Non-technical |
 | 6 | W2/W13 | ~~Food permit generated from unverified vendor data~~ | Medium | Medium | **Addressed** |
 | 7 | W3 | ~~No self-service path for rejected vendors to re-apply~~ | Medium | Low | **Addressed** |
-| 8 | W4 | No downloadable receipt/invoice in app | High | Medium | Verify Stripe config |
+| 8 | W4 | ~~No downloadable receipt/invoice in app~~ | High | Medium | **Addressed** |
 | 9 | W4 | Processing fee may surprise vendors at payment time | Medium | Low | Non-technical |
 | 10 | W5 | Cancelled registrations don't notify waitlisted vendors | Low | Low | Non-technical |
 | 11 | W6 | No deadline or enforcement mechanism for insurance | High | High | Non-technical policy |
@@ -34,7 +34,7 @@
 | Priority | Issues | Recommended Action |
 |----------|--------|--------------------|
 | **Address soon** | #11 (insurance deadline), #14 (OTP deliverability) | Non-technical policy + verify technical config |
-| **Monitor** | #4 (approval confirmation), #8 (receipts), #12 (insurance feedback) | Verify UI exists or add lightweight fixes |
+| **Monitor** | #4 (approval confirmation), #12 (insurance feedback) | Verify UI exists or add lightweight fixes |
 | **Low priority** | #1, #3, #5, #9, #10, #13, #15, #16 | Non-technical admin awareness |
 | **Ignore** | #2 (draft cleanup) | No action needed at this scale |
 
@@ -101,12 +101,10 @@
 
 ### W4. Vendor Payment
 
-#### Issue 8: No downloadable receipt/invoice in app
+#### Issue 8: No downloadable receipt/invoice in app — ADDRESSED
 
-- **What:** The vendor receives a payment confirmation email, but there's no downloadable receipt or invoice in the app.
-- **Likelihood:** High — vendors running businesses will want receipts for tax/accounting purposes.
-- **Severity:** Medium — vendors must rely on their Stripe email receipt or bank statement. No in-app record they can download.
-- **Recommendation:** Verify that `receipt_email` is being set on the PaymentIntent (Stripe automatically sends receipts when this is set). For the event's scale (~150 vendors), Stripe's built-in receipts are sufficient. A dedicated invoice/receipt page is a nice-to-have.
+- **What:** Vendors had no downloadable receipt or invoice in the app after payment.
+- **Resolution:** PDF invoices are now auto-generated on successful payment (via webhook). Invoices include organizer billing info (configurable in admin settings: org name, address, optional tax ID), vendor details, booth type, price breakdown, processing fee, total paid, and Stripe payment reference. Vendors can download from their registration detail page; admins can download per-registration or bulk-export as ZIP via the new Export dropdown on the registrations page. The payment confirmation email directs vendors to their dashboard to download the invoice.
 
 #### Issue 9: Processing fee may surprise vendors at payment time
 

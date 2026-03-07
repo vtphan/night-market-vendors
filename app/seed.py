@@ -56,6 +56,9 @@ def seed_event_data(db: Session) -> None:
             reminder_2_subject=evt.get("reminder_2_subject", "Urgent: Payment Deadline Approaching — {event_name}"),
             reminder_2_body=evt.get("reminder_2_body", ""),
             timezone=evt.get("timezone", "America/Chicago"),
+            org_name=evt.get("org_name", ""),
+            org_address=evt.get("org_address", ""),
+            org_tax_id=evt.get("org_tax_id", ""),
         )
         db.add(settings)
         db.commit()

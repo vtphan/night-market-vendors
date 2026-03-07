@@ -23,6 +23,7 @@ from app.services.registration import (
     CATEGORIES,
 )
 from app.services.food_permit import FOOD_CATEGORIES, PERMITS_DIR
+from app.services.invoice import INVOICES_DIR
 from app.services.email import (
     send_submission_confirmation_email,
     send_admin_notification_email,
@@ -432,6 +433,7 @@ async def registration_detail(
 
     needs_permit = registration.category in FOOD_CATEGORIES
     food_permit_available = needs_permit and (PERMITS_DIR / f"{registration.registration_id}.pdf").exists()
+    invoice_available = (INVOICES_DIR / f"{registration.registration_id}.pdf").exists()
 
     ctx = {
         "registration": registration,
@@ -442,6 +444,7 @@ async def registration_detail(
         "insurance_doc": insurance_doc,
         "needs_permit": needs_permit,
         "food_permit_available": food_permit_available,
+        "invoice_available": invoice_available,
         "now": datetime.now(timezone.utc),
     }
     if registration.status == "approved":
@@ -480,6 +483,36 @@ async def download_food_permit(
         path=str(permit_path),
         media_type="application/pdf",
         filename=f"food_permit_{registration_id}.pdf",
+    )
+
+
+# --- Invoice download ---
+
+@router.get("/registrations/{registration_id}/invoice")
+async def download_invoice(
+    registration_id: str,
+    session: dict = Depends(require_vendor),
+    db: Session = Depends(get_db),
+):
+    registration = (
+        db.query(Registration)
+        .filter(
+            Registration.registration_id == registration_id,
+            Registration.email == session["email"],
+        )
+        .first()
+    )
+    if not registration or registration.status not in ("paid", "cancelled"):
+        return RedirectResponse(url=f"/vendor/registrations/{registration_id}" if registration else "/vendor/dashboard", status_code=303)
+
+    invoice_path = INVOICES_DIR / f"{registration_id}.pdf"
+    if not invoice_path.exists():
+        return RedirectResponse(url=f"/vendor/registrations/{registration_id}", status_code=303)
+
+    return FileResponse(
+        path=str(invoice_path),
+        media_type="application/pdf",
+        filename=f"invoice_{registration_id}.pdf",
     )
 
 

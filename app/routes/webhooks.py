@@ -12,6 +12,7 @@ from app.database import get_db, get_event_settings
 from app.models import Registration, BoothType, StripeEvent, AdminNote
 from app.services.registration import transition_status
 from app.services.email import send_payment_confirmation_email, send_admin_notification_email, send_admin_alert_email
+from app.services.invoice import generate_invoice, INVOICES_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +175,30 @@ def _handle_payment_succeeded(db: Session, payment_intent: dict, background_task
         payment_intent["amount"],
     )
 
-    # Admin notification
+    # Generate invoice PDF
     settings = get_event_settings(db)
+    try:
+        generate_invoice(
+            registration_id=registration.registration_id,
+            business_name=registration.business_name,
+            contact_name=registration.contact_name,
+            email=registration.email,
+            phone=registration.phone,
+            booth_type_name=booth_type.name if booth_type else "Unknown",
+            approved_price_cents=registration.approved_price if registration.approved_price is not None else (booth_type.price if booth_type else 0),
+            processing_fee_cents=registration.processing_fee or 0,
+            amount_paid_cents=payment_intent["amount"],
+            paid_at=datetime.now(timezone.utc),
+            org_name=settings.org_name if settings else "",
+            org_address=settings.org_address if settings else "",
+            org_tax_id=settings.org_tax_id if settings else "",
+            event_name=settings.event_name if settings else "",
+            stripe_payment_intent_id=payment_intent["id"],
+        )
+    except Exception:
+        logger.exception("Failed to generate invoice for %s", registration.registration_id)
+
+    # Admin notification
     if settings and settings.notify_payment_received:
         background_tasks.add_task(
             send_admin_notification_email,

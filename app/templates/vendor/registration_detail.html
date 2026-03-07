@@ -202,6 +202,10 @@
         <dt>Refund</dt>
         <dd>${{ "%.2f" | format(registration.refund_amount / 100) }}</dd>
         {% endif %}
+        {% if invoice_available is defined and invoice_available %}
+        <dt>Invoice</dt>
+        <dd><a href="/vendor/registrations/{{ registration.registration_id }}/invoice">Download Invoice (PDF)</a></dd>
+        {% endif %}
     </dl>
 </article>
 {% endif %}
