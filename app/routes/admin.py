@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+import zipfile
 import math
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -34,7 +35,7 @@ from app.services.email import (
     send_insurance_reminder_email,
 )
 from app.services.payment import create_refund
-from app.services.food_permit import generate_food_permit, FOOD_CATEGORIES
+from app.services.food_permit import generate_food_permit, FOOD_CATEGORIES, PERMITS_DIR
 from app.config import APP_URL, ADMIN_EMAILS
 
 logger = logging.getLogger(__name__)
@@ -140,7 +141,6 @@ def _inventory_context(db):
 
 def _detail_context(db, registration):
     """Build full context for registration_detail.html re-renders."""
-    from app.services.food_permit import PERMITS_DIR
     booth_type = db.query(BoothType).filter(BoothType.id == registration.booth_type_id).first()
     permit_path = PERMITS_DIR / f"{registration.registration_id}.pdf"
     return {
@@ -409,7 +409,6 @@ async def registration_detail(
         .all()
     )
 
-    from app.services.food_permit import PERMITS_DIR
     permit_path = PERMITS_DIR / f"{reg_id}.pdf"
 
     return _template(request, "admin/registration_detail.html", {
@@ -957,7 +956,6 @@ async def download_food_permit(
     session: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    from app.services.food_permit import PERMITS_DIR
     registration = db.query(Registration).filter(Registration.registration_id == reg_id).first()
     if not registration:
         return RedirectResponse(url="/admin/registrations", status_code=303)
@@ -1008,6 +1006,164 @@ async def generate_food_permit_route(
     )
 
     return RedirectResponse(url=f"/admin/registrations/{reg_id}", status_code=303)
+
+
+# --- Insurance & Permits overview ---
+
+@router.get("/insurance-permits", response_class=HTMLResponse)
+async def insurance_permits_page(
+    request: Request,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    registrations = (
+        db.query(Registration)
+        .filter(Registration.status.in_(["pending", "approved", "paid"]))
+        .order_by(Registration.created_at.desc())
+        .all()
+    )
+    insurance_docs = {
+        doc.email: doc for doc in db.query(InsuranceDocument).all()
+    }
+
+    rows = []
+    missing_permit_count = 0
+    insurance_count = 0
+    permit_count = 0
+
+    for reg in registrations:
+        ins_doc = insurance_docs.get(reg.email)
+        has_permit = (PERMITS_DIR / f"{reg.registration_id}.pdf").exists()
+
+        if ins_doc:
+            insurance_count += 1
+        if has_permit:
+            permit_count += 1
+        if reg.category in FOOD_CATEGORIES and not has_permit:
+            missing_permit_count += 1
+
+        rows.append({
+            "registration": reg,
+            "insurance_doc": ins_doc,
+            "has_permit": has_permit,
+        })
+
+    return _template(request, "admin/insurance_permits.html", {
+        "rows": rows,
+        "missing_permit_count": missing_permit_count,
+        "insurance_count": insurance_count,
+        "permit_count": permit_count,
+    }, session=session)
+
+
+@router.post("/insurance-permits/generate-all")
+async def generate_all_permits(
+    request: Request,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    settings = db.query(EventSettings).first()
+    event_location = "Agricenter Outdoor, 7777 Walnut Grove Rd, Memphis, TN"
+    event_dates = ""
+    if settings:
+        start = settings.event_start_date.strftime("%b %d")
+        end = settings.event_end_date.strftime("%b %d, %Y")
+        event_dates = f"{start}-{end}"
+    event_name = settings.event_name if settings else "Asian Night Market"
+
+    registrations = (
+        db.query(Registration)
+        .filter(
+            Registration.status.in_(["pending", "approved", "paid"]),
+            Registration.category.in_(list(FOOD_CATEGORIES)),
+        )
+        .all()
+    )
+
+    generated = 0
+    for reg in registrations:
+        if (PERMITS_DIR / f"{reg.registration_id}.pdf").exists():
+            continue
+        generate_food_permit(
+            registration_id=reg.registration_id,
+            category=reg.category,
+            business_name=reg.business_name,
+            contact_name=reg.contact_name,
+            address=reg.address,
+            city_state_zip=reg.city_state_zip,
+            phone=reg.phone,
+            email=reg.email,
+            description=reg.description,
+            event_name=event_name,
+            event_location=event_location,
+            event_dates=event_dates,
+        )
+        generated += 1
+
+    logger.info("Bulk generated %d food permits", generated)
+    return RedirectResponse(url="/admin/insurance-permits", status_code=303)
+
+
+@router.get("/insurance-permits/download-insurance")
+async def download_all_insurance(
+    request: Request,
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    uploads_dir: Path = request.app.state.uploads_dir
+    docs = db.query(InsuranceDocument).all()
+
+    # Map email -> latest active registration ID for filenames
+    registrations = db.query(Registration).filter(
+        Registration.status.in_(["pending", "approved", "paid"]),
+    ).all()
+    email_to_reg = {}
+    for reg in registrations:
+        email_to_reg.setdefault(reg.email, reg.registration_id)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for doc in docs:
+            file_path = uploads_dir / doc.stored_filename
+            if not file_path.exists():
+                continue
+            reg_id = email_to_reg.get(doc.email, doc.email)
+            ext = Path(doc.original_filename).suffix
+            arcname = f"insurance/{reg_id}_{doc.email}{ext}"
+            zf.write(file_path, arcname)
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=insurance_documents.zip"},
+    )
+
+
+@router.get("/insurance-permits/download-permits")
+async def download_all_permits(
+    session: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if not PERMITS_DIR.exists():
+        return RedirectResponse(url="/admin/insurance-permits", status_code=303)
+
+    permit_files = list(PERMITS_DIR.glob("*.pdf"))
+    if not permit_files:
+        return RedirectResponse(url="/admin/insurance-permits", status_code=303)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fp in permit_files:
+            zf.write(fp, f"permits/{fp.name}")
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=food_permits.zip"},
+    )
 
 
 @router.post("/registrations/{reg_id}/insurance/approve")

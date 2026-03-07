@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Insurance &amp; Permits - Admin - Asian Night Market{% endblock %}
+
+{% block content %}
+<h2>Insurance &amp; Permits</h2>
+
+<div class="action-bar" style="margin-bottom: 1.5rem;">
+    <form method="post" action="/admin/insurance-permits/generate-all" style="margin: 0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn-inline btn-blue"
+                {% if missing_permit_count == 0 %}disabled{% endif %}>
+            Generate {{ missing_permit_count }} Missing Permit{{ 's' if missing_permit_count != 1 }}
+        </button>
+    </form>
+    <a href="/admin/insurance-permits/download-insurance" role="button" class="outline btn-inline"
+       {% if insurance_count == 0 %}aria-disabled="true" style="pointer-events:none; opacity:0.5;"{% endif %}>
+        Download All Insurance (ZIP)
+    </a>
+    <a href="/admin/insurance-permits/download-permits" role="button" class="outline btn-inline"
+       {% if permit_count == 0 %}aria-disabled="true" style="pointer-events:none; opacity:0.5;"{% endif %}>
+        Download All Permits (ZIP)
+    </a>
+</div>
+
+<figure>
+<table class="striped">
+    <thead>
+        <tr>
+            <th>Registration</th>
+            <th>Business Name</th>
+            <th>Category</th>
+            <th>Status</th>
+            <th>Insurance</th>
+            <th>Food Permit</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in rows %}
+        <tr>
+            <td><a href="/admin/registrations/{{ item.registration.registration_id }}">{{ item.registration.registration_id }}</a></td>
+            <td>{{ item.registration.business_name }}</td>
+            <td>{{ CATEGORIES.get(item.registration.category, item.registration.category) }}</td>
+            <td><span class="status-badge {{ item.registration.status }}">{{ item.registration.status | title }}</span></td>
+            <td>
+                {% if item.insurance_doc %}
+                    <a href="/admin/insurance/{{ item.insurance_doc.stored_filename }}">
+                        {{ 'Approved' if item.insurance_doc.is_approved else 'Uploaded' }}
+                    </a>
+                {% else %}
+                    <span style="color: var(--pico-muted-color);">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if item.registration.category not in ('food', 'beverage') %}
+                    <span style="color: var(--pico-muted-color);">N/A</span>
+                {% elif item.has_permit %}
+                    <a href="/admin/registrations/{{ item.registration.registration_id }}/food-permit">Download</a>
+                {% else %}
+                    <span style="color: #c62828;">Missing</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</figure>
+{% endblock %}
