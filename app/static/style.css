@@ -271,6 +271,23 @@ button.payment-success:focus {
     margin-bottom: 0.75rem;
 }
 
+/* Active nav link */
+nav a[aria-current="page"] {
+    background-color: rgba(0, 102, 204, 0.12);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Logout icon link */
+.nav-logout {
+    color: var(--pico-muted-color);
+    font-size: 1.1rem;
+    line-height: 1;
+}
+.nav-logout:hover {
+    color: var(--pico-del-color);
+}
+
 /* Legend dot (charts/bars) */
 .legend-dot {
     display: inline-block;

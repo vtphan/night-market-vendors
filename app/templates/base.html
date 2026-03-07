@@ -11,28 +11,38 @@
 <body>
     <nav class="container">
         <ul>
-            <li><a href="/"><strong>{{ get_event_name() }}</strong></a></li>
+            <li><a href="/"><strong>&#x1F3EE; {{ get_event_name() }}</strong></a></li>
         </ul>
         <ul>
             {% if session and session.user_type == "admin" %}
-                <li><a href="/admin">Dashboard</a></li>
-                <li><a href="/admin/registrations">Registrations</a></li>
-                <li><a href="/admin/notes">Notes</a></li>
-                <li><a href="/admin/logs">Logs</a></li>
-                <li><a href="/admin/inventory">Inventory</a></li>
-                <li><a href="/admin/settings">Settings</a></li>
-                <li><a href="/admin/faq">Guide</a></li>
-                <li><a href="/auth/logout">Logout</a></li>
+                {% set path = request.url.path %}
+                <li><a href="/admin" {{ 'aria-current=page' if path == '/admin' }}>Dashboard</a></li>
+                <li><a href="/admin/registrations" {{ 'aria-current=page' if path.startswith('/admin/registrations') }}>Registrations</a></li>
+                <li><a href="/admin/notes" {{ 'aria-current=page' if path == '/admin/notes' }}>Notes</a></li>
+                <li>
+                    <details class="dropdown">
+                        <summary>More</summary>
+                        <ul dir="rtl">
+                            <li><a href="/admin/logs" {{ 'aria-current=page' if path == '/admin/logs' }}>Logs</a></li>
+                            <li><a href="/admin/inventory" {{ 'aria-current=page' if path.startswith('/admin/inventory') }}>Inventory</a></li>
+                            <li><a href="/admin/settings" {{ 'aria-current=page' if path == '/admin/settings' }}>Settings</a></li>
+                            <li><a href="/admin/faq" {{ 'aria-current=page' if path == '/admin/faq' }}>Guide</a></li>
+                        </ul>
+                    </details>
+                </li>
+                <li><a href="/auth/logout" class="nav-logout" title="Logout">&#x23FB;</a></li>
             {% elif session and session.user_type == "vendor" %}
-                <li><a href="/vendor/dashboard">My Registrations</a></li>
-                <li><a href="/vendor/faq">FAQ</a></li>
-                <li><a href="/auth/logout">Logout</a></li>
+                {% set path = request.url.path %}
+                <li><a href="/vendor/dashboard" {{ 'aria-current=page' if path == '/vendor/dashboard' }}>My Registrations</a></li>
+                <li><a href="/vendor/faq" {{ 'aria-current=page' if path == '/vendor/faq' }}>FAQ</a></li>
+                <li><a href="/auth/logout" class="nav-logout" title="Logout">&#x23FB;</a></li>
             {% else %}
-                <li><a href="/vendor/faq">FAQ</a></li>
+                {% set path = request.url.path %}
+                <li><a href="/vendor/faq" {{ 'aria-current=page' if path == '/vendor/faq' }}>FAQ</a></li>
                 {% if registration_open | default(false) %}
-                <li><a href="/auth/login">Vendor Login</a></li>
+                <li><a href="/auth/login" {{ 'aria-current=page' if path == '/auth/login' and request.query_params.get('role') != 'admin' }}>Vendor Login</a></li>
                 {% endif %}
-                <li><a href="/auth/login?role=admin">Admin Login</a></li>
+                <li><a href="/auth/login?role=admin" {{ 'aria-current=page' if path == '/auth/login' and request.query_params.get('role') == 'admin' }}>Admin Login</a></li>
             {% endif %}
         </ul>
     </nav>
