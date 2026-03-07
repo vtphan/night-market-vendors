@@ -48,7 +48,7 @@
     },
     {
       "name": "Food Truck",
-      "description": "Designated food truck parking spot with electrical hookup. The space is 12 ft wide × 30 ft deep.",
+      "description": "Designated food truck parking spot with electrical hookup. The space is about 33 ft wide (front facing) × 12 ft deep.",
       "total_quantity": 5,
       "price": 20000,
       "sort_order": 4
