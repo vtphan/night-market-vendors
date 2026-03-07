@@ -145,13 +145,13 @@
     "overdue": "Overdue"
 } %}
 
-<!-- Row 1: Registrations Overview + Capacity / Inventory -->
+<!-- Row 1: Registrations + Capacity / Inventory -->
 <div class="dashboard-row">
 <article>
     <header>
-        <strong>Registrations Overview</strong>
+        <strong>Registrations</strong>
     </header>
-    <p class="context-line">{{ total_registrations }} registration{{ 's' if total_registrations != 1 }} from {{ total_vendors }} vendor{{ 's' if total_vendors != 1 }} <a href="/admin/registrations">➤</a></p>
+    <p class="context-line">{{ total_registrations }} registration{{ 's' if total_registrations != 1 }} from {{ total_vendors }} vendor{{ 's' if total_vendors != 1 }}. {{ pending_count }} pending awaiting review <a href="/admin/registrations?status=pending">➤</a></p>
     {% if total_registrations > 0 %}
     <div class="stacked-bar">
         {% set status_order = ["pending", "approved", "paid", "rejected", "cancelled", "withdrawn"] %}
@@ -179,89 +179,8 @@
     {% else %}
     <p class="empty-state">No registrations yet</p>
     {% endif %}
-</article>
 
-<article>
-    <header>
-        <div class="card-header-link">
-            <strong>Capacity / Inventory</strong>
-            <a href="/admin/inventory">Manage ➤</a>
-        </div>
-    </header>
-    {% for item in inventory %}
-        {% set pct = ((item.reserved / item.total_quantity) * 100) | round(1) if item.total_quantity > 0 else 0 %}
-        {% if item.available <= 0 %}
-            {% set bar_color = "#dc2626" %}
-        {% elif item.available <= 3 %}
-            {% set bar_color = "#f59e0b" %}
-        {% else %}
-            {% set bar_color = "#22c55e" %}
-        {% endif %}
-        <div class="util-bar-wrap">
-            <div class="util-bar-label">
-                <span class="name">{{ item.name }}</span>
-                <span class="count">{{ item.reserved }} out of {{ item.total_quantity }} reserved</span>
-            </div>
-            <div class="util-bar-track">
-                <div class="util-bar" style="width: {{ pct }}%; background: {{ bar_color }};"></div>
-            </div>
-        </div>
-    {% endfor %}
-    {% if not inventory %}
-    <p class="empty-state">No booth types configured</p>
-    {% endif %}
-</article>
-</div>
-
-<!-- Row 2: Approve These + Urge Them Pay -->
-<div class="dashboard-row">
-<article>
-    <header>
-        <strong>Pending Approval</strong>
-    </header>
-    <p class="context-line">{{ pending_count }} pending registration{{ 's' if pending_count != 1 }} awaiting review <a href="/admin/registrations?status=pending">➤</a></p>
-    {% set approved_count = status_counts.get("approved", 0) %}
-    {% set rest = total_registrations - pending_count - approved_count %}
-    {% if total_registrations > 0 %}
-    <div class="stacked-bar">
-        {% set pct_pending = (pending_count / total_registrations * 100) | round(1) %}
-        {% set pct_approved = (approved_count / total_registrations * 100) | round(1) %}
-        {% set pct_rest = (rest / total_registrations * 100) | round(1) %}
-        {% if pending_count > 0 %}
-        <div class="bar-seg" style="width: {{ pct_pending }}%; background: {{ status_colors.pending }};">
-            {% if pct_pending > 10 %}{{ pending_count }}{% endif %}
-        </div>
-        {% endif %}
-        {% if approved_count > 0 %}
-        <div class="bar-seg" style="width: {{ pct_approved }}%; background: {{ status_colors.approved }};">
-            {% if pct_approved > 10 %}{{ approved_count }}{% endif %}
-        </div>
-        {% endif %}
-        {% if rest > 0 %}
-        <div class="bar-seg" style="width: {{ pct_rest }}%; background: #d1d5db;">
-            {% if pct_rest > 10 %}{{ rest }}{% endif %}
-        </div>
-        {% endif %}
-    </div>
-    <div class="bar-legend">
-        {% if pending_count > 0 %}
-        <span class="legend-item"><span class="legend-dot" style="background: {{ status_colors.pending }};"></span> Pending ({{ pending_count }})</span>
-        {% endif %}
-        {% if approved_count > 0 %}
-        <span class="legend-item"><span class="legend-dot" style="background: {{ status_colors.approved }};"></span> Approved ({{ approved_count }})</span>
-        {% endif %}
-        {% if rest > 0 %}
-        <span class="legend-item"><span class="legend-dot" style="background: #d1d5db;"></span> Other ({{ rest }})</span>
-        {% endif %}
-    </div>
-    {% endif %}
-</article>
-
-<article>
-    <header>
-        <strong>Awaiting Payment</strong>
-    </header>
-    <p class="context-line">
+    <p class="context-line" style="margin-top: 1rem;">
         {% if unpaid_count > 0 %}
         {{ unpaid_count }} approved but unpaid <a href="/admin/registrations?status=approved">➤</a>
         {% else %}
@@ -303,6 +222,43 @@
             Paid ({{ paid_count }})
         </span>
         {% endif %}
+    </div>
+    {% endif %}
+</article>
+
+<article>
+    <header>
+        <div class="card-header-link">
+            <strong>Capacity / Inventory</strong>
+            <a href="/admin/inventory">Manage ➤</a>
+        </div>
+    </header>
+    {% for item in inventory %}
+        {% set pct = ((item.reserved / item.total_quantity) * 100) | round(1) if item.total_quantity > 0 else 0 %}
+        {% if item.available <= 0 %}
+            {% set bar_color = "#dc2626" %}
+        {% elif item.available <= 3 %}
+            {% set bar_color = "#f59e0b" %}
+        {% else %}
+            {% set bar_color = "#22c55e" %}
+        {% endif %}
+        <div class="util-bar-wrap">
+            <div class="util-bar-label">
+                <span class="name">{{ item.name }}</span>
+                <span class="count">{{ item.reserved }} out of {{ item.total_quantity }} reserved</span>
+            </div>
+            <div class="util-bar-track">
+                <div class="util-bar" style="width: {{ pct }}%; background: {{ bar_color }};"></div>
+            </div>
+        </div>
+    {% endfor %}
+    {% if not inventory %}
+    <p class="empty-state">No booth types configured</p>
+    {% else %}
+    <div class="bar-legend">
+        <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span> Available</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Low (≤3)</span>
+        <span class="legend-item"><span class="legend-dot" style="background: #dc2626;"></span> Sold out</span>
     </div>
     {% endif %}
 </article>

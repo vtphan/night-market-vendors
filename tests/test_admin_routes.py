@@ -32,9 +32,8 @@ async def test_admin_dashboard_shows_counts(db):
         assert response.status_code == 200
         text = response.text
         # Dashboard shows chart cards
-        assert "Registrations Overview" in text
-        assert "Pending Approval" in text
-        assert "Awaiting Payment" in text
+        assert ">Registrations<" in text
+        assert "awaiting review" in text
         assert "Capacity / Inventory" in text
         assert "Insurance Coverage" in text
 
