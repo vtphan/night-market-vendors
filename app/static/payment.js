@@ -74,9 +74,9 @@
         showStatus("Your payment was successful. You will be redirected shortly.", "#155724");
 
         // Brief delay gives the webhook a head start before the vendor
-        // lands on the dashboard and sees the updated status.
+        // lands on the registration page and sees the updated status.
         setTimeout(function () {
-          window.location.href = "/vendor/dashboard";
+          window.location.href = "/vendor/registration/" + registrationId;
         }, 3000);
       })
       .catch(function (error) {

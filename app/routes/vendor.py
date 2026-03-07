@@ -612,7 +612,7 @@ async def withdraw_registration(
         f"{APP_URL}/admin/registrations/{registration_id}",
     )
 
-    return RedirectResponse(url="/vendor/dashboard", status_code=303)
+    return RedirectResponse(url=f"/vendor/registration/{registration_id}", status_code=303)
 
 
 # --- Vendor dashboard ---
