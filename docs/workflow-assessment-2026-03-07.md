@@ -21,7 +21,7 @@
 | 9 | W4 | Processing fee may surprise vendors at payment time | Medium | Low | Non-technical |
 | 10 | W5 | Cancelled registrations don't notify waitlisted vendors | Low | Low | Non-technical |
 | 11 | W6 | No deadline or enforcement mechanism for insurance | High | High | **Partly addressed** |
-| 12 | W6 | No "reject insurance with reason" flow | Medium | Medium | Non-technical |
+| 12 | W6 | ~~No "reject insurance with reason" flow~~ | Medium | Medium | **Partly addressed** |
 | 13 | W8 | Price changes don't notify approved-but-unpaid vendors | Low | Low | Non-technical |
 | 14 | W9 | Email deliverability issues may lock out vendors | Medium | High | Mixed |
 | 15 | W10 | Withdrawal consequences may not be clear to vendor | Low | Medium | Verify UI |
@@ -138,12 +138,13 @@
   3. Use the "Send Insurance Reminder" button (W14) for individual follow-up.
   4. Enforcement remains manual — organizer decides policy (e.g., deny entry on event day without valid insurance).
 
-#### Issue 12: No "reject insurance with reason" flow
+#### Issue 12: No "reject insurance with reason" flow — PARTLY ADDRESSED
 
 - **What:** If the admin reviews insurance and it's insufficient (wrong coverage, expired policy), there's no "reject insurance with reason" flow. The admin can only approve or leave it unapproved.
 - **Likelihood:** Medium — vendors may upload incorrect documents.
 - **Severity:** Medium — the vendor doesn't know *why* their insurance wasn't approved. The admin must manually email them.
-- **Recommendation:** Non-technical for now. Admin should use the notes feature (W12) to document why insurance is insufficient and email the vendor directly. For ~150 vendors, this is manageable. An insurance rejection flow with automated email would be a nice enhancement.
+- **Partial fix:** A "Request Resubmission" button now appears on the registration detail page when an insurance document is uploaded but not yet approved. It opens a dialog with a pre-filled, customizable email so the admin can explain the issue and ask the vendor to resubmit. The vendor's existing document remains until they upload a replacement (which automatically resets approval status).
+- **Remaining:** This is a notification-only flow — there is no formal "rejected" status on the insurance document itself. The admin leaves the doc unapproved and communicates the issue via email. For ~150 vendors, this is sufficient.
 
 ---
 
