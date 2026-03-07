@@ -420,10 +420,8 @@
     </header>
     {% if insurance_doc %}
     <p>
-        <a href="/admin/insurance/{{ insurance_doc.stored_filename }}">
-            Insurance: {{ insurance_doc.original_filename }}
-        </a>
-        <small style="color: var(--pico-muted-color);">({{ "%.1f" | format(insurance_doc.file_size / 1024) }} KB)</small>
+        Insurance Document
+        <a href="/admin/insurance/{{ insurance_doc.stored_filename }}">[view/download]</a>
     </p>
     {% else %}
     <p class="helper-text">
@@ -441,17 +439,15 @@
 
     {% if registration.category in ('food', 'beverage') and food_permit_available and registration.status in ('approved', 'paid') %}
     <p>
-        <a href="/admin/registrations/{{ registration.registration_id }}/food-permit">
-            Food Permit: food_permit_{{ registration.registration_id }}.pdf
-        </a>
+        Food Permit
+        <a href="/admin/registrations/{{ registration.registration_id }}/food-permit">[view/download]</a>
     </p>
     {% endif %}
 
     {% if invoice_available is defined and invoice_available %}
     <p>
-        <a href="/admin/registrations/{{ registration.registration_id }}/invoice">
-            Invoice: invoice_{{ registration.registration_id }}.pdf
-        </a>
+        Invoice
+        <a href="/admin/registrations/{{ registration.registration_id }}/invoice">[view/download]</a>
     </p>
     {% endif %}
 
