@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
+from pypdf.generic import NameObject
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,6 @@ def generate_food_permit(
         "CityState and Zip": city_state_zip or "",
         "Contact Number": phone,
         "Email Address": email,
-        "Check Box2": "/Yes",  # Eating/Drinking — always checked
     }
 
     # Split description across the 3 sampling/selling lines
@@ -62,6 +62,15 @@ def generate_food_permit(
         field_values[f"WHAT WILL YOU BE SAMPLINGSELLING {i}"] = line
 
     writer.update_page_form_field_values(writer.pages[0], field_values)
+
+    # Check the Eating/Drinking checkbox by setting both /V and /AS directly,
+    # since update_page_form_field_values doesn't reliably handle checkboxes.
+    for annot in writer.pages[0]["/Annots"]:
+        obj = annot.get_object()
+        if obj.get("/T") == "Check Box2":
+            obj[NameObject("/V")] = NameObject("/Yes")
+            obj[NameObject("/AS")] = NameObject("/Yes")
+            break
 
     output_path = PERMITS_DIR / f"{registration_id}.pdf"
     with open(output_path, "wb") as f:
