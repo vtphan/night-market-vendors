@@ -8,6 +8,7 @@ resend
 python-multipart
 itsdangerous
 nh3
+pypdf
 authlib
 pytest
 httpx
